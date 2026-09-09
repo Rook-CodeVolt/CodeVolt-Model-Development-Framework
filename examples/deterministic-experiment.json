@@ -1,0 +1,17 @@
+{
+  "$schema": "../schemas/experiment.schema.json",
+  "experiment": {
+    "name": "deterministic-proof",
+    "owner": "CodeVolt",
+    "seed": 42,
+    "budget": {"max_hours": 1, "max_vram_gb": 1}
+  },
+  "model": {"base": "demonstration-only", "revision": "immutable-demo-v1"},
+  "dataset": {"name": "synthetic-demonstration", "sha256": "not-applicable"},
+  "training": {"adapter": "deterministic-demo", "parameters": {}},
+  "evaluation": {
+    "adapter": "deterministic-demo",
+    "acceptance": {"minimum_score": 0.7, "minimum_improvement": 0.05}
+  },
+  "demo_scores": {"baseline": 0.65, "candidate": 0.73}
+}

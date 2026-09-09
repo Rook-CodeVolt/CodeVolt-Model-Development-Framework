@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codevolt.dev/schemas/experiment-v1.json",
+  "title": "CodeVolt Experiment Manifest v1",
+  "type": "object",
+  "required": ["experiment", "model", "dataset", "training", "evaluation"],
+  "properties": {
+    "experiment": {
+      "type": "object",
+      "required": ["name", "owner", "seed", "budget"]
+    },
+    "model": {"type": "object", "required": ["base", "revision"]},
+    "dataset": {"type": "object", "required": ["name", "sha256"]},
+    "training": {"type": "object", "required": ["adapter", "parameters"]},
+    "evaluation": {"type": "object", "required": ["adapter", "acceptance"]}
+  }
+}

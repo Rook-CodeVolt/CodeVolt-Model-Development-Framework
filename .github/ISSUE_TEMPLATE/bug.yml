@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a reproducible framework defect
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe reproduction, with secrets and private data removed.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Actual behaviour and environment
+      description: Include framework, Python, and operating-system versions.
+    validations:
+      required: true

@@ -1,0 +1,23 @@
+name: Capability proposal
+description: Propose a trainer, evaluator, dataset, or learning capability
+title: "[Capability]: "
+labels: ["capability", "proposal"]
+body:
+  - type: textarea
+    attributes:
+      label: Need
+      description: What user or evidence need does this address?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed capability
+      description: Describe the adapter or contract and relevant upstream project.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Evidence plan
+      description: Define baseline, measurements, acceptance criteria, risks, and reproduction.
+    validations:
+      required: true
