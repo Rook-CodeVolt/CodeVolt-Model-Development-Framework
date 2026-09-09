@@ -11,3 +11,4 @@ This project follows [Semantic Versioning](https://semver.org/) and keeps notabl
 - Governance, contribution, security, support, and architectural documentation.
 - Repository-level agent instructions and a structured agent-feedback route.
 - Evaluation, data-governance, experiment, dataset, model-card, and release-readiness templates.
+- Governed research-source admission, dataset-version contracts, and continual-improvement lifecycle.

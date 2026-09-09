@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codevolt.dev/schemas/source-candidate-v1.json",
+  "title": "CodeVolt Research Source Candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id", "url", "retrieved_at", "publisher", "content_sha256",
+    "rights_status", "privacy_review", "intended_use", "relevance", "risks"
+  ],
+  "properties": {
+    "source_id": {"type": "string", "minLength": 1},
+    "url": {"type": "string", "format": "uri"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "publisher": {"type": "string", "minLength": 1},
+    "content_sha256": {"type": "string", "minLength": 1},
+    "rights_status": {"enum": ["approved", "unknown", "restricted", "rejected"]},
+    "privacy_review": {"enum": ["approved", "pending", "rejected"]},
+    "intended_use": {"enum": ["training", "retrieval", "evaluation", "research-only"]},
+    "relevance": {"type": "number", "minimum": 0, "maximum": 1},
+    "risks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}

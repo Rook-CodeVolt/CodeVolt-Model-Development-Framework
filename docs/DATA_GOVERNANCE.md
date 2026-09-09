@@ -2,6 +2,8 @@
 
 Every dataset must have a versioned dataset card identifying origin, ownership or licence, collection method, intended use, prohibited use, transformations, filters, known limitations, privacy review, and content hash.
 
+Internet discovery produces quarantined source candidates by default. The research agent cannot approve its own discoveries for training. Admission requires an explicit intended use and independent rights/privacy review through the source-candidate contract.
+
 ## Non-negotiable rules
 
 - Do not commit personal, customer, confidential, restricted, or unlawfully obtained data.
