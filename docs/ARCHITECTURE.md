@@ -42,3 +42,5 @@ The initial implementation exposes data types for events and proposals. Automati
 - Learning strategies: analysis and proposals, never unreviewed model replacement.
 
 See [ADR-0001](decisions/0001-owned-control-layer.md) for the architectural decision.
+
+The [evaluation policy](EVALUATION_POLICY.md), [data governance policy](DATA_GOVERNANCE.md), and repository templates define what complete evidence and release readiness mean.
