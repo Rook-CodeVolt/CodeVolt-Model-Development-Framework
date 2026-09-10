@@ -5,7 +5,6 @@ The repository uses native GitHub features where they improve trust without addi
 ## Configured in the repository
 
 - **GitHub Actions:** test and lint pull requests and pushes to `main`.
-- **CodeQL:** scans Python code for supported vulnerability classes.
 - **Dependabot:** proposes monthly updates for Actions and Python dependencies.
 - **Issue forms and pull-request template:** request reproducible evidence and provenance.
 - **CODEOWNERS:** makes review ownership explicit.
@@ -26,6 +25,7 @@ GitHub-hosted runners are appropriate for contract tests, linting, and small det
 
 ## Features intentionally deferred
 
+- CodeQL/code scanning is disabled while this repository remains private because no authorized GitHub Code Security or Advanced Security entitlement is available. Ordinary CI does not provide CodeQL or equivalent SAST coverage. Re-enable only after explicit owner authorization and live GitHub API confirmation that code scanning is enabled.
 - GitHub Pages until the documentation outgrows the README and `docs/` directory.
 - Package publication until the Python API is stable enough for downstream users.
 - Self-hosted GPU runners until threat modelling, isolation, concurrency, and spend controls are implemented.
