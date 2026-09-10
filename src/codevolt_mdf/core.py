@@ -29,7 +29,7 @@ class Experiment:
     minimum_improvement: float
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "Experiment":
+    def from_dict(cls, payload: dict[str, Any]) -> Experiment:
         try:
             metadata = payload["experiment"]
             training = payload["training"]

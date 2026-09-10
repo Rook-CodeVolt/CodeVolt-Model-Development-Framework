@@ -45,10 +45,11 @@ schemas/                Versioned machine-readable contracts
 examples/               Reproducible example experiments
 capabilities/           Capability proposals and maturity records
 docs/                   Architecture, roadmap, governance and decisions
+templates/              Experiment, dataset, model and release records
 tests/                  Positive, negative and tamper-oriented tests
 ```
 
-See [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
+See [Architecture](docs/ARCHITECTURE.md), [Continual improvement](docs/CONTINUAL_IMPROVEMENT.md), [Roadmap](docs/ROADMAP.md), [Agent integration](docs/AGENT_INTEGRATION.md), [Agent resumption](docs/AGENT_RESUMPTION_PLAYBOOK.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
 
 ## Make it your own
 
