@@ -34,6 +34,10 @@ observe -> classify -> propose -> approve -> experiment -> evaluate -> retain/re
 
 The initial implementation exposes data types for events and proposals. Automatic retraining and automatic promotion are explicitly out of scope.
 
+## Research and knowledge plane
+
+The research plane continuously discovers potential knowledge while the model-evolution plane changes only through completed gates. `SourceCandidate` records provenance and proposed use; `DatasetVersion` refuses training unless required reviews pass and the version is immutable. See [Continual improvement](CONTINUAL_IMPROVEMENT.md).
+
 ## Extension points
 
 - `TrainerAdapter`: TRL, Unsloth, Axolotl, LLaMA-Factory, MiniMind, or another engine.
@@ -42,3 +46,5 @@ The initial implementation exposes data types for events and proposals. Automati
 - Learning strategies: analysis and proposals, never unreviewed model replacement.
 
 See [ADR-0001](decisions/0001-owned-control-layer.md) for the architectural decision.
+
+The [evaluation policy](EVALUATION_POLICY.md), [data governance policy](DATA_GOVERNANCE.md), and repository templates define what complete evidence and release readiness mean.

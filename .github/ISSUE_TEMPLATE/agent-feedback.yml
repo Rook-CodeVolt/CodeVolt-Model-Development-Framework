@@ -1,0 +1,45 @@
+name: Agent feedback
+description: Report a verified framework finding discovered during agent-assisted work
+title: "[Agent feedback]: "
+labels: ["agent-feedback", "triage"]
+body:
+  - type: dropdown
+    attributes:
+      label: Category
+      options: [Defect, Evidence gap, Safety, Capability, Usability, Improvement, Negative result]
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Severity
+      options: [Low, Medium, High]
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Observation and expected behaviour
+      description: Separate directly observed facts from the relevant contract or desired measurable behaviour.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction and safe evidence
+      description: Include minimal steps and safe run IDs, tests, commits, or evidence paths. Never include secrets or private data.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Hypothesis, acceptance criteria, and next action
+      description: Label hypotheses clearly and define how a future change could be verified.
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Safety checks
+      options:
+        - label: I searched for an existing report where access was available.
+          required: true
+        - label: I removed credentials, personal information, private data, and sensitive model output.
+          required: true
+        - label: This is not a critical security report; critical findings must use private vulnerability reporting.
+          required: true

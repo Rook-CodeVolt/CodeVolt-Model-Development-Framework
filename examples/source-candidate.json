@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/source-candidate.schema.json",
+  "source_id": "source-example-001",
+  "url": "https://example.com/research/example",
+  "retrieved_at": "2026-09-09T17:00:00Z",
+  "publisher": "Example publisher",
+  "content_sha256": "example-content-hash",
+  "rights_status": "unknown",
+  "privacy_review": "pending",
+  "intended_use": "research-only",
+  "relevance": 0.8,
+  "risks": ["rights-unconfirmed"]
+}
