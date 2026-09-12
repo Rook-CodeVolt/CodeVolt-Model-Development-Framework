@@ -11,9 +11,54 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
+_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "experiment.schema.json"
+
 
 class ContractError(ValueError):
     """Raised when an experiment cannot be evaluated safely."""
+
+
+def _load_schema() -> dict[str, Any]:
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError(f"Unable to load experiment schema: {exc}") from exc
+
+
+def _require_object_with_keys(payload: Any, required: list[str], where: str) -> None:
+    """Fail closed: `where` must be a JSON object containing every key in `required`.
+
+    This is a minimal, stdlib-only stand-in for JSON Schema's `type: object` +
+    `required` keywords -- the only shape the current schema actually declares.
+    It deliberately does not implement the full JSON Schema spec (no new
+    dependency is added; see docs/ARCHITECTURE.md's dependency-light policy).
+    """
+    if not isinstance(payload, dict):
+        raise ContractError(f"'{where}' must be an object")
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise ContractError(f"'{where}' is missing required field(s): {', '.join(missing)}")
+
+
+def validate_manifest_schema(payload: Any, schema: dict[str, Any] | None = None) -> None:
+    """Validate `payload` against schemas/experiment.schema.json (fail closed).
+
+    Enforces exactly the shape the schema declares: top-level required keys,
+    and for each top-level object property, its own required sub-keys. This
+    covers the manifests this framework accepts today; it is not a general
+    JSON Schema engine.
+    """
+    schema = schema if schema is not None else _load_schema()
+    top_required = schema.get("required", [])
+    _require_object_with_keys(payload, top_required, "manifest")
+
+    properties = schema.get("properties", {})
+    for key, subschema in properties.items():
+        if key not in payload:
+            continue  # already reported above if it was required
+        sub_required = subschema.get("required")
+        if sub_required:
+            _require_object_with_keys(payload[key], sub_required, key)
 
 
 @dataclass(frozen=True)
@@ -30,6 +75,7 @@ class Experiment:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Experiment:
+        validate_manifest_schema(payload)
         try:
             metadata = payload["experiment"]
             training = payload["training"]
