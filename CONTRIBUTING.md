@@ -9,6 +9,8 @@ Thank you for helping build trustworthy model-development infrastructure.
 - Improve contracts, documentation, privacy, safety, portability, or accessibility.
 - Report failed approaches and negative results.
 
+See [`docs/FEEDBACK.md`](docs/FEEDBACK.md) for how to choose between an issue form, Discussions, and private vulnerability reporting, and how a filed report is triaged and closed.
+
 ## Workflow
 
 1. Open an issue for substantial features or contract changes.

@@ -52,6 +52,8 @@ privacy_review: "Confirmed no sensitive material is included"
 
 Critical security findings must not be filed publicly. Follow `SECURITY.md` and notify the user that a private report is required.
 
+See `docs/FEEDBACK.md` for the full channel-selection, deduplication, triage-status, and closure-loop reference that this loop feeds into.
+
 ## Contribution quality
 
 For code changes, run the relevant tests and lint checks. New adapters require provenance, compatibility bounds, failure behaviour, documentation, tests, and reproducible evidence. Never describe a candidate as improved solely because training completed.
