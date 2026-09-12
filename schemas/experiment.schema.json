@@ -3,7 +3,7 @@
   "$id": "https://codevolt.dev/schemas/experiment-v1.json",
   "title": "CodeVolt Experiment Manifest v1",
   "type": "object",
-  "required": ["experiment", "model", "dataset", "training", "evaluation"],
+  "required": ["experiment", "model", "dataset", "training", "evaluation", "demo_scores"],
   "properties": {
     "experiment": {
       "type": "object",
@@ -12,6 +12,11 @@
     "model": {"type": "object", "required": ["base", "revision"]},
     "dataset": {"type": "object", "required": ["name", "sha256"]},
     "training": {"type": "object", "required": ["adapter", "parameters"]},
-    "evaluation": {"type": "object", "required": ["adapter", "acceptance"]}
+    "evaluation": {"type": "object", "required": ["adapter", "acceptance"]},
+    "demo_scores": {
+      "type": "object",
+      "required": ["baseline", "candidate"],
+      "description": "v0.1 deterministic-demo evidence; runtime rejects manifests missing this section."
+    }
   }
 }
