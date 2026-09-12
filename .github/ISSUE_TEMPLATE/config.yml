@@ -3,3 +3,6 @@ contact_links:
   - name: Security report
     url: https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/security/advisories/new
     about: Report vulnerabilities and sensitive security concerns privately.
+  - name: Questions and discussions
+    url: https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/discussions
+    about: Ask questions, discuss design, or share experiments that are not a tracked action item. See docs/FEEDBACK.md for channel selection.

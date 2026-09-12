@@ -6,7 +6,7 @@ The repository uses native GitHub features where they improve trust without addi
 
 - **GitHub Actions:** test and lint pull requests and pushes to `main`.
 - **Dependabot:** proposes monthly updates for Actions and Python dependencies.
-- **Issue forms and pull-request template:** request reproducible evidence and provenance.
+- **Issue forms and pull-request template:** request reproducible evidence and provenance. See [`docs/FEEDBACK.md`](FEEDBACK.md) for the full submission and triage lifecycle.
 - **CODEOWNERS:** makes review ownership explicit.
 - **Citation metadata:** helps researchers and downstream projects cite releases.
 
