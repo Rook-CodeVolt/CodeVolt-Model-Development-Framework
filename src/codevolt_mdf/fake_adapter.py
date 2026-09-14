@@ -162,8 +162,16 @@ def _scenario_cancel(adapter, inputs, budget, cancel_token, resume_from):
 
 def _scenario_resource_overrun(adapter, inputs, budget, cancel_token, resume_from):
     locator, digest = adapter._write_evidence(inputs, step=1)
-    # Deterministically report usage that exceeds every declared budget
-    # dimension so the contract runner's post-hoc check is exercised.
+    # As of v1.1, wall/CPU/memory in this self-report are discarded by the
+    # contract runner and replaced with OS-measured figures (see
+    # docs/decisions/0003-trainer-contract-os-level-enforcement.md), so a
+    # self-reported wall/CPU/memory lie no longer fools the budget check --
+    # this scenario does negligible real work, so the OS-measured wall/CPU/
+    # memory legitimately stay under budget despite the fake numbers below.
+    # gpu_count_used and storage_mb_used remain adapter self-reported even
+    # under v1.1 (see process_isolation's module docstring, "What this
+    # does NOT enforce"), so this scenario still exercises a genuine
+    # post-hoc multi-dimension violation via those two dimensions.
     usage = ResourceUsage(
         wall_seconds=budget.max_wall_seconds * 100,
         cpu_seconds=budget.max_cpu_seconds * 100,
