@@ -8,12 +8,14 @@ the informal two-method ``TrainerAdapter``/``EvaluatorAdapter`` Protocol in
 Design constraints (see docs/TRAINER_ADAPTER_CONTRACT.md for the full
 rationale):
 
-- Dependency-light: standard library only. Timeout/cancellation is
-  therefore *cooperative* -- Python cannot force-kill a thread, so the
-  contract runner enforces a wall-clock deadline and signals a
-  ``CancellationToken``; a conforming adapter MUST check the token
-  frequently and return promptly. This limitation is documented, not
-  hidden: see ``docs/TRAINER_ADAPTER_CONTRACT.md`` ("Timeout semantics").
+- Dependency-light: standard library only (``multiprocessing``,
+  ``resource``, ``subprocess`` -- all stdlib). As of v1.1, the contract
+  runner executes ``adapter.train(...)`` in a real child OS process
+  (see ``codevolt_mdf.process_isolation``), so timeout/cancellation is
+  enforced with ``SIGKILL`` rather than a cooperative-only request, and
+  resource usage is measured from the OS, not self-reported by the
+  adapter. See ``docs/TRAINER_ADAPTER_CONTRACT.md`` ("OS-level
+  enforcement") for exactly what is and is not covered.
 - The contract governs a *trainer*. It never evaluates, scores, or
   promotes its own output (see ``docs/ARCHITECTURE.md`` core contract #2).
 - Nothing in this module trains a real model or grants training,
@@ -25,20 +27,24 @@ from __future__ import annotations
 
 import hashlib
 import threading
-import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 """Semantic version of TrainerAdapterContract. Bump on any breaking change
 to the shapes or semantics below; keep old versions documented so contract
-changes stay diffable (see docs/decisions/0002-trainer-adapter-contract-v1.md).
+changes stay diffable (see docs/decisions/0002-trainer-adapter-contract-v1.md
+and docs/decisions/0003-trainer-contract-os-level-enforcement.md).
 """
 
-SUPPORTED_CONTRACT_VERSIONS: tuple[str, ...] = (CONTRACT_VERSION,)
+SUPPORTED_CONTRACT_VERSIONS: tuple[str, ...] = ("1.0.0", CONTRACT_VERSION)
+"""v1.1 only changes runner enforcement (real process isolation), not the
+``TrainerAdapterV1`` Protocol's method shapes, so an adapter written
+against 1.0.0 remains admissible unchanged; it now simply runs inside a
+real child process instead of a cooperative thread."""
 
 
 # --------------------------------------------------------------------------
@@ -309,12 +315,15 @@ class TrainingOutput:
 class CancellationToken:
     """Cooperative cancellation signal, stdlib-only (``threading.Event``).
 
-    Python threads cannot be force-killed without extra-stdlib tooling, so
-    this contract requires *cooperative* cancellation: a conforming adapter
-    must poll ``is_cancelled()`` or ``wait(interval)`` frequently inside any
-    loop and return an ``INTERRUPTED`` ``TrainingOutput`` promptly once set.
-    This is a documented limitation, not a hidden gap -- see
-    docs/TRAINER_ADAPTER_CONTRACT.md, "Timeout semantics".
+    Adapters are still written against this simple API for portability
+    and to keep ``TrainerAdapterV1`` unchanged. As of v1.1 the contract
+    runner additionally enforces cancellation at the OS-process level:
+    if the adapter does not honour this token within
+    ``process_isolation.DEFAULT_KILL_GRACE_SECONDS`` of it being set, the
+    runner escalates to ``SIGKILL`` on the child process. Cooperative
+    checking (``is_cancelled()``/``wait(interval)``) is still the polite,
+    low-latency path; it is no longer the *only* backstop. See
+    docs/TRAINER_ADAPTER_CONTRACT.md, "OS-level enforcement".
     """
 
     def __init__(self) -> None:
@@ -393,11 +402,13 @@ def run_trainer_contract(
 ) -> TrainingOutput:
     """Execute one trainer-adapter run inside the contract boundary.
 
-    Enforces: contract-version compatibility, input validation, the
-    wall-clock timeout (cooperative cancellation), post-hoc resource-budget
-    checks against reported usage, and evidence-hash verification (tamper
-    detection). Always calls ``adapter.cleanup`` when the run does not end
-    ``ACCEPTED``.
+    Enforces: contract-version compatibility, input validation, a
+    process-level wall-clock timeout and cancellation (the adapter runs
+    in a real child OS process that is SIGKILLed on timeout, overrun, or
+    cancellation -- see ``codevolt_mdf.process_isolation``), OS-measured
+    resource-budget checks (not adapter self-reports), and evidence-hash
+    verification (tamper detection). Always calls ``adapter.cleanup``
+    when the run does not end ``ACCEPTED``.
     """
     if adapter.contract_version not in SUPPORTED_CONTRACT_VERSIONS:
         raise RejectedInputError(
@@ -426,34 +437,45 @@ def run_trainer_contract(
         return TrainingOutput(status=TrainingStatus.INVALID, reason=str(exc), error_class=type(exc).__name__)
 
     token = cancel_token or CancellationToken()
-    result: dict[str, TrainingOutput] = {}
-    error: dict[str, BaseException] = {}
 
-    def _target() -> None:
-        try:
-            result["output"] = adapter.train(inputs, budget, token, resume_from)
-        except BaseException as exc:  # noqa: BLE001 - surfaced to caller below
-            error["exc"] = exc
+    # Imported lazily to keep trainer_contract.py importable even in
+    # environments where multiprocessing's spawn method is restricted
+    # (e.g. certain sandboxes); process_isolation is stdlib-only so this
+    # is purely to avoid a hard import-time dependency cycle risk.
+    from .process_isolation import run_in_isolated_process
 
-    thread = threading.Thread(target=_target, daemon=True)
-    start = time.monotonic()
-    thread.start()
-    thread.join(timeout=budget.max_wall_seconds)
+    output_payload, exc_payload, measured = run_in_isolated_process(
+        adapter, inputs, budget, resume_from, token
+    )
 
-    if thread.is_alive():
-        token.cancel(reason="timeout")
-        thread.join(timeout=budget.max_wall_seconds)
+    if measured.killed_for_timeout:
         adapter.cleanup(inputs.run_id)  # timed out with no checkpoint recorded: nothing to resume
-        elapsed = round(time.monotonic() - start, 6)
         return TrainingOutput(
             status=TrainingStatus.INTERRUPTED,
-            reason=f"training exceeded max_wall_seconds={budget.max_wall_seconds} (elapsed={elapsed}s)",
+            reason=(
+                f"training exceeded max_wall_seconds={budget.max_wall_seconds} "
+                f"(elapsed={measured.wall_seconds}s); adapter process was SIGKILLed"
+            ),
             error_class=TrainerTimeoutError.__name__,
+            resource_usage=_measured_usage_as_resource_usage(measured),
         )
 
-    if "exc" in error:
+    if measured.killed_for_overrun:
         adapter.cleanup(inputs.run_id)
-        exc = error["exc"]
+        return TrainingOutput(
+            status=TrainingStatus.INTERRUPTED,
+            reason=(
+                "live-measured resource usage exceeded budget while running; "
+                "adapter process was SIGKILLed "
+                f"(cpu_seconds={measured.cpu_seconds}, memory_mb_peak={measured.memory_mb_peak})"
+            ),
+            error_class=ResourceBudgetExceededError.__name__,
+            resource_usage=_measured_usage_as_resource_usage(measured),
+        )
+
+    if exc_payload is not None:
+        adapter.cleanup(inputs.run_id)
+        exc = exc_payload
         if isinstance(exc, RejectedInputError):
             return TrainingOutput(status=TrainingStatus.REJECTED, reason=str(exc), error_class=type(exc).__name__)
         if isinstance(exc, InvalidInputError):
@@ -464,7 +486,32 @@ def run_trainer_contract(
             error_class=type(exc).__name__,
         )
 
-    output = result["output"]
+    output = output_payload
+    if output is None:
+        adapter.cleanup(inputs.run_id)
+        return TrainingOutput(
+            status=TrainingStatus.INTERRUPTED,
+            reason="adapter process exited without reporting a result",
+            error_class=TrainerTimeoutError.__name__,
+        )
+
+    # v1.1: overwrite wall/cpu/memory with OS-measured figures, discarding
+    # the adapter's self-report for those three dimensions. gpu_count_used
+    # and network_calls remain adapter-reported -- see process_isolation's
+    # module docstring ("What this does NOT enforce").
+    if output.resource_usage is not None:
+        measured_usage = replace(
+            output.resource_usage,
+            wall_seconds=measured.wall_seconds,
+            cpu_seconds=measured.cpu_seconds,
+            memory_mb_peak=measured.memory_mb_peak,
+            storage_mb_used=(
+                measured.storage_mb_used
+                if measured.storage_mb_used is not None
+                else output.resource_usage.storage_mb_used
+            ),
+        )
+        output = replace(output, resource_usage=measured_usage)
 
     if output.status == TrainingStatus.ACCEPTED and output.resource_usage is not None:
         violations = output.resource_usage.exceeds(budget)
@@ -498,6 +545,18 @@ def run_trainer_contract(
         adapter.cleanup(inputs.run_id)
 
     return output
+
+
+def _measured_usage_as_resource_usage(measured: Any) -> ResourceUsage:
+    """Build a ``ResourceUsage`` purely from OS measurement (no adapter self-report)."""
+    return ResourceUsage(
+        wall_seconds=measured.wall_seconds,
+        cpu_seconds=measured.cpu_seconds,
+        memory_mb_peak=measured.memory_mb_peak,
+        gpu_count_used=0,
+        storage_mb_used=measured.storage_mb_used or 0.0,
+    )
+
 
 
 def _hash_evidence(locator: str) -> str:
