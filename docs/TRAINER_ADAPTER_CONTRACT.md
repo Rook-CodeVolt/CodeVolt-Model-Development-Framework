@@ -5,9 +5,17 @@ integrated by this document or its code. See "Real bounded pilot plan"
 below for the one documented (not executed) real-integration path.
 
 Module: `src/codevolt_mdf/trainer_contract.py`
-Version constant: `codevolt_mdf.trainer_contract.CONTRACT_VERSION = "1.0.0"`
+Version constant: `codevolt_mdf.trainer_contract.CONTRACT_VERSION = "1.1.0"`
+(`SUPPORTED_CONTRACT_VERSIONS` still accepts `"1.0.0"` adapters
+unchanged — see "OS-level enforcement (v1.1)" below for what changed
+and why.)
 Reference (fake) implementation: `src/codevolt_mdf/fake_adapter.py`
-Conformance tests: `tests/test_trainer_contract.py`
+Process isolation: `src/codevolt_mdf/process_isolation.py`
+Conformance tests: `tests/test_trainer_contract.py` (10 cases: the 8
+original v1.0 scenarios plus 2 new v1.1 OS-enforcement cases exercised
+against deliberately-misbehaving test-only adapters in
+`src/codevolt_mdf/testing_adapters.py`)
+Design record: `docs/decisions/0003-trainer-contract-os-level-enforcement.md`
 
 This document describes the boundary a trainer adapter must cross to be
 admitted into CodeVolt MDF, replacing informal expectations with an
@@ -97,41 +105,51 @@ to a status, and cleanup is invoked; an unrecognised exception maps to
 `ResourceBudget` is declared before a run starts and validates itself
 (positive limits, offline network policy requires no allow-list host,
 allow-list network policy requires at least one). `ResourceUsage` is
-measured/reported by the adapter after the run and checked by the
-contract runner (`ResourceUsage.exceeds(budget)`) against every dimension:
-wall time, CPU time, peak memory, GPU count, storage. A violation on an
-otherwise-successful run downgrades it to `interrupted` with the specific
-violated dimensions named in `reason`, and triggers cleanup. This check is
-post-hoc (the fake adapter self-reports usage) because the contract is
-stdlib-only; a real integration is expected to source `ResourceUsage` from
-actual OS/process measurements, not adapter self-assessment claims alone
-(see Threat model note below).
+checked by the contract runner (`ResourceUsage.exceeds(budget)`) against
+every dimension: wall time, CPU time, peak memory, GPU count, storage. A
+violation on an otherwise-successful run downgrades it to `interrupted`
+with the specific violated dimensions named in `reason`, and triggers
+cleanup.
+
+**As of v1.1, wall time, CPU time, and peak memory are no longer taken
+from the adapter's self-report.** `run_trainer_contract` now runs
+`train()` inside a real child OS process (see "OS-level enforcement
+(v1.1)" below) and overrides those three fields with what the operating
+system actually measured for that process, before the budget check
+runs. An adapter that under-reports its own resource consumption — by
+mistake or by design — can no longer evade the budget check on those
+three dimensions, because its self-report for them is discarded, not
+merely cross-checked. GPU count and storage remain adapter self-reported
+(there is no portable stdlib way to measure GPU usage, and storage is
+computed from the declared `filesystem_root` directory size — see
+below).
 
 ## Timeout, cancellation, safe-halt, checkpoint/resume semantics
 
-**Timeout semantics (documented limitation).** This contract is
-dependency-light by design (`docs/ARCHITECTURE.md`, `CONTRIBUTING.md`) and
-implements timeout/cancellation with stdlib only
-(`threading` + `threading.Event`). Python cannot force-terminate a thread.
-The contract runner therefore:
+**Timeout and cancellation are now enforced at the OS process level
+(v1.1)**, not merely by a cooperative in-process signal. See "OS-level
+enforcement (v1.1)" below for the full mechanism and its honest limits.
+The adapter-facing API is unchanged:
 
-1. Runs `adapter.train(...)` in a daemon thread and joins it with a
-   `budget.max_wall_seconds` timeout.
-2. If the thread is still alive at the deadline, it signals the
-   `CancellationToken` and gives the adapter one more `max_wall_seconds`
-   window to notice and return, then reports `interrupted` regardless of
-   whether the thread has actually exited. Because the thread is a daemon
-   thread, it will not block process exit, but a non-conforming adapter
-   that ignores cancellation can continue running in the background after
-   the contract has already reported `interrupted`.
-3. **A conforming adapter MUST poll `cancel_token.is_cancelled()` or use
-   `cancel_token.wait(interval)` frequently** (the fake adapter polls
-   every 10ms) so real cancellation is prompt. This is an adapter
-   obligation the contract cannot mechanically force with stdlib alone; it
-   is verified by the timeout and cancellation conformance tests, and any
-   real integration's security review (issue #7 evidence-plan step 5)
-   must independently verify this property under process/OS-level
-   isolation rather than trusting the thread alone.
+1. `run_trainer_contract` runs `adapter.train(...)` inside a spawned
+   child process (not a thread in the parent) and waits for it to
+   finish, subject to `budget.max_wall_seconds`.
+2. If the deadline is reached, or a caller triggers cooperative
+   cancellation, the parent signals the child's `CancellationToken` and
+   gives it a short, bounded grace period (`DEFAULT_KILL_GRACE_SECONDS`)
+   to notice and return on its own.
+3. If the child has not exited by the end of that grace period, the
+   parent sends it `SIGKILL` directly. This is real, unconditional
+   process termination — unlike the pre-1.1 thread-based approach, a
+   non-conforming adapter cannot keep running in the background after
+   the contract has reported `interrupted`, because the process it was
+   running in no longer exists.
+4. A conforming adapter should still poll `cancel_token.is_cancelled()`
+   or use `cancel_token.wait(interval)` frequently, so that a
+   cooperative, clean stop (with a checkpoint, see below) is preferred
+   over an abrupt kill whenever possible. The grace period exists
+   precisely to give a well-behaved adapter that chance before the
+   parent escalates.
 
 **Cancellation** is the same mechanism, triggered by a caller (e.g. a
 human-in-the-loop stop command) rather than the wall-clock deadline;
@@ -146,7 +164,96 @@ when `output.checkpoint is not None`. A later call passes that same
 `CheckpointHandle` as `resume_from`; a conforming adapter must
 independently re-verify `state_hash` against the file it reads (the fake
 adapter does this and raises `InvalidInputError` on mismatch — see the
-tamper-on-resume test) rather than trusting the handle blindly.
+tamper-on-resume test) rather than trusting the handle blindly. A run
+that is `SIGKILL`ed for exceeding `max_wall_seconds` or a live resource
+budget did not get the chance to checkpoint; it is reported `interrupted`
+with no checkpoint, and cleanup runs as normal.
+
+## OS-level enforcement (v1.1)
+
+Module: `src/codevolt_mdf/process_isolation.py`. Full rationale in
+`docs/decisions/0003-trainer-contract-os-level-enforcement.md`.
+
+An independent review of the v1.0 contract (issue #7, PR #9) identified
+three preconditions that had to be closed before any real training
+engine could be trusted to run under this contract: self-reported
+resource usage, cooperative-only cancellation, and unenforced
+filesystem/network boundaries. v1.1 closes them to the extent a
+stdlib-only, no-elevated-privileges implementation can, by running
+`train()` in a real child OS process instead of an in-process thread.
+Being a separate process (not a thread) is what makes each of the
+following possible, because the parent can now measure and terminate it
+from outside using kernel-level facilities:
+
+**Enforced:**
+
+- **Process-level cancellation** — real `SIGKILL`, not a cooperative
+  request (see previous section).
+- **Process-GROUP-level cancellation** — the child calls `os.setsid()`
+  on startup, becoming the leader of a new OS process group; the parent
+  kills that whole group with `os.killpg(..., SIGKILL)` (`_kill_group`
+  in `process_isolation.py`), not just the direct child pid. Any
+  subprocess the adapter itself spawns (e.g. via `subprocess.Popen`)
+  inherits the group and is terminated along with it, closing what was
+  previously an orphaned-grandchild-process leak. **Residual gap:** a
+  grandchild that itself calls `os.setsid()` (or otherwise detaches into
+  its own session) leaves the group and would survive the group kill —
+  this is a real, known limitation of process-group-based termination
+  in general, not specific to this implementation, and is not currently
+  detected or blocked.
+- **Sanitised inter-process communication (IPC).** The child process
+  runs untrusted adapter code, so nothing it returns is pickled and
+  unpickled as-is across the `multiprocessing.Queue` back to the
+  parent. Exceptions are reduced to plain strings (type name, message,
+  traceback text) and rebuilt as a safe `ChildProcessError` in the
+  parent; `TrainingOutput` and its nested dataclasses/enum are
+  recursively rebuilt from only JSON-safe leaf types and an explicit
+  allow-list, checked by exact `type()` rather than `isinstance` so a
+  subclass cannot sneak a malicious object through. This closes a real
+  pickle-deserialization vulnerability found during an independent
+  security review: a crafted exception with a hand-written `__reduce__`
+  raised by the child would, pre-fix, execute arbitrary code (proven
+  with `os.system(...)`) in the trusted parent process the instant
+  `Queue.get()` unpickled it. A legitimate adapter exception's type name
+  and message still cross the boundary intact — only the raw object
+  identity/behaviour is stripped.
+- **OS-measured resource usage** — wall/CPU/peak-memory come from `ps`
+  polling while the child runs plus `resource.getrusage(RUSAGE_CHILDREN)`
+  after it exits, and these override the adapter's self-report (see
+  "Resource budget enforcement" above).
+- **Environment stripping** — the child's environment variables are
+  replaced with a small allow-list (`PATH`, `PYTHONPATH`, `HOME`,
+  `LANG`, `LC_ALL`, `TMPDIR`) before `train()` runs, so ambient
+  secrets/credentials in the parent's environment are not implicitly
+  exposed to the adapter.
+
+**Best-effort only, NOT a real OS sandbox — documented, not hidden:**
+
+- **Filesystem containment is Python-interpreter-level only.** When
+  `budget.filesystem_root` is set, the child wraps `builtins.open` and
+  `os.open` to reject paths outside that root. This does not stop the
+  adapter from shelling out to a subprocess, from a compiled C
+  extension, or from any code path that touches the filesystem without
+  going through Python's own `open`/`os.open`.
+- **Network containment is Python-interpreter-level only.** The child
+  wraps Python's `socket` module (`connect`, `create_connection`,
+  `getaddrinfo`) to enforce `network_policy`. This does not stop the
+  adapter from shelling out to `curl`/`wget`, from a compiled extension
+  opening raw sockets, or from DNS resolution outside Python's
+  resolver.
+- **GPU usage is not measured at all** and remains fully adapter
+  self-reported; there is no portable stdlib way to measure GPU
+  utilisation.
+- **`prepare()` still runs unisolated, in the parent process.** Only
+  the `train()` call is sandboxed. A malicious adapter could still act
+  during import or during `prepare()`, before any isolation applies.
+
+None of this is a substitute for genuine OS-level sandboxing
+(containers, gVisor, seccomp, network namespaces), which needs elevated
+privileges or platform-specific tooling this project does not assume
+are present. That gap is exactly what Maya's independent security
+review (issue #7 step 5) is expected to close or explicitly accept
+before any real training engine is admitted to run under this contract.
 
 ## Offline/network policy and filesystem boundaries
 
@@ -159,10 +266,12 @@ read/write under. The fake adapter only ever writes under its own
 (`RejectedInputError`) — this is deliberately stricter than the contract
 requires, modelling the safest-by-default posture `docs/THREAT_MODEL.md`
 and `CONTRIBUTING.md` ask for ("avoid network access by default").
-Enforcing `filesystem_root` and `allowed_hosts` at the OS/sandbox level
-(not just as declared fields) is real-engine-integration and
-security-review work, explicitly out of scope here (see "Real bounded
-pilot plan").
+As of v1.1, `filesystem_root` and `network_policy` are enforced at
+Python-interpreter scope inside the child process (see "OS-level
+enforcement (v1.1)" above) — this is real enforcement, but is explicitly
+not equivalent to OS-level sandboxing (chroot/namespaces/seccomp), which
+remains real-engine-integration and security-review work, out of scope
+here (see "Real bounded pilot plan").
 
 ## Dependency / upstream-version compatibility bounds
 
@@ -247,7 +356,8 @@ this repository as a result of this document.
 
 - **Scope**: exactly one real engine adapter (e.g. TRL or Unsloth — the
   specific engine choice is a separate follow-up ADR, not decided here),
-  implementing `TrainerAdapterV1` against `CONTRACT_VERSION = "1.0.0"`.
+  implementing `TrainerAdapterV1` against `CONTRACT_VERSION = "1.1.0"`
+  (or later; `SUPPORTED_CONTRACT_VERSIONS` is checked at run time).
 - **Data**: synthetic or explicitly admitted data only, per
   `docs/DATA_GOVERNANCE.md`. No production or customer data under any
   circumstance.
@@ -256,9 +366,10 @@ this repository as a result of this document.
 - **Concurrency**: exactly one concurrent run. No parallel pilot runs.
 - **Resource limits**: explicit CPU, GPU, wall-clock, and storage limits
   declared as a `ResourceBudget` and enforced through
-  `run_trainer_contract`, with real (not self-reported) OS/process-level
-  resource measurement replacing the fake adapter's self-reported
-  `ResourceUsage` — this measurement upgrade is itself pilot-scoped work.
+  `run_trainer_contract`. Wall/CPU/memory measurement is now real
+  OS/process-level measurement (v1.1, see "OS-level enforcement" above)
+  rather than self-reported; GPU measurement remains self-reported and
+  is separate follow-up work for a real engine on GPU hardware.
 - **Network/filesystem**: offline by default; any allow-list is the
   smallest set of hosts the real engine's pinned dependency resolution
   strictly requires, reviewed before the pilot runs.
