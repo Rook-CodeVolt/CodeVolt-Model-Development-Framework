@@ -189,6 +189,34 @@ from outside using kernel-level facilities:
 
 - **Process-level cancellation** — real `SIGKILL`, not a cooperative
   request (see previous section).
+- **Process-GROUP-level cancellation** — the child calls `os.setsid()`
+  on startup, becoming the leader of a new OS process group; the parent
+  kills that whole group with `os.killpg(..., SIGKILL)` (`_kill_group`
+  in `process_isolation.py`), not just the direct child pid. Any
+  subprocess the adapter itself spawns (e.g. via `subprocess.Popen`)
+  inherits the group and is terminated along with it, closing what was
+  previously an orphaned-grandchild-process leak. **Residual gap:** a
+  grandchild that itself calls `os.setsid()` (or otherwise detaches into
+  its own session) leaves the group and would survive the group kill —
+  this is a real, known limitation of process-group-based termination
+  in general, not specific to this implementation, and is not currently
+  detected or blocked.
+- **Sanitised inter-process communication (IPC).** The child process
+  runs untrusted adapter code, so nothing it returns is pickled and
+  unpickled as-is across the `multiprocessing.Queue` back to the
+  parent. Exceptions are reduced to plain strings (type name, message,
+  traceback text) and rebuilt as a safe `ChildProcessError` in the
+  parent; `TrainingOutput` and its nested dataclasses/enum are
+  recursively rebuilt from only JSON-safe leaf types and an explicit
+  allow-list, checked by exact `type()` rather than `isinstance` so a
+  subclass cannot sneak a malicious object through. This closes a real
+  pickle-deserialization vulnerability found during an independent
+  security review: a crafted exception with a hand-written `__reduce__`
+  raised by the child would, pre-fix, execute arbitrary code (proven
+  with `os.system(...)`) in the trusted parent process the instant
+  `Queue.get()` unpickled it. A legitimate adapter exception's type name
+  and message still cross the boundary intact — only the raw object
+  identity/behaviour is stripped.
 - **OS-measured resource usage** — wall/CPU/peak-memory come from `ps`
   polling while the child runs plus `resource.getrusage(RUSAGE_CHILDREN)`
   after it exits, and these override the adapter's self-report (see

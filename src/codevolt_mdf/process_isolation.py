@@ -92,10 +92,12 @@ import multiprocessing
 import os
 import re
 import resource
+import signal
 import socket
 import subprocess
 import time
-from dataclasses import dataclass
+import traceback
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +132,156 @@ class MeasuredUsage:
 
 class SandboxViolationError(PermissionError):
     """Raised inside the child process when code crosses a declared boundary."""
+
+
+class ChildProcessError(RuntimeError):
+    """Safe, parent-reconstructed stand-in for an exception raised in the child.
+
+    The child process is untrusted (it runs arbitrary adapter code), so its
+    raw exception object is never pickled across the ``multiprocessing.Queue``
+    boundary -- an exception class with a hand-written ``__reduce__``/
+    ``__reduce_ex__`` could otherwise make unpickling in the (trusted) parent
+    execute arbitrary code. See module docstring, "What this does NOT
+    enforce" / IPC payload sanitisation, and
+    ``docs/decisions/0003-trainer-contract-os-level-enforcement.md``.
+
+    Only plain strings cross the boundary (exception type name, ``str()`` of
+    the exception, and formatted traceback text); this object is
+    reconstructed fresh in the parent from those strings.
+    """
+
+    def __init__(self, original_type_name: str, message: str, traceback_text: str) -> None:
+        super().__init__(message)
+        self.original_type_name = original_type_name
+        self.traceback_text = traceback_text
+
+
+# --------------------------------------------------------------------------
+# IPC payload sanitisation
+#
+# The child process runs untrusted adapter code. Anything that crosses the
+# ``multiprocessing.Queue`` boundary back to the parent is pickled by the
+# child and unpickled by the parent; unpickling an object whose class
+# defines ``__reduce__``/``__reduce_ex__`` can execute arbitrary code
+# *in the parent's trusted context* the moment ``Queue.get`` deserialises
+# it (a `PoC <../../tests/test_process_isolation_ipc_security.py>`_ in this
+# repository's own test suite proves this concretely against an
+# unrestricted queue). To close that hole, nothing adapter-controlled is
+# ever pickled directly:
+#
+# - Exceptions are converted to three plain ``str`` values (type name,
+#   message, traceback text) before being queued, and reconstructed as a
+#   ``ChildProcessError`` (or a known, argument-free contract error class)
+#   in the parent -- never by unpickling the original object.
+# - ``TrainingOutput`` (and its nested ``ResourceUsage``/``CheckpointHandle``/
+#   ``TrainingStatus``) are recursively re-validated and rebuilt from
+#   scratch in the child using only JSON-safe leaf types (``None``, ``bool``,
+#   ``int``, ``float``, ``str``, ``bytes``) plus the explicit allow-listed
+#   dataclasses/enum, checked by *exact* ``type()`` (not ``isinstance``) so
+#   a subclass cannot sneak a malicious ``__reduce__`` through disguised as
+#   an allowed type. Anything else raises ``TypeError`` inside the child and
+#   is reported back as a safe error instead of ever being queued.
+# --------------------------------------------------------------------------
+
+_JSON_SAFE_LEAF_TYPES = (type(None), bool, int, float, str, bytes)
+
+
+def _sanitize_ipc_value(value: Any, *, allowed_dataclasses: tuple[type, ...], allowed_enums: tuple[type, ...]) -> Any:
+    """Recursively validate/rebuild ``value`` from only safe types, or raise.
+
+    Uses exact ``type(value) is X`` checks (not ``isinstance``) throughout:
+    a subclass overriding ``__reduce__``/``__reduce_ex__`` must not be able
+    to pass this check just because it *is a* ``str``/allowed dataclass.
+    """
+    t = type(value)
+    if t in _JSON_SAFE_LEAF_TYPES:
+        return value
+    if t is list or t is tuple:
+        rebuilt = [
+            _sanitize_ipc_value(item, allowed_dataclasses=allowed_dataclasses, allowed_enums=allowed_enums)
+            for item in value
+        ]
+        return rebuilt if t is list else tuple(rebuilt)
+    if t is dict:
+        return {
+            _sanitize_ipc_value(k, allowed_dataclasses=allowed_dataclasses, allowed_enums=allowed_enums): (
+                _sanitize_ipc_value(v, allowed_dataclasses=allowed_dataclasses, allowed_enums=allowed_enums)
+            )
+            for k, v in value.items()
+        }
+    if t in allowed_enums:
+        return t(value.value)
+    if t in allowed_dataclasses and is_dataclass(t):
+        kwargs = {
+            f.name: _sanitize_ipc_value(
+                getattr(value, f.name), allowed_dataclasses=allowed_dataclasses, allowed_enums=allowed_enums
+            )
+            for f in fields(t)
+        }
+        return t(**kwargs)
+    raise TypeError(
+        f"value of type {t.__module__}.{t.__qualname__} is not permitted to cross the "
+        "process-isolation IPC boundary (only JSON-safe leaf types and explicitly "
+        "allow-listed TrainingOutput/ResourceUsage/CheckpointHandle/TrainingStatus values "
+        "are); rejecting to avoid pickling an adapter-controlled object in the parent process"
+    )
+
+
+def _sanitize_training_output(output: Any) -> Any:
+    """Validate and rebuild an adapter's ``TrainingOutput`` for safe IPC.
+
+    Imported lazily to avoid a hard import-time dependency cycle with
+    ``trainer_contract`` (same reasoning as the lazy import in
+    ``_child_worker``/``run_trainer_contract``).
+    """
+    from .trainer_contract import CheckpointHandle, ResourceUsage, TrainingOutput, TrainingStatus
+
+    if type(output) is not TrainingOutput:
+        raise TypeError(
+            f"adapter.train() must return a TrainingOutput, got {type(output).__module__}."
+            f"{type(output).__qualname__}"
+        )
+    return _sanitize_ipc_value(
+        output,
+        allowed_dataclasses=(TrainingOutput, CheckpointHandle, ResourceUsage),
+        allowed_enums=(TrainingStatus,),
+    )
+
+
+def _safe_exception_tuple(exc: BaseException) -> tuple[str, str, str]:
+    """Reduce an (untrusted, child-raised) exception to three plain strings.
+
+    ``str(exc)`` and ``type(exc).__name__`` are guaranteed by the language
+    to yield real ``str`` instances (CPython raises ``TypeError`` if
+    ``__str__`` returns anything else), so this never accidentally smuggles
+    an attacker-controlled object across the boundary.
+    """
+    return (type(exc).__name__, str(exc), traceback.format_exc())
+
+
+_RECONSTRUCTABLE_CONTRACT_ERRORS = ("RejectedInputError", "InvalidInputError")
+
+
+def _reconstruct_exception(payload: tuple[str, str, str]) -> BaseException:
+    """Rebuild a safe exception in the parent from a child-reported tuple.
+
+    Never unpickles the child's original exception object. For the small,
+    fixed set of contract error classes whose constructor takes only a
+    message string (and which are defined in our own trusted
+    ``trainer_contract`` module), the real class is reconstructed so
+    existing ``isinstance`` based status-mapping keeps working. Anything
+    else becomes a ``ChildProcessError`` carrying the original type name as
+    plain data (not as a class to instantiate).
+    """
+    type_name, message, traceback_text = payload
+    if type_name in _RECONSTRUCTABLE_CONTRACT_ERRORS:
+        from . import trainer_contract
+
+        cls = getattr(trainer_contract, type_name)
+        exc = cls(message)
+        exc.traceback_text = traceback_text  # type: ignore[attr-defined]
+        return exc
+    return ChildProcessError(type_name, message, traceback_text)
 
 
 def _sanitize_environment() -> None:
@@ -240,10 +392,26 @@ def _child_worker(
     ``reason_buf`` is a shared ``multiprocessing.Array('c', ...)`` the
     parent writes the human-readable cancellation reason into before
     setting ``cancel_event``, so it survives the process boundary.
+
+    Calls ``os.setsid()`` first so this process becomes the leader of a
+    new process group: any subprocess the adapter spawns (e.g. via
+    ``subprocess.Popen``) inherits that group, so the parent's
+    ``os.killpg`` can terminate the whole tree together instead of only
+    this direct child (see ``run_in_isolated_process`` / ``_kill_group``
+    and ``docs/decisions/0003-trainer-contract-os-level-enforcement.md``).
     """
     import threading
 
     from .trainer_contract import CancellationToken
+
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            # Already a session/group leader (can happen under some test
+            # harnesses); nothing else to do -- killpg below still targets
+            # this process's own pgid either way.
+            pass
 
     try:
         _sanitize_environment()
@@ -251,7 +419,7 @@ def _child_worker(
             _pin_filesystem_root(budget.filesystem_root)
         _apply_network_policy(budget.network_policy, budget.allowed_hosts)
     except Exception as exc:  # noqa: BLE001 - sandbox setup failure must surface
-        result_queue.put(("error", exc))
+        result_queue.put(("error", _safe_exception_tuple(exc)))
         return
 
     token = CancellationToken()
@@ -266,9 +434,14 @@ def _child_worker(
 
     try:
         output = adapter.train(inputs, budget, token, resume_from)
-        result_queue.put(("output", output))
+        # Never pickle the adapter's raw return value across the queue: it
+        # is untrusted, and a class with a hand-written __reduce__ could
+        # execute arbitrary code when unpickled in the trusted parent.
+        # Rebuild it from scratch using only JSON-safe/allow-listed types.
+        safe_output = _sanitize_training_output(output)
+        result_queue.put(("output", safe_output))
     except BaseException as exc:  # noqa: BLE001 - surfaced to parent, not swallowed
-        result_queue.put(("exception", exc))
+        result_queue.put(("exception", _safe_exception_tuple(exc)))
 
 
 _PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$")
@@ -314,6 +487,34 @@ def _poll_live_usage(pid: int) -> tuple[float, float] | None:
         return None
     cpu_seconds = _parse_ps_cputime(cputime_str)
     return memory_mb, cpu_seconds
+
+
+def _kill_group(process: Any) -> None:
+    """SIGKILL the entire process group led by ``process``, not just it.
+
+    ``_child_worker`` calls ``os.setsid()`` so it leads a new process
+    group; any subprocess it spawns (e.g. ``subprocess.Popen``) inherits
+    that group. Killing only ``process.pid`` (the old behaviour) leaves
+    such grandchildren running as orphans. ``os.killpg`` targets the whole
+    group at once. Falls back to ``process.kill()`` when the pid is
+    unknown or the process never became a group leader (e.g. platforms
+    without ``os.setsid``/``os.killpg``, such as native Windows).
+
+    Wrapped for the inherent race: the process (and therefore its group)
+    may have already exited between the liveness check and this call, in
+    which case the OS reports ``ProcessLookupError`` / ``ESRCH`` -- not a
+    real failure, just confirmation there is nothing left to kill.
+    """
+    pid = process.pid
+    if pid is not None and hasattr(os, "killpg") and hasattr(os, "getpgid"):
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            return
+        except ProcessLookupError:
+            return
+        except OSError:
+            pass
+    process.kill()
 
 
 def _directory_size_mb(root: str) -> float:
@@ -375,7 +576,7 @@ def run_in_isolated_process(
             live_cpu_seconds = max(live_cpu_seconds, cpu_seconds)
             if memory_mb > budget.max_memory_mb or cpu_seconds > budget.max_cpu_seconds:
                 killed_for_overrun = True
-                process.kill()
+                _kill_group(process)
                 process.join(timeout=5)
                 break
 
@@ -384,7 +585,7 @@ def run_in_isolated_process(
             mp_cancel_event.set()
             process.join(timeout=kill_grace_seconds)
             if process.is_alive():
-                process.kill()
+                _kill_group(process)
                 process.join(timeout=5)
             break
 
@@ -394,7 +595,7 @@ def run_in_isolated_process(
             mp_cancel_event.set()
             process.join(timeout=kill_grace_seconds)
             if process.is_alive():
-                process.kill()
+                _kill_group(process)
                 process.join(timeout=5)
             break
 
@@ -439,4 +640,4 @@ def run_in_isolated_process(
 
     if kind == "output":
         return payload, None, measured
-    return None, payload, measured
+    return None, _reconstruct_exception(payload), measured

@@ -480,10 +480,20 @@ def run_trainer_contract(
             return TrainingOutput(status=TrainingStatus.REJECTED, reason=str(exc), error_class=type(exc).__name__)
         if isinstance(exc, InvalidInputError):
             return TrainingOutput(status=TrainingStatus.INVALID, reason=str(exc), error_class=type(exc).__name__)
+        # A ChildProcessError is the parent-reconstructed stand-in for a
+        # child-raised exception whose real class is never trusted/
+        # instantiated (see process_isolation.py); its own class name
+        # ("ChildProcessError") is not useful to a caller, so report the
+        # original child-side exception type name it carries instead.
+        from .process_isolation import ChildProcessError
+
+        reported_error_class = (
+            exc.original_type_name if isinstance(exc, ChildProcessError) else type(exc).__name__
+        )
         return TrainingOutput(
             status=TrainingStatus.INTERRUPTED,
             reason=str(exc),
-            error_class=type(exc).__name__,
+            error_class=reported_error_class,
         )
 
     output = output_payload

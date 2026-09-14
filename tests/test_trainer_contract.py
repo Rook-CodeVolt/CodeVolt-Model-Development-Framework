@@ -19,6 +19,7 @@ lying adapter's fake self-report.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 
@@ -26,7 +27,13 @@ import pytest
 
 from codevolt_mdf import process_isolation
 from codevolt_mdf.fake_adapter import FakeTrainerAdapter
-from codevolt_mdf.testing_adapters import LyingAdapter, RunawayAdapter
+from codevolt_mdf.testing_adapters import (
+    FailingAdapter,
+    LyingAdapter,
+    MaliciousExceptionAdapter,
+    RunawayAdapter,
+    SubprocessSpawningAdapter,
+)
 from codevolt_mdf.trainer_contract import (
     CONTRACT_VERSION,
     CancellationToken,
@@ -306,3 +313,143 @@ def test_lying_adapter_self_report_is_overridden_by_os_measurement():
     assert contract_output.resource_usage.cpu_seconds > 0.05 or (
         contract_output.resource_usage.wall_seconds > 0.05
     )
+
+
+# 10. finishing pass: grandchild kill, pickle-exploit closed, error propagation
+#
+# Three more cases added in the finishing pass for the process-isolation
+# security fixes: (a) proves process-GROUP kill (_kill_group) reaches an
+# adapter-spawned grandchild subprocess, not just the tracked direct
+# child; (b) proves the IPC sanitisation actually stops a crafted
+# exception's malicious __reduce__ from executing in the parent when run
+# through the real run_in_isolated_process path (not a standalone PoC
+# script); (c) proves that sanitisation does not silently swallow or
+# corrupt a real, legitimate adapter exception.
+
+
+def test_grandchild_subprocess_is_also_killed_on_group_kill(tmp_path):
+    """An adapter-spawned grandchild subprocess must die with the adapter.
+
+    Uses RunawayAdapter-style non-cooperation (SubprocessSpawningAdapter
+    never checks the cancellation token) so the only way the run ends is
+    the contract runner's timeout-triggered SIGKILL. Before the
+    process-group fix, only the direct child (`_child_worker`'s process)
+    was killed; the grandchild `sleep 300` it spawned would be orphaned
+    and keep running. This test confirms -- via a real OS process check,
+    not an internal accounting flag -- that the grandchild is also dead.
+    """
+    pid_file = tmp_path / "grandchild.pid"
+    budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
+    inputs = make_inputs("smoke", run_id="grandchild-kill-1")
+    adapter = SubprocessSpawningAdapter(pid_file=str(pid_file))
+
+    output, exc, measured = process_isolation.run_in_isolated_process(
+        adapter, inputs, budget, None, CancellationToken()
+    )
+
+    assert measured.killed_for_timeout is True
+    assert output is None
+    assert exc is None
+
+    # Wait briefly for the pid file to appear (written just after spawn,
+    # well before the 1s timeout) and for the OS to fully reap the group.
+    deadline = time.monotonic() + 5
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert pid_file.exists(), "adapter never got to spawn its grandchild before being killed"
+    grandchild_pid = int(pid_file.read_text().strip())
+
+    # Give the OS a moment to finish tearing down the killed group.
+    alive = True
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            alive = False
+            break
+        time.sleep(0.1)
+
+    assert not alive, (
+        f"grandchild pid {grandchild_pid} is still alive after the adapter's process "
+        "group was killed -- process-group termination did not reach it"
+    )
+
+
+def test_pickle_exploit_via_real_isolation_path_does_not_execute(tmp_path):
+    """A crafted exception's malicious __reduce__ must not run in the parent.
+
+    Runs MaliciousExceptionAdapter (whose train() raises an exception
+    whose __reduce__ would run `os.system(f"touch {marker}")` the instant
+    it is unpickled) THROUGH the real run_in_isolated_process path used
+    in production, not a standalone script. Before the IPC-sanitisation
+    fix, the child put the raw exception object on the multiprocessing
+    Queue and the parent's Queue.get() unpickled it directly, running the
+    malicious code in the trusted parent. Asserts the marker file the
+    exploit would create is NOT created, and that the reconstructed
+    exception carries the payload as inert string data instead.
+    """
+    marker_path = tmp_path / "pwned.marker"
+    assert not marker_path.exists()
+
+    budget = make_budget()
+    inputs = make_inputs("smoke", run_id="pickle-exploit-1")
+    adapter = MaliciousExceptionAdapter(marker_path=str(marker_path))
+
+    output, exc, _measured = process_isolation.run_in_isolated_process(
+        adapter, inputs, budget, None, CancellationToken()
+    )
+
+    # The core assertion: no code executed in the parent process as a
+    # side effect of receiving/unpickling the child's exception.
+    assert not marker_path.exists(), (
+        "malicious __reduce__ executed in the parent process -- pickle exploit succeeded"
+    )
+
+    assert output is None
+    assert exc is not None
+    # The original exception class is never reconstructed/instantiated
+    # (that would require trusting the child); it becomes a safe,
+    # parent-defined stand-in carrying the original data as plain strings.
+    assert isinstance(exc, process_isolation.ChildProcessError)
+    assert exc.original_type_name == "_MaliciousReduceException"
+    assert "crafted exception with malicious __reduce__" in str(exc)
+
+    # And the same holds through the full contract runner, which is the
+    # actual production entry point.
+    marker_path_2 = tmp_path / "pwned2.marker"
+    adapter2 = MaliciousExceptionAdapter(marker_path=str(marker_path_2))
+    contract_output = run_trainer_contract(adapter2, inputs, budget)
+    assert not marker_path_2.exists()
+    assert contract_output.status == TrainingStatus.INTERRUPTED
+    assert contract_output.error_class == "_MaliciousReduceException"
+
+
+def test_legitimate_adapter_exception_propagates_with_correct_type_and_message(tmp_path):
+    """A real ValueError from adapter.train() must surface intact.
+
+    Proves the IPC sanitisation added to close the pickle exploit does
+    not silently swallow or corrupt genuine, well-behaved adapter
+    failures: the exact exception type name and message must survive
+    the child -> parent boundary and be visible both from
+    run_in_isolated_process's reconstructed exception and from
+    run_trainer_contract's reported TrainingOutput.
+    """
+    budget = make_budget()
+    inputs = make_inputs("smoke", run_id="legit-error-1")
+    adapter = FailingAdapter()
+
+    output, exc, _measured = process_isolation.run_in_isolated_process(
+        adapter, inputs, budget, None, CancellationToken()
+    )
+
+    assert output is None
+    assert exc is not None
+    assert isinstance(exc, process_isolation.ChildProcessError)
+    assert exc.original_type_name == "ValueError"
+    assert str(exc) == "something went wrong"
+
+    contract_output = run_trainer_contract(FailingAdapter(), inputs, budget)
+    assert contract_output.status == TrainingStatus.INTERRUPTED
+    assert contract_output.error_class == "ValueError"
+    assert contract_output.reason == "something went wrong"

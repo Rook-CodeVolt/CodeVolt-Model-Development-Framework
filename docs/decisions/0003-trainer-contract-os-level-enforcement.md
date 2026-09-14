@@ -52,14 +52,17 @@ consistent across Linux and macOS rather than depending on `fork`'s
 copy-on-write semantics) instead of a thread in the parent process.
 Bump `CONTRACT_VERSION` to `"1.1.0"` (`SUPPORTED_CONTRACT_VERSIONS`
 still includes `"1.0.0"`, so this is additive, not breaking, to an
-already-conforming adapter's obligations). Two new conformance tests
-(`test_runaway_adapter_is_sigkilled_within_bound`,
-`test_lying_adapter_self_report_is_overridden_by_os_measurement`) prove
-the new behaviour against two new test-only adapters
-(`RunawayAdapter`, `LyingAdapter` in `src/codevolt_mdf/testing_adapters.py`)
-that deliberately misbehave the way a real adapter might. All 8
-original v1 conformance cases are unchanged in behaviour; the full suite
-is 33 tests, run and passing (`python3 -m pytest tests/ -v`: **33
+already-conforming adapter's obligations). Five new conformance tests
+prove the new behaviour: `test_runaway_adapter_is_sigkilled_within_bound`
+and `test_lying_adapter_self_report_is_overridden_by_os_measurement`
+against `RunawayAdapter`/`LyingAdapter`; a subsequent finishing pass
+added `test_grandchild_subprocess_is_also_killed_on_group_kill`
+(`SubprocessSpawningAdapter`), `test_pickle_exploit_via_real_isolation_path_does_not_execute`
+(`MaliciousExceptionAdapter`), and
+`test_legitimate_adapter_exception_propagates_with_correct_type_and_message`
+(`FailingAdapter`) — all in `src/codevolt_mdf/testing_adapters.py`. All
+8 original v1 conformance cases are unchanged in behaviour; the full
+suite is 36 tests, run and passing (`python3 -m pytest tests/ -v`: **36
 passed**), and `ruff check .` reports zero errors.
 
 Being a real OS process rather than a thread is what makes the fix
@@ -74,6 +77,31 @@ nicely to stop.
   process. This is real termination, not a cooperative request; a
   non-conforming adapter cannot keep running past it the way it could
   keep running past a cancelled thread.
+- **Process-GROUP-level cancellation.** The child calls `os.setsid()`
+  on startup, making it the leader of a new OS process group; the
+  parent kills the whole group with `os.killpg(..., SIGKILL)`
+  (`_kill_group`), not only the direct child pid. Any subprocess the
+  adapter itself spawns inherits that group and dies with it, closing
+  an orphaned-grandchild-process gap in the original design. **Residual
+  gap, stated plainly:** a grandchild that calls `os.setsid()` itself
+  (or otherwise detaches into a new session) leaves the group and is
+  not reached by the group kill — this is an inherent limit of
+  process-group-based termination, not something this change claims to
+  close, and it is not currently detected.
+- **Sanitised IPC across the child→parent boundary.** Nothing the
+  untrusted child returns is pickled/unpickled as its original object
+  type. Exceptions cross as plain strings (type name, message,
+  traceback) and are rebuilt as a safe `ChildProcessError` in the
+  parent; `TrainingOutput` and its nested values are rebuilt from only
+  JSON-safe leaf types plus an explicit dataclass/enum allow-list,
+  checked with exact `type()` matching so a subclass cannot disguise
+  itself as an allowed type. This closes a real pickle-deserialization
+  vulnerability identified during an independent security review of
+  this branch: a crafted exception with a malicious `__reduce__`
+  raised in the child would previously execute arbitrary code (proven
+  with `os.system(...)`) in the trusted parent the moment
+  `Queue.get()` unpickled it. A legitimate adapter's exception type and
+  message still propagate unchanged.
 - **Real, OS-measured resource usage.** While the child runs, the
   parent polls its live memory (RSS) and CPU time via `ps`; after it
   exits, the parent reads `resource.getrusage(RUSAGE_CHILDREN)`. These

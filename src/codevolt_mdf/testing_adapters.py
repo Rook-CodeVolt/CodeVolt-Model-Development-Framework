@@ -14,6 +14,18 @@ testing the well-behaved ``FakeTrainerAdapter``.
 - ``LyingAdapter``: does real, measurable CPU work but self-reports a
   fake, deceptively low ``ResourceUsage``. Proves the contract runner's
   budget check uses OS-measured usage, not the adapter's self-report.
+- ``SubprocessSpawningAdapter``: spawns a real, genuinely long-running
+  grandchild OS process (``subprocess.Popen``) and never waits on it,
+  then hangs. Proves ``_kill_group``/``os.setsid`` process-GROUP
+  termination reaches adapter-spawned subprocesses, not just the direct
+  child the contract runner tracks.
+- ``MaliciousExceptionAdapter``: raises an exception whose class defines
+  a malicious ``__reduce__`` that would run ``os.system(...)`` the
+  instant it is unpickled. Proves the IPC sanitisation in
+  ``process_isolation`` (exceptions are reduced to plain strings before
+  crossing the ``multiprocessing.Queue``, never pickled/unpickled as the
+  original object) actually prevents that code from running in the
+  parent.
 """
 
 from __future__ import annotations
@@ -118,6 +130,155 @@ class LyingAdapter:
             artifact_id=f"artifact-{inputs.run_id}",
             resource_usage=lying_usage,
         )
+
+    def cleanup(self, run_id: str) -> None:
+        return None
+
+
+@dataclass
+class SubprocessSpawningAdapter:
+    """TEST-ONLY: spawns a real, long-running grandchild process and hangs.
+
+    Never waits on the subprocess and never checks ``cancel_token``, so
+    the only way the contract runner can stop this adapter is by killing
+    its OS process. The point of this adapter is what happens to the
+    grandchild it spawned: it writes the grandchild's pid to
+    ``pid_file`` (in the shared filesystem, so the parent test process
+    can read it back) before hanging, so the test can verify the
+    grandchild -- not just the tracked direct child -- is also dead
+    after the contract runner kills the adapter.
+    """
+
+    pid_file: str = ""
+    name: str = "test-only-subprocess-spawning"
+    contract_version: str = "1.1.0"
+    upstream: UpstreamRequirement = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.upstream is None:
+            self.upstream = _TEST_ONLY_UPSTREAM
+
+    def prepare(self, inputs: TrainingInputs, budget: ResourceBudget) -> None:
+        return None
+
+    def train(
+        self,
+        inputs: TrainingInputs,
+        budget: ResourceBudget,
+        cancel_token: CancellationToken,
+        resume_from: CheckpointHandle | None = None,
+    ) -> TrainingOutput:
+        import subprocess
+
+        # A genuinely long-running grandchild: not waited on, not reaped.
+        grandchild = subprocess.Popen(["sleep", "300"])
+        if self.pid_file:
+            with open(self.pid_file, "w") as f:
+                f.write(str(grandchild.pid))
+        # Deliberately does NOT check cancel_token and does NOT wait() on
+        # the grandchild: only an OS-level kill of the whole process
+        # group can end this run.
+        deadline = time.monotonic() + 300
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+        return TrainingOutput(status=TrainingStatus.ACCEPTED, reason="unreachable")
+
+    def cleanup(self, run_id: str) -> None:
+        return None
+
+
+@dataclass
+class FailingAdapter:
+    """TEST-ONLY: a well-behaved adapter whose train() raises a real error.
+
+    Unlike ``MaliciousExceptionAdapter``, this raises a plain, ordinary
+    ``ValueError`` -- no crafted ``__reduce__``, nothing adversarial. It
+    proves the IPC sanitisation added to close the pickle exploit (see
+    ``_MaliciousReduceException`` above and
+    ``docs/decisions/0003-trainer-contract-os-level-enforcement.md``) does
+    not also mangle or swallow a genuine, legitimate adapter failure: the
+    exact exception type name and message must still cross the child ->
+    parent boundary intact.
+    """
+
+    name: str = "test-only-failing"
+    contract_version: str = "1.1.0"
+    upstream: UpstreamRequirement = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.upstream is None:
+            self.upstream = _TEST_ONLY_UPSTREAM
+
+    def prepare(self, inputs: TrainingInputs, budget: ResourceBudget) -> None:
+        return None
+
+    def train(
+        self,
+        inputs: TrainingInputs,
+        budget: ResourceBudget,
+        cancel_token: CancellationToken,
+        resume_from: CheckpointHandle | None = None,
+    ) -> TrainingOutput:
+        raise ValueError("something went wrong")
+
+    def cleanup(self, run_id: str) -> None:
+        return None
+
+
+class _MaliciousReduceException(Exception):
+    """TEST-ONLY: an exception whose ``__reduce__`` runs code on unpickle.
+
+    If this object (rather than a plain-string summary of it) were ever
+    pickled by the child and unpickled by the (trusted) parent, unpickling
+    it would execute ``os.system(...)`` in the parent's context. Used to
+    prove the IPC sanitisation in ``process_isolation`` (exceptions are
+    reduced to plain strings before crossing the ``multiprocessing.Queue``)
+    actually prevents that -- not merely happens to avoid it.
+    """
+
+    def __init__(self, message: str, marker_path: str) -> None:
+        super().__init__(message)
+        self.marker_path = marker_path
+
+    def __reduce__(self):
+        import os
+
+        # If unpickled, this touches marker_path via a real shell command.
+        return (os.system, (f"touch {self.marker_path}",))
+
+
+@dataclass
+class MaliciousExceptionAdapter:
+    """TEST-ONLY: raises a crafted exception with a malicious ``__reduce__``.
+
+    Proves that unpickling the raw child exception object in the parent
+    (the pre-fix behaviour) is closed off: the contract runner must never
+    let the child's raw exception cross the ``multiprocessing.Queue``
+    boundary, since unpickling an attacker-controlled object executes
+    arbitrary code in the (trusted) parent process the instant
+    ``Queue.get`` deserialises it.
+    """
+
+    marker_path: str = ""
+    name: str = "test-only-malicious-exception"
+    contract_version: str = "1.1.0"
+    upstream: UpstreamRequirement = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.upstream is None:
+            self.upstream = _TEST_ONLY_UPSTREAM
+
+    def prepare(self, inputs: TrainingInputs, budget: ResourceBudget) -> None:
+        return None
+
+    def train(
+        self,
+        inputs: TrainingInputs,
+        budget: ResourceBudget,
+        cancel_token: CancellationToken,
+        resume_from: CheckpointHandle | None = None,
+    ) -> TrainingOutput:
+        raise _MaliciousReduceException("crafted exception with malicious __reduce__", self.marker_path)
 
     def cleanup(self, run_id: str) -> None:
         return None
