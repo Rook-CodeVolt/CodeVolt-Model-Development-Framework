@@ -489,32 +489,183 @@ def _poll_live_usage(pid: int) -> tuple[float, float] | None:
     return memory_mb, cpu_seconds
 
 
+def _list_pid_ppid_pairs() -> list[tuple[int, int]]:
+    """Return ``(pid, ppid)`` for every process currently visible on the host.
+
+    Uses ``ps -eo pid=,ppid=`` (no elevated privileges, no new
+    dependency, works the same on macOS and Linux) rather than any
+    process-group/session primitive: the point of this helper is to
+    reconstruct parent/child *lineage*, which ``os.setsid()`` does not
+    change (it changes the caller's process group and session id, not
+    its ``ppid``).
+    """
+    try:
+        proc = subprocess.run(
+            ["ps", "-eo", "pid=,ppid="],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    pairs: list[tuple[int, int]] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            pid, ppid = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        pairs.append((pid, ppid))
+    return pairs
+
+
+def _descendant_pids(root_pid: int, pairs: list[tuple[int, int]]) -> list[int]:
+    """Return every pid transitively descended from ``root_pid`` via ppid lineage.
+
+    Breadth-first over the ``(pid, ppid)`` snapshot ``pairs``. This is
+    deliberately independent of process-group/session membership: a
+    descendant that calls ``os.setsid()`` to leave its process group and
+    become the leader of a new session keeps the ``ppid`` the kernel
+    assigned it at fork time -- ``setsid()`` does not reparent a process
+    -- so walking ``ppid`` lineage still finds it even though
+    ``os.killpg`` would not.
+    """
+    children_by_ppid: dict[int, list[int]] = {}
+    for pid, ppid in pairs:
+        children_by_ppid.setdefault(ppid, []).append(pid)
+
+    descendants: list[int] = []
+    seen = {root_pid}
+    frontier = [root_pid]
+    while frontier:
+        next_frontier: list[int] = []
+        for parent_pid in frontier:
+            for child_pid in children_by_ppid.get(parent_pid, ()):
+                if child_pid in seen:
+                    continue
+                seen.add(child_pid)
+                descendants.append(child_pid)
+                next_frontier.append(child_pid)
+        frontier = next_frontier
+    return descendants
+
+
+# Bounds the walk-then-kill loop below. Each pass can only discover
+# descendants that existed in that pass's `ps` snapshot; a process that
+# forks a new child in the brief window between snapshot and SIGKILL
+# would be missed by a single pass. Re-walking a few times closes that
+# race without an unbounded loop; SIGKILL is not interruptible so a
+# process discovered in an earlier pass and already killed simply will
+# not appear (or will report ProcessLookupError, handled below) in a
+# later pass.
+_MAX_PID_TREE_WALK_PASSES = 3
+
+
+def _kill_pid_tree(root_pid: int) -> None:
+    """SIGKILL ``root_pid`` and every descendant found by walking ppid lineage.
+
+    Complements (does not replace) process-group-based termination: a
+    process that calls ``os.setsid()`` leaves the process group
+    ``os.killpg`` targets, but its ``ppid`` is untouched by ``setsid()``,
+    so a fresh ``ps -eo pid=,ppid=`` walk from ``root_pid`` still finds
+    it and every process it in turn spawned. Individually SIGKILLs each
+    discovered pid -- not a single group-wide signal -- since an escaped
+    descendant is, by construction, no longer reachable by one.
+
+    This closes the literal disclosed gap (a single ``os.setsid()`` call
+    detaching a descendant from the process group) using only ``ps`` and
+    ``os.kill``: no new privileges, no new dependency, works on macOS
+    and Linux alike. It does **not** defend against a descendant that
+    double-forks to be reparented to PID 1 (init/launchd) before this
+    walk runs -- closing that case needs real kernel-enforced
+    containment (cgroups v2 ``cgroup.kill`` on Linux, or a container/VM
+    boundary on macOS) and is explicitly out of scope here, consistent
+    with ADR-0003's existing "containers/gVisor/seccomp... out of scope"
+    framing. See ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
+    """
+    for _pass in range(_MAX_PID_TREE_WALK_PASSES):
+        pairs = _list_pid_ppid_pairs()
+        targets = [root_pid, *_descendant_pids(root_pid, pairs)]
+        any_alive = False
+        for pid in targets:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                any_alive = True
+            except ProcessLookupError:
+                continue
+            except OSError:
+                continue
+        if not any_alive:
+            break
+
+
 def _kill_group(process: Any) -> None:
-    """SIGKILL the entire process group led by ``process``, not just it.
+    """SIGKILL ``process``, its process group, and its full ppid-lineage tree.
 
-    ``_child_worker`` calls ``os.setsid()`` so it leads a new process
-    group; any subprocess it spawns (e.g. ``subprocess.Popen``) inherits
-    that group. Killing only ``process.pid`` (the old behaviour) leaves
-    such grandchildren running as orphans. ``os.killpg`` targets the whole
-    group at once. Falls back to ``process.kill()`` when the pid is
-    unknown or the process never became a group leader (e.g. platforms
-    without ``os.setsid``/``os.killpg``, such as native Windows).
+    Two independent mechanisms, both applied in a specific order because
+    each closes a gap the other does not:
 
-    Wrapped for the inherent race: the process (and therefore its group)
-    may have already exited between the liveness check and this call, in
-    which case the OS reports ``ProcessLookupError`` / ``ESRCH`` -- not a
-    real failure, just confirmation there is nothing left to kill.
+    - ``_kill_pid_tree`` walks ``ps -eo pid=,ppid=`` lineage from
+      ``process.pid`` and SIGKILLs every discovered pid one at a time,
+      runs FIRST. This is what catches a descendant that itself calls
+      ``os.setsid()`` to escape the process group ``killpg`` targets --
+      ``setsid()`` changes process-group/session membership but never
+      the kernel-recorded ``ppid``, so the lineage walk still finds it.
+      It must run before anything is killed: once a parent process is
+      reaped, the kernel immediately reparents its still-live children,
+      which would corrupt the very lineage this walk depends on. See
+      ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md`` and the
+      ``SetsidEscapingAdapter`` conformance test.
+    - ``os.killpg`` targets the whole OS process group ``process`` leads
+      (``_child_worker`` calls ``os.setsid()`` so it becomes a group
+      leader; any subprocess it spawns via e.g. ``subprocess.Popen``
+      inherits that group), runs SECOND as a redundant safety net for
+      anything the walk's pid snapshot happened to miss (e.g. a process
+      forked in the narrow window between the walk's last ``ps`` call
+      and its kill).
+
+    Falls back to ``process.kill()`` only when ``process.pid`` is
+    unknown (should not happen once ``process.start()`` has returned).
+
+    Wrapped for the inherent race: any of these processes may have
+    already exited between the liveness check and this call, in which
+    case the OS reports ``ProcessLookupError`` / ``ESRCH`` -- not a real
+    failure, just confirmation there is nothing left to kill.
     """
     pid = process.pid
-    if pid is not None and hasattr(os, "killpg") and hasattr(os, "getpgid"):
+    if pid is None:
+        process.kill()
+        return
+
+    # Order matters: the ppid-lineage walk must run BEFORE anything is
+    # killed. `_child_worker` itself calls `os.setsid()`, so `process`
+    # (the tracked isolated child) is already its own process-group
+    # leader; killing that group first (as a naive implementation might)
+    # would SIGKILL `process` itself before the walk below runs. Once a
+    # parent is reaped, the kernel immediately reparents its live
+    # children (to PID 1 / the nearest reaper) -- which would change the
+    # very ppid lineage `_kill_pid_tree` depends on to find an escaped
+    # grandchild, turning a real fix into one that only works when
+    # nothing has actually escaped yet. Snapshotting and killing by
+    # ppid lineage first (while `process` and everything it spawned are
+    # still alive and still show their real lineage in `ps`) avoids that
+    # race; `os.killpg` afterwards is then a harmless, redundant safety
+    # net for the still-common case where nothing escaped the group.
+    if hasattr(os, "kill") and hasattr(subprocess, "run"):
+        _kill_pid_tree(pid)
+    else:  # pragma: no cover - no platform in this project's support matrix hits this
+        process.kill()
+
+    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
         try:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
-            return
         except ProcessLookupError:
-            return
+            pass
         except OSError:
             pass
-    process.kill()
 
 
 def _directory_size_mb(root: str) -> float:

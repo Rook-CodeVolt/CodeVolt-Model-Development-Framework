@@ -82,12 +82,20 @@ nicely to stop.
   parent kills the whole group with `os.killpg(..., SIGKILL)`
   (`_kill_group`), not only the direct child pid. Any subprocess the
   adapter itself spawns inherits that group and dies with it, closing
-  an orphaned-grandchild-process gap in the original design. **Residual
-  gap, stated plainly:** a grandchild that calls `os.setsid()` itself
-  (or otherwise detaches into a new session) leaves the group and is
-  not reached by the group kill — this is an inherent limit of
-  process-group-based termination, not something this change claims to
-  close, and it is not currently detected.
+  an orphaned-grandchild-process gap in the original design.
+- **PID-tree-lineage cancellation (added by ADR-0004).** Before the
+  process-group kill, `_kill_group` also walks the full `ppid`
+  descendant tree (`ps -eo pid=,ppid=`) and SIGKILLs each discovered
+  pid individually, independent of process-group membership. This
+  closes the residual gap this ADR originally disclosed here: a
+  grandchild that calls `os.setsid()` to leave the process group keeps
+  its `ppid` unchanged, so the lineage walk still finds it. See
+  `docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md`. **Still not
+  closed:** a descendant that double-forks to be reparented to PID 1
+  before the walk runs is genuinely outside this lineage and needs real
+  kernel-enforced containment (cgroups/containers) instead — out of
+  scope, same as the rest of this ADR's "not a substitute for genuine
+  OS-level sandboxing" framing below.
 - **Sanitised IPC across the child→parent boundary.** Nothing the
   untrusted child returns is pickled/unpickled as its original object
   type. Exceptions cross as plain strings (type name, message,

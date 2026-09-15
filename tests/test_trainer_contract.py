@@ -32,6 +32,7 @@ from codevolt_mdf.testing_adapters import (
     LyingAdapter,
     MaliciousExceptionAdapter,
     RunawayAdapter,
+    SetsidEscapingAdapter,
     SubprocessSpawningAdapter,
 )
 from codevolt_mdf.trainer_contract import (
@@ -373,6 +374,64 @@ def test_grandchild_subprocess_is_also_killed_on_group_kill(tmp_path):
     assert not alive, (
         f"grandchild pid {grandchild_pid} is still alive after the adapter's process "
         "group was killed -- process-group termination did not reach it"
+    )
+
+
+def test_setsid_escaping_grandchild_is_still_killed(tmp_path):
+    """A grandchild that calls os.setsid() to leave the group must still die.
+
+    This is the residual gap disclosed in PR #13 /
+    docs/decisions/0003-trainer-contract-os-level-enforcement.md:
+    ``os.killpg`` alone only reaches processes still in the isolated
+    child's process group, and ``os.setsid()`` lets a descendant leave
+    that group at will (while leaving its ``ppid`` untouched). Uses
+    ``SetsidEscapingAdapter``, whose grandchild calls ``os.setsid()``
+    before hanging, so the only way this run ends is the contract
+    runner's timeout-triggered kill -- and the only way the grandchild
+    dies is the ``_kill_pid_tree`` ppid-lineage walk added in
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``, not the
+    process-group kill alone. Confirms via a real OS process check
+    (``os.kill(pid, 0)``), not an internal accounting flag, that the
+    escaped grandchild is dead.
+    """
+    pid_file = tmp_path / "setsid_grandchild.pid"
+    budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
+    inputs = make_inputs("smoke", run_id="setsid-escape-kill-1")
+    adapter = SetsidEscapingAdapter(pid_file=str(pid_file))
+
+    output, exc, measured = process_isolation.run_in_isolated_process(
+        adapter, inputs, budget, None, CancellationToken()
+    )
+
+    assert measured.killed_for_timeout is True
+    assert output is None
+    assert exc is None
+
+    # Wait briefly for the pid file to appear (written just after spawn,
+    # well before the 1s timeout) and for the grandchild to actually
+    # call os.setsid() and detach.
+    deadline = time.monotonic() + 5
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert pid_file.exists(), "adapter never got to spawn its escaping grandchild before being killed"
+    grandchild_pid = int(pid_file.read_text().strip())
+
+    # Give the OS a moment to finish tearing down the killed pid tree.
+    alive = True
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            alive = False
+            break
+        time.sleep(0.1)
+
+    assert not alive, (
+        f"setsid-escaped grandchild pid {grandchild_pid} is still alive after the "
+        "kill sweep -- os.killpg alone does not reach a process that has left the "
+        "process group via its own os.setsid() call, and the ppid-lineage walk "
+        "(_kill_pid_tree) did not close that gap"
     )
 
 
