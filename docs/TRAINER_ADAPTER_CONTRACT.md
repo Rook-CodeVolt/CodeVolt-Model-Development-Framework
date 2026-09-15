@@ -195,12 +195,21 @@ from outside using kernel-level facilities:
   in `process_isolation.py`), not just the direct child pid. Any
   subprocess the adapter itself spawns (e.g. via `subprocess.Popen`)
   inherits the group and is terminated along with it, closing what was
-  previously an orphaned-grandchild-process leak. **Residual gap:** a
-  grandchild that itself calls `os.setsid()` (or otherwise detaches into
-  its own session) leaves the group and would survive the group kill —
-  this is a real, known limitation of process-group-based termination
-  in general, not specific to this implementation, and is not currently
-  detected or blocked.
+  previously an orphaned-grandchild-process leak.
+- **PID-tree-lineage cancellation** — before the process-group kill,
+  `_kill_group` also walks the full `ppid` descendant tree of the
+  isolated child (`ps -eo pid=,ppid=`) and `SIGKILL`s each discovered
+  pid individually. This closes the gap process-group-based termination
+  alone cannot: a descendant that itself calls `os.setsid()` (or
+  otherwise leaves its process group) keeps its `ppid` unchanged, so the
+  lineage walk still finds and kills it even though `os.killpg` no
+  longer would. See `docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md`
+  and the `SetsidEscapingAdapter` conformance test. **Residual gap,
+  stated plainly:** a descendant that **double-forks** to be reparented
+  to PID 1 before this walk runs is not found by a `ppid`-lineage walk
+  either (its `ppid` genuinely becomes PID 1) — that case needs real
+  kernel-enforced containment (cgroups v2 `cgroup.kill` on Linux, a
+  container/VM boundary on macOS) and remains out of scope.
 - **Sanitised inter-process communication (IPC).** The child process
   runs untrusted adapter code, so nothing it returns is pickled and
   unpickled as-is across the `multiprocessing.Queue` back to the

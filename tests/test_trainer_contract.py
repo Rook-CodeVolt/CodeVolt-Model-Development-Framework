@@ -19,6 +19,7 @@ lying adapter's fake self-report.
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -32,6 +33,7 @@ from codevolt_mdf.testing_adapters import (
     LyingAdapter,
     MaliciousExceptionAdapter,
     RunawayAdapter,
+    SetsidEscapingAdapter,
     SubprocessSpawningAdapter,
 )
 from codevolt_mdf.trainer_contract import (
@@ -376,6 +378,64 @@ def test_grandchild_subprocess_is_also_killed_on_group_kill(tmp_path):
     )
 
 
+def test_setsid_escaping_grandchild_is_still_killed(tmp_path):
+    """A grandchild that calls os.setsid() to leave the group must still die.
+
+    This is the residual gap disclosed in PR #13 /
+    docs/decisions/0003-trainer-contract-os-level-enforcement.md:
+    ``os.killpg`` alone only reaches processes still in the isolated
+    child's process group, and ``os.setsid()`` lets a descendant leave
+    that group at will (while leaving its ``ppid`` untouched). Uses
+    ``SetsidEscapingAdapter``, whose grandchild calls ``os.setsid()``
+    before hanging, so the only way this run ends is the contract
+    runner's timeout-triggered kill -- and the only way the grandchild
+    dies is the ``_kill_pid_tree`` ppid-lineage walk added in
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``, not the
+    process-group kill alone. Confirms via a real OS process check
+    (``os.kill(pid, 0)``), not an internal accounting flag, that the
+    escaped grandchild is dead.
+    """
+    pid_file = tmp_path / "setsid_grandchild.pid"
+    budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
+    inputs = make_inputs("smoke", run_id="setsid-escape-kill-1")
+    adapter = SetsidEscapingAdapter(pid_file=str(pid_file))
+
+    output, exc, measured = process_isolation.run_in_isolated_process(
+        adapter, inputs, budget, None, CancellationToken()
+    )
+
+    assert measured.killed_for_timeout is True
+    assert output is None
+    assert exc is None
+
+    # Wait briefly for the pid file to appear (written just after spawn,
+    # well before the 1s timeout) and for the grandchild to actually
+    # call os.setsid() and detach.
+    deadline = time.monotonic() + 5
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert pid_file.exists(), "adapter never got to spawn its escaping grandchild before being killed"
+    grandchild_pid = int(pid_file.read_text().strip())
+
+    # Give the OS a moment to finish tearing down the killed pid tree.
+    alive = True
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            alive = False
+            break
+        time.sleep(0.1)
+
+    assert not alive, (
+        f"setsid-escaped grandchild pid {grandchild_pid} is still alive after the "
+        "kill sweep -- os.killpg alone does not reach a process that has left the "
+        "process group via its own os.setsid() call, and the ppid-lineage walk "
+        "(_kill_pid_tree) did not close that gap"
+    )
+
+
 def test_pickle_exploit_via_real_isolation_path_does_not_execute(tmp_path):
     """A crafted exception's malicious __reduce__ must not run in the parent.
 
@@ -453,3 +513,167 @@ def test_legitimate_adapter_exception_propagates_with_correct_type_and_message(t
     assert contract_output.status == TrainingStatus.INTERRUPTED
     assert contract_output.error_class == "ValueError"
     assert contract_output.reason == "something went wrong"
+
+
+# 11. pid-tree-walk failure/exhaustion observability -----------------------
+#
+# Maya's PR #14 review (REQUEST CHANGES, required remediation item): the
+# approved issue #7 Layer 1 design specified logging/evidence-bundle
+# visibility when the pid-tree walk exhausts its passes without fully
+# reaping a target, or when the underlying `ps` call fails -- previously
+# both failure modes degraded `_kill_pid_tree` to a root-pid-only kill
+# with zero observability. These three tests prove both modes are now
+# surfaced: (a)/(b) directly against `_kill_pid_tree` (unit-level, since
+# reliably forcing a real OS process to survive 3 SIGKILL passes isn't
+# possible -- SIGKILL is not interruptible -- so exhaustion is exercised
+# by controlling what `os.kill` reports, same technique the existing
+# LyingAdapter/RunawayAdapter tests use for other OS-boundary conditions);
+# (c) end-to-end through the real `run_trainer_contract` path with a real
+# OS process being killed, proving the evidence text actually reaches
+# `TrainingOutput.reason`, not just the internal dataclass.
+
+
+def test_kill_pid_tree_reports_and_logs_when_ps_call_fails(monkeypatch, caplog):
+    """A failed/timed-out `ps` call must be reported, not silently swallowed.
+
+    Uses a pid guaranteed not to exist (safe: os.kill on it raises
+    ProcessLookupError, never affects a real process) so only the `ps`
+    failure path is under test.
+    """
+
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    with caplog.at_level(logging.WARNING, logger="codevolt_mdf.process_isolation"):
+        outcome = process_isolation._kill_pid_tree(999_999_999)
+
+    assert outcome.ps_call_failed is True
+    assert outcome.degraded is True
+    assert any(
+        "ps' call failed" in record.message or "ps -eo pid=,ppid=" in record.message
+        for record in caplog.records
+    ), f"expected a ps-failure warning in logs, got: {[r.message for r in caplog.records]}"
+
+
+def test_kill_pid_tree_reports_and_logs_when_passes_exhausted(monkeypatch, caplog):
+    """Exhausting all passes without a confirmed reap must be reported.
+
+    Controls what `os.kill` reports (never raises, simulating a target
+    that never confirms death) rather than relying on a real process
+    surviving three SIGKILLs -- SIGKILL is not interruptible, so that
+    condition cannot be reliably produced against a real OS process.
+    """
+    kill_calls: list[int] = []
+
+    def _never_confirms_dead(pid, _sig):
+        kill_calls.append(pid)
+        # Never raises ProcessLookupError/OSError: the walk can never
+        # observe "no live targets" and must exhaust all passes.
+
+    monkeypatch.setattr(process_isolation.os, "kill", _never_confirms_dead)
+
+    with caplog.at_level(logging.WARNING, logger="codevolt_mdf.process_isolation"):
+        outcome = process_isolation._kill_pid_tree(999_999_998)
+
+    assert outcome.exhausted_without_confirmed_reap is True
+    assert outcome.degraded is True
+    assert len(kill_calls) == process_isolation._MAX_PID_TREE_WALK_PASSES
+    assert any("exhausted all" in record.message for record in caplog.records), (
+        f"expected an exhaustion warning in logs, got: {[r.message for r in caplog.records]}"
+    )
+
+
+def test_evidence_bundle_reason_reflects_degraded_pid_tree_walk(monkeypatch):
+    """The degraded-walk signal must reach TrainingOutput.reason, not just logs.
+
+    End-to-end through the real run_trainer_contract path with a real
+    RunawayAdapter OS process that gets SIGKILLed on timeout: forces the
+    `ps` call used by the pid-tree walk to fail during that real kill,
+    then asserts the evidence text appears in the reported reason --
+    this is the evidence-bundle-visibility requirement from Maya's PR #14
+    review, not just an internal dataclass field nobody reads.
+    """
+    budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
+    inputs = make_inputs("smoke", run_id="ps-fail-evidence-1")
+
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    output = run_trainer_contract(RunawayAdapter(), inputs, budget)
+
+    assert output.status == TrainingStatus.INTERRUPTED
+    assert "[pid-tree-walk degraded" in output.reason, output.reason
+    assert "ps" in output.reason.lower()
+
+
+# 12. cancellation-triggered hard-kill path ---------------------------------
+#
+# Maya's 2nd REQUEST CHANGES on PR #14: the pid-tree-walk degraded-walk
+# signal reached TrainingOutput.reason on 2 of the 3 _kill_group() call
+# sites (timeout, resource-overrun) but not the 3rd -- the
+# cancellation-triggered hard-kill path, where a non-cooperative adapter
+# (e.g. RunawayAdapter) does not honour cancel_token within the grace
+# period and the runner escalates to a real SIGKILL. That path previously
+# fell through into the generic exc_payload/RuntimeError("child process
+# exited without reporting a result") branch, silently dropping the
+# signal. This test proves the reason string is reachable via
+# cancellation specifically, not just via timeout/overrun, at both the
+# process_isolation level (``measured.killed_for_cancellation``) and the
+# evidence-bundle level (``TrainingOutput.reason``/``error_class``).
+
+
+def test_cancellation_hard_kill_of_noncooperative_adapter_reaches_reason(monkeypatch):
+    """A non-cooperative adapter's cancel-triggered SIGKILL must surface as
+    TrainingStatus.INTERRUPTED / TrainerCancelledError with the pid-tree-walk
+    reason suffix reachable, distinct from the timeout/overrun paths and
+    from the generic 'exited without reporting a result' fallback."""
+    budget = make_budget(max_wall_seconds=30.0, max_cpu_seconds=30.0)
+
+    # Unit level: process_isolation directly, proving killed_for_cancellation
+    # (not killed_for_timeout/killed_for_overrun) is what fires, and that
+    # both output and exc stay None -- same shape as the timeout/overrun
+    # short-circuit, so the generic RuntimeError branch is never reached.
+    inputs_direct = make_inputs("smoke", run_id="cancel-hard-kill-direct-1")
+    token_direct = CancellationToken()
+    timer = threading.Timer(0.1, token_direct.cancel, kwargs={"reason": "user requested stop"})
+    timer.start()
+    try:
+        output_p, exc_p, measured = process_isolation.run_in_isolated_process(
+            RunawayAdapter(), inputs_direct, budget, None, token_direct
+        )
+    finally:
+        timer.cancel()
+
+    assert measured.killed_for_cancellation is True
+    assert measured.killed_for_timeout is False
+    assert measured.killed_for_overrun is False
+    assert output_p is None
+    assert exc_p is None
+
+    # End-to-end: run_trainer_contract with a forced degraded pid-tree walk,
+    # proving the signal reaches the evidence-bundle-visible reason on the
+    # cancellation path specifically -- the gap Maya's 2nd review identified.
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    inputs_e2e = make_inputs("smoke", run_id="cancel-hard-kill-e2e-1")
+    token_e2e = CancellationToken()
+    timer2 = threading.Timer(0.1, token_e2e.cancel, kwargs={"reason": "user requested stop"})
+    timer2.start()
+    try:
+        output = run_trainer_contract(RunawayAdapter(), inputs_e2e, budget, cancel_token=token_e2e)
+    finally:
+        timer2.cancel()
+
+    assert output.status == TrainingStatus.INTERRUPTED
+    assert output.error_class == "TrainerCancelledError"
+    assert "user requested stop" in output.reason
+    assert "SIGKILL" in output.reason
+    assert "[pid-tree-walk degraded" in output.reason, output.reason
+    assert "child process exited without reporting a result" not in output.reason
