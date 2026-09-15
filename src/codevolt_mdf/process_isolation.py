@@ -88,6 +88,7 @@ filesystem/network" -- it does not claim to reach full sandbox parity.
 from __future__ import annotations
 
 import builtins
+import logging
 import multiprocessing
 import os
 import re
@@ -100,6 +101,18 @@ import traceback
 from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
+"""Module logger for the two originally-approved-but-silent failure modes
+of the pid-tree walk (issue #7 Layer 1 design step 3, flagged by Maya's
+PR #14 review): the underlying ``ps`` call failing/timing out, and the
+bounded walk-and-kill loop exhausting all its passes without confirming a
+full reap. Both are logged here (host-side observability) and also
+surfaced into ``MeasuredUsage.pid_tree_walk_incomplete`` -> the
+``TrainingOutput.reason`` evidence field (see ``trainer_contract.py``),
+so the gap between "walk failed/degraded silently" and "root-pid-only
+kill happened without anyone knowing" is closed in both places, not just
+one. See docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md."""
 
 _ENV_ALLOWLIST = ("PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
 
@@ -128,6 +141,21 @@ class MeasuredUsage:
     storage_mb_used: float | None  # None when filesystem_root was not declared
     killed_for_overrun: bool
     killed_for_timeout: bool
+    killed_for_cancellation: bool = False
+    """True only when the adapter did not honour ``cancel_token``
+    cooperatively within ``DEFAULT_KILL_GRACE_SECONDS`` and the runner
+    escalated to a real ``_kill_group()`` SIGKILL -- i.e. the 3rd
+    ``_kill_group()`` call site, distinct from ``killed_for_timeout`` and
+    ``killed_for_overrun``. See
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``, Addendum:
+    cancellation hard-kill parity."""
+    pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
+    """Set only when a kill (``_kill_group``) actually ran -- i.e. only
+    meaningful alongside ``killed_for_overrun``/``killed_for_timeout``/
+    ``killed_for_cancellation``. ``None`` when the child exited on its own
+    and no kill was ever attempted, in which case the pid-tree walk's
+    failure modes do not apply. See ``PidTreeWalkOutcome.degraded`` and
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``."""
 
 
 class SandboxViolationError(PermissionError):
@@ -489,32 +517,275 @@ def _poll_live_usage(pid: int) -> tuple[float, float] | None:
     return memory_mb, cpu_seconds
 
 
-def _kill_group(process: Any) -> None:
-    """SIGKILL the entire process group led by ``process``, not just it.
+def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
+    """Return (``(pid, ppid)`` pairs, ``ok``) for every process visible on the host.
 
-    ``_child_worker`` calls ``os.setsid()`` so it leads a new process
-    group; any subprocess it spawns (e.g. ``subprocess.Popen``) inherits
-    that group. Killing only ``process.pid`` (the old behaviour) leaves
-    such grandchildren running as orphans. ``os.killpg`` targets the whole
-    group at once. Falls back to ``process.kill()`` when the pid is
-    unknown or the process never became a group leader (e.g. platforms
-    without ``os.setsid``/``os.killpg``, such as native Windows).
+    ``ok`` is ``False`` when the underlying ``ps`` call itself failed or
+    timed out (as opposed to succeeding with zero/malformed lines, which
+    is a normal empty snapshot). Callers must check ``ok`` rather than
+    inferring failure from an empty list, because this failure mode was
+    previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
+    same as "no descendants exist" and quietly degrade to a root-pid-only
+    kill with zero observability (Maya's PR #14 review, required
+    remediation item). See
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
 
-    Wrapped for the inherent race: the process (and therefore its group)
-    may have already exited between the liveness check and this call, in
-    which case the OS reports ``ProcessLookupError`` / ``ESRCH`` -- not a
-    real failure, just confirmation there is nothing left to kill.
+    Uses ``ps -eo pid=,ppid=`` (no elevated privileges, no new
+    dependency, works the same on macOS and Linux) rather than any
+    process-group/session primitive: the point of this helper is to
+    reconstruct parent/child *lineage*, which ``os.setsid()`` does not
+    change (it changes the caller's process group and session id, not
+    its ``ppid``).
+    """
+    try:
+        proc = subprocess.run(
+            ["ps", "-eo", "pid=,ppid="],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _logger.warning(
+            "_list_pid_ppid_pairs: 'ps -eo pid=,ppid=' failed or timed out (%s: %s); "
+            "pid-tree lineage snapshot unavailable for this pass",
+            type(exc).__name__,
+            exc,
+        )
+        return [], False
+    pairs: list[tuple[int, int]] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            pid, ppid = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        pairs.append((pid, ppid))
+    return pairs, True
+
+
+def _descendant_pids(root_pid: int, pairs: list[tuple[int, int]]) -> list[int]:
+    """Return every pid transitively descended from ``root_pid`` via ppid lineage.
+
+    Breadth-first over the ``(pid, ppid)`` snapshot ``pairs``. This is
+    deliberately independent of process-group/session membership: a
+    descendant that calls ``os.setsid()`` to leave its process group and
+    become the leader of a new session keeps the ``ppid`` the kernel
+    assigned it at fork time -- ``setsid()`` does not reparent a process
+    -- so walking ``ppid`` lineage still finds it even though
+    ``os.killpg`` would not.
+    """
+    children_by_ppid: dict[int, list[int]] = {}
+    for pid, ppid in pairs:
+        children_by_ppid.setdefault(ppid, []).append(pid)
+
+    descendants: list[int] = []
+    seen = {root_pid}
+    frontier = [root_pid]
+    while frontier:
+        next_frontier: list[int] = []
+        for parent_pid in frontier:
+            for child_pid in children_by_ppid.get(parent_pid, ()):
+                if child_pid in seen:
+                    continue
+                seen.add(child_pid)
+                descendants.append(child_pid)
+                next_frontier.append(child_pid)
+        frontier = next_frontier
+    return descendants
+
+
+# Bounds the walk-then-kill loop below. Each pass can only discover
+# descendants that existed in that pass's `ps` snapshot; a process that
+# forks a new child in the brief window between snapshot and SIGKILL
+# would be missed by a single pass. Re-walking a few times closes that
+# race without an unbounded loop; SIGKILL is not interruptible so a
+# process discovered in an earlier pass and already killed simply will
+# not appear (or will report ProcessLookupError, handled below) in a
+# later pass.
+_MAX_PID_TREE_WALK_PASSES = 3
+
+
+@dataclass(frozen=True)
+class PidTreeWalkOutcome:
+    """Result of one ``_kill_pid_tree`` call: did the walk fully confirm the kill?
+
+    Both fields are the two failure modes Maya's PR #14 review required
+    visibility for (issue #7's approved Layer 1 design, step 3):
+
+    - ``ps_call_failed``: the underlying ``ps -eo pid=,ppid=`` call
+      itself errored or timed out on at least one pass, so that pass's
+      lineage snapshot was empty/unavailable and the walk could only
+      target the already-known root pid, not any descendant, for that
+      pass.
+    - ``exhausted_without_confirmed_reap``: the walk used all
+      ``_MAX_PID_TREE_WALK_PASSES`` passes without any pass reporting
+      zero live targets, so a full reap of the tree is not confirmed
+      (some descendant may still be alive).
+
+    ``degraded`` is true if either happened. This does not mean nothing
+    was killed -- ``os.kill(SIGKILL)`` was still attempted for every
+    target found, and ``_kill_group``'s ``os.killpg`` fallback still runs
+    unconditionally afterwards -- it means the walk cannot *positively
+    confirm* every descendant was found and reaped, which is exactly the
+    silent-failure gap flagged in review.
+    """
+
+    ps_call_failed: bool
+    exhausted_without_confirmed_reap: bool
+
+    @property
+    def degraded(self) -> bool:
+        return self.ps_call_failed or self.exhausted_without_confirmed_reap
+
+
+def _kill_pid_tree(root_pid: int) -> PidTreeWalkOutcome:
+    """SIGKILL ``root_pid`` and every descendant found by walking ppid lineage.
+
+    Complements (does not replace) process-group-based termination: a
+    process that calls ``os.setsid()`` leaves the process group
+    ``os.killpg`` targets, but its ``ppid`` is untouched by ``setsid()``,
+    so a fresh ``ps -eo pid=,ppid=`` walk from ``root_pid`` still finds
+    it and every process it in turn spawned. Individually SIGKILLs each
+    discovered pid -- not a single group-wide signal -- since an escaped
+    descendant is, by construction, no longer reachable by one.
+
+    This closes the literal disclosed gap (a single ``os.setsid()`` call
+    detaching a descendant from the process group) using only ``ps`` and
+    ``os.kill``: no new privileges, no new dependency, works on macOS
+    and Linux alike. It does **not** defend against a descendant that
+    double-forks to be reparented to PID 1 (init/launchd) before this
+    walk runs -- closing that case needs real kernel-enforced
+    containment (cgroups v2 ``cgroup.kill`` on Linux, or a container/VM
+    boundary on macOS) and is explicitly out of scope here, consistent
+    with ADR-0003's existing "containers/gVisor/seccomp... out of scope"
+    framing. See ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
+
+    Returns a ``PidTreeWalkOutcome`` so callers (``_kill_group`` and, via
+    ``MeasuredUsage``, ``run_trainer_contract``) can surface both
+    originally-silent failure modes -- a failed/timed-out ``ps`` call
+    degrading a pass to a root-pid-only kill, and the bounded retry
+    loop exhausting without a pass confirming zero live targets -- into
+    both the module logger and the evidence-visible ``TrainingOutput``
+    reason string, per Maya's PR #14 review (required remediation item,
+    the approved issue #7 Layer 1 design's step 3).
+    """
+    ps_call_failed = False
+    for pass_num in range(_MAX_PID_TREE_WALK_PASSES):
+        pairs, ps_ok = _list_pid_ppid_pairs()
+        if not ps_ok:
+            ps_call_failed = True
+            _logger.warning(
+                "_kill_pid_tree: pid-tree lineage snapshot unavailable on pass %d/%d "
+                "for root_pid=%d ('ps' call failed/timed out); this pass can only "
+                "target the already-known root pid, not any descendant -- degraded, "
+                "not a full pid-tree kill for this pass. os.killpg fallback in "
+                "_kill_group still runs afterwards regardless.",
+                pass_num + 1,
+                _MAX_PID_TREE_WALK_PASSES,
+                root_pid,
+            )
+        targets = [root_pid, *_descendant_pids(root_pid, pairs)]
+        any_alive = False
+        for pid in targets:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                any_alive = True
+            except ProcessLookupError:
+                continue
+            except OSError:
+                continue
+        if not any_alive:
+            return PidTreeWalkOutcome(
+                ps_call_failed=ps_call_failed, exhausted_without_confirmed_reap=False
+            )
+    _logger.warning(
+        "_kill_pid_tree: exhausted all %d passes for root_pid=%d without any pass "
+        "reporting zero live targets; full reap of the pid tree is not confirmed "
+        "(a descendant may still be alive). os.killpg fallback in _kill_group still "
+        "runs afterwards regardless.",
+        _MAX_PID_TREE_WALK_PASSES,
+        root_pid,
+    )
+    return PidTreeWalkOutcome(ps_call_failed=ps_call_failed, exhausted_without_confirmed_reap=True)
+
+
+def _kill_group(process: Any) -> PidTreeWalkOutcome | None:
+    """SIGKILL ``process``, its process group, and its full ppid-lineage tree.
+
+    Two independent mechanisms, both applied in a specific order because
+    each closes a gap the other does not:
+
+    - ``_kill_pid_tree`` walks ``ps -eo pid=,ppid=`` lineage from
+      ``process.pid`` and SIGKILLs every discovered pid one at a time,
+      runs FIRST. This is what catches a descendant that itself calls
+      ``os.setsid()`` to escape the process group ``killpg`` targets --
+      ``setsid()`` changes process-group/session membership but never
+      the kernel-recorded ``ppid``, so the lineage walk still finds it.
+      It must run before anything is killed: once a parent process is
+      reaped, the kernel immediately reparents its still-live children,
+      which would corrupt the very lineage this walk depends on. See
+      ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md`` and the
+      ``SetsidEscapingAdapter`` conformance test.
+    - ``os.killpg`` targets the whole OS process group ``process`` leads
+      (``_child_worker`` calls ``os.setsid()`` so it becomes a group
+      leader; any subprocess it spawns via e.g. ``subprocess.Popen``
+      inherits that group), runs SECOND as a redundant safety net for
+      anything the walk's pid snapshot happened to miss (e.g. a process
+      forked in the narrow window between the walk's last ``ps`` call
+      and its kill).
+
+    Falls back to ``process.kill()`` only when ``process.pid`` is
+    unknown (should not happen once ``process.start()`` has returned).
+
+    Wrapped for the inherent race: any of these processes may have
+    already exited between the liveness check and this call, in which
+    case the OS reports ``ProcessLookupError`` / ``ESRCH`` -- not a real
+    failure, just confirmation there is nothing left to kill.
+
+    Returns the ``PidTreeWalkOutcome`` from ``_kill_pid_tree`` (or
+    ``None`` on the ``process.pid is None``/no-``os.kill`` fallback
+    paths, where the pid-tree walk never ran at all) so the caller can
+    surface degraded-walk visibility all the way into
+    ``MeasuredUsage``/``TrainingOutput.reason`` -- see
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
     """
     pid = process.pid
-    if pid is not None and hasattr(os, "killpg") and hasattr(os, "getpgid"):
+    if pid is None:
+        process.kill()
+        return None
+
+    # Order matters: the ppid-lineage walk must run BEFORE anything is
+    # killed. `_child_worker` itself calls `os.setsid()`, so `process`
+    # (the tracked isolated child) is already its own process-group
+    # leader; killing that group first (as a naive implementation might)
+    # would SIGKILL `process` itself before the walk below runs. Once a
+    # parent is reaped, the kernel immediately reparents its live
+    # children (to PID 1 / the nearest reaper) -- which would change the
+    # very ppid lineage `_kill_pid_tree` depends on to find an escaped
+    # grandchild, turning a real fix into one that only works when
+    # nothing has actually escaped yet. Snapshotting and killing by
+    # ppid lineage first (while `process` and everything it spawned are
+    # still alive and still show their real lineage in `ps`) avoids that
+    # race; `os.killpg` afterwards is then a harmless, redundant safety
+    # net for the still-common case where nothing escaped the group.
+    walk_outcome: PidTreeWalkOutcome | None = None
+    if hasattr(os, "kill") and hasattr(subprocess, "run"):
+        walk_outcome = _kill_pid_tree(pid)
+    else:  # pragma: no cover - no platform in this project's support matrix hits this
+        process.kill()
+
+    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
         try:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
-            return
         except ProcessLookupError:
-            return
+            pass
         except OSError:
             pass
-    process.kill()
+
+    return walk_outcome
 
 
 def _directory_size_mb(root: str) -> float:
@@ -542,8 +813,9 @@ def run_in_isolated_process(
 
     Returns ``(output_or_None, exception_or_None, measured_usage)``.
     Exactly one of the first two is non-``None`` unless the child was
-    killed for a timeout/overrun, in which case both are ``None`` and
-    ``measured_usage.killed_for_*`` explains why.
+    hard-killed (timeout, resource overrun, or a non-cooperative
+    cancellation escalating to SIGKILL), in which case both are ``None``
+    and ``measured_usage.killed_for_*`` explains why.
     """
     ctx = multiprocessing.get_context("spawn")
     result_queue: multiprocessing.Queue = ctx.Queue()
@@ -563,6 +835,8 @@ def run_in_isolated_process(
     live_cpu_seconds = 0.0
     killed_for_overrun = False
     killed_for_timeout = False
+    killed_for_cancellation = False
+    pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
 
     while True:
         elapsed = time.monotonic() - start
@@ -576,7 +850,7 @@ def run_in_isolated_process(
             live_cpu_seconds = max(live_cpu_seconds, cpu_seconds)
             if memory_mb > budget.max_memory_mb or cpu_seconds > budget.max_cpu_seconds:
                 killed_for_overrun = True
-                _kill_group(process)
+                pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
                 break
 
@@ -585,7 +859,7 @@ def run_in_isolated_process(
             mp_cancel_event.set()
             process.join(timeout=kill_grace_seconds)
             if process.is_alive():
-                _kill_group(process)
+                pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
             break
 
@@ -595,7 +869,8 @@ def run_in_isolated_process(
             mp_cancel_event.set()
             process.join(timeout=kill_grace_seconds)
             if process.is_alive():
-                _kill_group(process)
+                killed_for_cancellation = True
+                pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
             break
 
@@ -628,9 +903,11 @@ def run_in_isolated_process(
         storage_mb_used=storage_mb_used,
         killed_for_overrun=killed_for_overrun,
         killed_for_timeout=killed_for_timeout,
+        killed_for_cancellation=killed_for_cancellation,
+        pid_tree_walk_outcome=pid_tree_walk_outcome,
     )
 
-    if killed_for_overrun or killed_for_timeout:
+    if killed_for_overrun or killed_for_timeout or killed_for_cancellation:
         return None, None, measured
 
     try:

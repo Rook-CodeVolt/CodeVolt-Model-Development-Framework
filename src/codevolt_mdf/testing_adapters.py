@@ -19,6 +19,12 @@ testing the well-behaved ``FakeTrainerAdapter``.
   then hangs. Proves ``_kill_group``/``os.setsid`` process-GROUP
   termination reaches adapter-spawned subprocesses, not just the direct
   child the contract runner tracks.
+- ``SetsidEscapingAdapter``: spawns a grandchild that itself calls
+  ``os.setsid()`` before hanging, leaving the isolated child's process
+  group entirely. Proves the ``_kill_pid_tree`` ppid-lineage walk added
+  in ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md`` reaches
+  a descendant that has escaped process-group-based termination, which
+  ``SubprocessSpawningAdapter`` alone does not exercise.
 - ``MaliciousExceptionAdapter``: raises an exception whose class defines
   a malicious ``__reduce__`` that would run ``os.system(...)`` the
   instant it is unpickled. Proves the IPC sanitisation in
@@ -178,6 +184,74 @@ class SubprocessSpawningAdapter:
         # Deliberately does NOT check cancel_token and does NOT wait() on
         # the grandchild: only an OS-level kill of the whole process
         # group can end this run.
+        deadline = time.monotonic() + 300
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+        return TrainingOutput(status=TrainingStatus.ACCEPTED, reason="unreachable")
+
+    def cleanup(self, run_id: str) -> None:
+        return None
+
+
+@dataclass
+class SetsidEscapingAdapter:
+    """TEST-ONLY: spawns a grandchild that calls ``os.setsid()`` to escape the group.
+
+    Unlike ``SubprocessSpawningAdapter`` (whose ``sleep 300`` grandchild
+    stays in the isolated child's process group and dies with a plain
+    ``os.killpg``), this adapter's grandchild is a short Python one-liner
+    that calls ``os.setsid()`` on startup -- becoming the leader of a
+    brand-new OS process group and session -- before it busy-loops. That
+    is precisely the disclosed residual gap in
+    ``docs/decisions/0003-trainer-contract-os-level-enforcement.md``:
+    ``os.setsid()`` changes process-group/session membership but leaves
+    ``ppid`` lineage untouched, so a pure ``os.killpg`` sweep no longer
+    reaches it once it has escaped, while a ``ppid``-lineage walk
+    (``_kill_pid_tree``) still does. Writes the grandchild's pid to
+    ``pid_file`` before detaching so the test can verify it via the real
+    OS, not an internal accounting flag.
+    """
+
+    pid_file: str = ""
+    name: str = "test-only-setsid-escaping"
+    contract_version: str = "1.1.0"
+    upstream: UpstreamRequirement = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.upstream is None:
+            self.upstream = _TEST_ONLY_UPSTREAM
+
+    def prepare(self, inputs: TrainingInputs, budget: ResourceBudget) -> None:
+        return None
+
+    def train(
+        self,
+        inputs: TrainingInputs,
+        budget: ResourceBudget,
+        cancel_token: CancellationToken,
+        resume_from: CheckpointHandle | None = None,
+    ) -> TrainingOutput:
+        import subprocess
+        import sys
+
+        # A grandchild that detaches into its own session/process group
+        # (os.setsid()) before busy-looping, so it is no longer a member
+        # of the isolated child's group by the time any kill signal
+        # arrives.
+        script = (
+            "import os, time\n"
+            "os.setsid()\n"
+            "deadline = time.monotonic() + 300\n"
+            "while time.monotonic() < deadline:\n"
+            "    time.sleep(0.05)\n"
+        )
+        grandchild = subprocess.Popen([sys.executable, "-c", script])
+        if self.pid_file:
+            with open(self.pid_file, "w") as f:
+                f.write(str(grandchild.pid))
+        # Deliberately does NOT check cancel_token and does NOT wait() on
+        # the grandchild: only an OS-level kill that reaches beyond the
+        # process group (a ppid-lineage walk) can end this run.
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             time.sleep(0.05)
