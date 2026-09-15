@@ -141,13 +141,20 @@ class MeasuredUsage:
     storage_mb_used: float | None  # None when filesystem_root was not declared
     killed_for_overrun: bool
     killed_for_timeout: bool
+    killed_for_cancellation: bool = False
+    """True only when the adapter did not honour ``cancel_token``
+    cooperatively within ``DEFAULT_KILL_GRACE_SECONDS`` and the runner
+    escalated to a real ``_kill_group()`` SIGKILL -- i.e. the 3rd
+    ``_kill_group()`` call site, distinct from ``killed_for_timeout`` and
+    ``killed_for_overrun``. See
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``, Addendum:
+    cancellation hard-kill parity."""
     pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
     """Set only when a kill (``_kill_group``) actually ran -- i.e. only
-    meaningful alongside ``killed_for_overrun``/``killed_for_timeout`` (or
-    a cooperative-cancel escalation to SIGKILL). ``None`` when the child
-    exited on its own and no kill was ever attempted, in which case the
-    pid-tree walk's failure modes do not apply. See
-    ``PidTreeWalkOutcome.degraded`` and
+    meaningful alongside ``killed_for_overrun``/``killed_for_timeout``/
+    ``killed_for_cancellation``. ``None`` when the child exited on its own
+    and no kill was ever attempted, in which case the pid-tree walk's
+    failure modes do not apply. See ``PidTreeWalkOutcome.degraded`` and
     ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``."""
 
 
@@ -806,8 +813,9 @@ def run_in_isolated_process(
 
     Returns ``(output_or_None, exception_or_None, measured_usage)``.
     Exactly one of the first two is non-``None`` unless the child was
-    killed for a timeout/overrun, in which case both are ``None`` and
-    ``measured_usage.killed_for_*`` explains why.
+    hard-killed (timeout, resource overrun, or a non-cooperative
+    cancellation escalating to SIGKILL), in which case both are ``None``
+    and ``measured_usage.killed_for_*`` explains why.
     """
     ctx = multiprocessing.get_context("spawn")
     result_queue: multiprocessing.Queue = ctx.Queue()
@@ -827,6 +835,7 @@ def run_in_isolated_process(
     live_cpu_seconds = 0.0
     killed_for_overrun = False
     killed_for_timeout = False
+    killed_for_cancellation = False
     pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
 
     while True:
@@ -860,6 +869,7 @@ def run_in_isolated_process(
             mp_cancel_event.set()
             process.join(timeout=kill_grace_seconds)
             if process.is_alive():
+                killed_for_cancellation = True
                 pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
             break
@@ -893,10 +903,11 @@ def run_in_isolated_process(
         storage_mb_used=storage_mb_used,
         killed_for_overrun=killed_for_overrun,
         killed_for_timeout=killed_for_timeout,
+        killed_for_cancellation=killed_for_cancellation,
         pid_tree_walk_outcome=pid_tree_walk_outcome,
     )
 
-    if killed_for_overrun or killed_for_timeout:
+    if killed_for_overrun or killed_for_timeout or killed_for_cancellation:
         return None, None, measured
 
     try:

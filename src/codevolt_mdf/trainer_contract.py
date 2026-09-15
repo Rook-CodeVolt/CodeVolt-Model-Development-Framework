@@ -442,7 +442,7 @@ def run_trainer_contract(
     # environments where multiprocessing's spawn method is restricted
     # (e.g. certain sandboxes); process_isolation is stdlib-only so this
     # is purely to avoid a hard import-time dependency cycle risk.
-    from .process_isolation import run_in_isolated_process
+    from .process_isolation import DEFAULT_KILL_GRACE_SECONDS, run_in_isolated_process
 
     output_payload, exc_payload, measured = run_in_isolated_process(
         adapter, inputs, budget, resume_from, token
@@ -472,6 +472,21 @@ def run_trainer_contract(
                 f"{_pid_tree_walk_reason_suffix(measured)}"
             ),
             error_class=ResourceBudgetExceededError.__name__,
+            resource_usage=_measured_usage_as_resource_usage(measured),
+        )
+
+    if measured.killed_for_cancellation:
+        adapter.cleanup(inputs.run_id)  # non-cooperative: nothing to resume
+        return TrainingOutput(
+            status=TrainingStatus.INTERRUPTED,
+            reason=(
+                f"cancellation requested ({token.reason}); adapter did not "
+                f"cooperate with cancel_token within "
+                f"{DEFAULT_KILL_GRACE_SECONDS}s grace period "
+                "and was SIGKILLed"
+                f"{_pid_tree_walk_reason_suffix(measured)}"
+            ),
+            error_class=TrainerCancelledError.__name__,
             resource_usage=_measured_usage_as_resource_usage(measured),
         )
 

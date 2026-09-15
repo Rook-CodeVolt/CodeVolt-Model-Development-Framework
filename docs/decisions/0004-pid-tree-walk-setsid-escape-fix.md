@@ -191,3 +191,81 @@ This addendum does not change the Decision, the closed literal gap, or
 the explicitly-out-of-scope double-fork/orphan-adoption case above; it
 only adds the observability the original design specified for the
 walk's own failure/exhaustion, per Maya's required remediation.
+
+## Addendum 2: cancellation hard-kill parity (Maya's 2nd PR #14 review)
+
+Maya's re-review of the addendum above (PR #14, review comment
+https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/pull/14#issuecomment-5683727075)
+issued REQUEST CHANGES again, narrowly scoped to one remaining call
+site: `_kill_group()` runs at three places in
+`process_isolation.run_in_isolated_process()` -- the timeout path, the
+resource-overrun path, and the cancellation-triggered hard-kill path
+(a non-cooperative adapter, e.g. `RunawayAdapter`, does not honour
+`cancel_token` within `DEFAULT_KILL_GRACE_SECONDS` and the runner
+escalates to a real `SIGKILL`). Addendum 1 above threaded the degraded-
+walk signal into `TrainingOutput.reason` for the first two call sites
+only. The third call site correctly logged the degraded walk via the
+module logger (Addendum 1's logging is call-site-agnostic), but its
+result fell through into the generic
+`exc_payload`/`RuntimeError("child process exited without reporting a
+result")` branch in `trainer_contract.run_trainer_contract()`, which
+discards the signal before it reaches the evidence bundle. Maya
+independently reproduced this with a real `cancel_token` fire against
+a monkeypatched failing `subprocess.run`.
+
+Closed by giving the cancellation hard-kill path the same explicit-flag
+treatment `killed_for_timeout`/`killed_for_overrun` already had, rather
+than trying to special-case it inside the generic exception-formatting
+branch:
+
+- `process_isolation.MeasuredUsage` gained a `killed_for_cancellation`
+  field (default `False`, so existing call sites/tests are unaffected).
+- `run_in_isolated_process()`'s cancellation branch sets
+  `killed_for_cancellation = True` before calling `_kill_group()` when
+  the adapter is still alive after the cooperative grace period, mirroring
+  the timeout/overrun branches exactly.
+- The `if killed_for_overrun or killed_for_timeout:` short-circuit (which
+  returns `(None, None, measured)` before the generic
+  `exc_payload`/`RuntimeError` fallback can ever run) now also checks
+  `killed_for_cancellation`, so this path never reaches that fallback.
+- `trainer_contract.run_trainer_contract()` gained a third
+  `if measured.killed_for_cancellation:` branch, positioned after the
+  overrun branch and before the `exc_payload` check, that builds a
+  `TrainingOutput(status=INTERRUPTED, error_class=TrainerCancelledError.__name__, ...)`
+  with the cancellation reason, the grace-period bound, and the same
+  `_pid_tree_walk_reason_suffix(measured)` call the other two branches
+  use -- so all three `_kill_group()` call sites now share one evidence
+  formatting helper rather than duplicating the degraded-walk text.
+
+Evidence (added in the PR #14 follow-up commit,
+`tests/test_trainer_contract.py` section 12):
+
+```
+test_cancellation_hard_kill_of_noncooperative_adapter_reaches_reason   PASSED
+```
+
+This single test asserts both halves of the requirement: at the
+`process_isolation` level, `measured.killed_for_cancellation is True`
+while `killed_for_timeout`/`killed_for_overrun` stay `False` and both
+`output`/`exc` stay `None` (proving the generic `RuntimeError` fallback
+is never reached); at the evidence-bundle level, an end-to-end
+`run_trainer_contract()` call against a real, SIGKILLed `RunawayAdapter`
+process with a forced-failing `ps` call asserts `output.error_class ==
+"TrainerCancelledError"`, the cancellation reason and `SIGKILL` text
+appear in `output.reason`, the `[pid-tree-walk degraded` marker is
+present, and the old generic fallback text ("child process exited
+without reporting a result") is absent.
+
+Negative control: stashing only the `process_isolation.py`/
+`trainer_contract.py` changes (new test kept) reproduces the test
+failing -- `AttributeError: 'MeasuredUsage' object has no attribute
+'killed_for_cancellation'` on the first assertion. Restoring the
+changes makes it pass again; two consecutive full-suite runs afterward
+are 41/41 green (37 pre-existing + 3 from Addendum 1 + 1 new) with
+`ruff check .` clean and no new `mypy` findings (the same 4 pre-existing
+findings from Addendum 1 are unchanged).
+
+This addendum does not change the Decision, either previously-closed
+gap, or the explicitly-out-of-scope double-fork/orphan-adoption case
+above; it only extends Addendum 1's evidence-bundle-visibility
+requirement to the third and last `_kill_group()` call site.

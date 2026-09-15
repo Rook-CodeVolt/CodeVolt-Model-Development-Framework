@@ -608,3 +608,72 @@ def test_evidence_bundle_reason_reflects_degraded_pid_tree_walk(monkeypatch):
     assert output.status == TrainingStatus.INTERRUPTED
     assert "[pid-tree-walk degraded" in output.reason, output.reason
     assert "ps" in output.reason.lower()
+
+
+# 12. cancellation-triggered hard-kill path ---------------------------------
+#
+# Maya's 2nd REQUEST CHANGES on PR #14: the pid-tree-walk degraded-walk
+# signal reached TrainingOutput.reason on 2 of the 3 _kill_group() call
+# sites (timeout, resource-overrun) but not the 3rd -- the
+# cancellation-triggered hard-kill path, where a non-cooperative adapter
+# (e.g. RunawayAdapter) does not honour cancel_token within the grace
+# period and the runner escalates to a real SIGKILL. That path previously
+# fell through into the generic exc_payload/RuntimeError("child process
+# exited without reporting a result") branch, silently dropping the
+# signal. This test proves the reason string is reachable via
+# cancellation specifically, not just via timeout/overrun, at both the
+# process_isolation level (``measured.killed_for_cancellation``) and the
+# evidence-bundle level (``TrainingOutput.reason``/``error_class``).
+
+
+def test_cancellation_hard_kill_of_noncooperative_adapter_reaches_reason(monkeypatch):
+    """A non-cooperative adapter's cancel-triggered SIGKILL must surface as
+    TrainingStatus.INTERRUPTED / TrainerCancelledError with the pid-tree-walk
+    reason suffix reachable, distinct from the timeout/overrun paths and
+    from the generic 'exited without reporting a result' fallback."""
+    budget = make_budget(max_wall_seconds=30.0, max_cpu_seconds=30.0)
+
+    # Unit level: process_isolation directly, proving killed_for_cancellation
+    # (not killed_for_timeout/killed_for_overrun) is what fires, and that
+    # both output and exc stay None -- same shape as the timeout/overrun
+    # short-circuit, so the generic RuntimeError branch is never reached.
+    inputs_direct = make_inputs("smoke", run_id="cancel-hard-kill-direct-1")
+    token_direct = CancellationToken()
+    timer = threading.Timer(0.1, token_direct.cancel, kwargs={"reason": "user requested stop"})
+    timer.start()
+    try:
+        output_p, exc_p, measured = process_isolation.run_in_isolated_process(
+            RunawayAdapter(), inputs_direct, budget, None, token_direct
+        )
+    finally:
+        timer.cancel()
+
+    assert measured.killed_for_cancellation is True
+    assert measured.killed_for_timeout is False
+    assert measured.killed_for_overrun is False
+    assert output_p is None
+    assert exc_p is None
+
+    # End-to-end: run_trainer_contract with a forced degraded pid-tree walk,
+    # proving the signal reaches the evidence-bundle-visible reason on the
+    # cancellation path specifically -- the gap Maya's 2nd review identified.
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    inputs_e2e = make_inputs("smoke", run_id="cancel-hard-kill-e2e-1")
+    token_e2e = CancellationToken()
+    timer2 = threading.Timer(0.1, token_e2e.cancel, kwargs={"reason": "user requested stop"})
+    timer2.start()
+    try:
+        output = run_trainer_contract(RunawayAdapter(), inputs_e2e, budget, cancel_token=token_e2e)
+    finally:
+        timer2.cancel()
+
+    assert output.status == TrainingStatus.INTERRUPTED
+    assert output.error_class == "TrainerCancelledError"
+    assert "user requested stop" in output.reason
+    assert "SIGKILL" in output.reason
+    assert "[pid-tree-walk degraded" in output.reason, output.reason
+    assert "child process exited without reporting a result" not in output.reason
