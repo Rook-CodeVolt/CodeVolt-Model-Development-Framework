@@ -19,6 +19,7 @@ lying adapter's fake self-report.
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -512,3 +513,98 @@ def test_legitimate_adapter_exception_propagates_with_correct_type_and_message(t
     assert contract_output.status == TrainingStatus.INTERRUPTED
     assert contract_output.error_class == "ValueError"
     assert contract_output.reason == "something went wrong"
+
+
+# 11. pid-tree-walk failure/exhaustion observability -----------------------
+#
+# Maya's PR #14 review (REQUEST CHANGES, required remediation item): the
+# approved issue #7 Layer 1 design specified logging/evidence-bundle
+# visibility when the pid-tree walk exhausts its passes without fully
+# reaping a target, or when the underlying `ps` call fails -- previously
+# both failure modes degraded `_kill_pid_tree` to a root-pid-only kill
+# with zero observability. These three tests prove both modes are now
+# surfaced: (a)/(b) directly against `_kill_pid_tree` (unit-level, since
+# reliably forcing a real OS process to survive 3 SIGKILL passes isn't
+# possible -- SIGKILL is not interruptible -- so exhaustion is exercised
+# by controlling what `os.kill` reports, same technique the existing
+# LyingAdapter/RunawayAdapter tests use for other OS-boundary conditions);
+# (c) end-to-end through the real `run_trainer_contract` path with a real
+# OS process being killed, proving the evidence text actually reaches
+# `TrainingOutput.reason`, not just the internal dataclass.
+
+
+def test_kill_pid_tree_reports_and_logs_when_ps_call_fails(monkeypatch, caplog):
+    """A failed/timed-out `ps` call must be reported, not silently swallowed.
+
+    Uses a pid guaranteed not to exist (safe: os.kill on it raises
+    ProcessLookupError, never affects a real process) so only the `ps`
+    failure path is under test.
+    """
+
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    with caplog.at_level(logging.WARNING, logger="codevolt_mdf.process_isolation"):
+        outcome = process_isolation._kill_pid_tree(999_999_999)
+
+    assert outcome.ps_call_failed is True
+    assert outcome.degraded is True
+    assert any(
+        "ps' call failed" in record.message or "ps -eo pid=,ppid=" in record.message
+        for record in caplog.records
+    ), f"expected a ps-failure warning in logs, got: {[r.message for r in caplog.records]}"
+
+
+def test_kill_pid_tree_reports_and_logs_when_passes_exhausted(monkeypatch, caplog):
+    """Exhausting all passes without a confirmed reap must be reported.
+
+    Controls what `os.kill` reports (never raises, simulating a target
+    that never confirms death) rather than relying on a real process
+    surviving three SIGKILLs -- SIGKILL is not interruptible, so that
+    condition cannot be reliably produced against a real OS process.
+    """
+    kill_calls: list[int] = []
+
+    def _never_confirms_dead(pid, _sig):
+        kill_calls.append(pid)
+        # Never raises ProcessLookupError/OSError: the walk can never
+        # observe "no live targets" and must exhaust all passes.
+
+    monkeypatch.setattr(process_isolation.os, "kill", _never_confirms_dead)
+
+    with caplog.at_level(logging.WARNING, logger="codevolt_mdf.process_isolation"):
+        outcome = process_isolation._kill_pid_tree(999_999_998)
+
+    assert outcome.exhausted_without_confirmed_reap is True
+    assert outcome.degraded is True
+    assert len(kill_calls) == process_isolation._MAX_PID_TREE_WALK_PASSES
+    assert any("exhausted all" in record.message for record in caplog.records), (
+        f"expected an exhaustion warning in logs, got: {[r.message for r in caplog.records]}"
+    )
+
+
+def test_evidence_bundle_reason_reflects_degraded_pid_tree_walk(monkeypatch):
+    """The degraded-walk signal must reach TrainingOutput.reason, not just logs.
+
+    End-to-end through the real run_trainer_contract path with a real
+    RunawayAdapter OS process that gets SIGKILLed on timeout: forces the
+    `ps` call used by the pid-tree walk to fail during that real kill,
+    then asserts the evidence text appears in the reported reason --
+    this is the evidence-bundle-visibility requirement from Maya's PR #14
+    review, not just an internal dataclass field nobody reads.
+    """
+    budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
+    inputs = make_inputs("smoke", run_id="ps-fail-evidence-1")
+
+    def _raising_run(*_args, **_kwargs):
+        raise OSError("ps: simulated failure")
+
+    monkeypatch.setattr(process_isolation.subprocess, "run", _raising_run)
+
+    output = run_trainer_contract(RunawayAdapter(), inputs, budget)
+
+    assert output.status == TrainingStatus.INTERRUPTED
+    assert "[pid-tree-walk degraded" in output.reason, output.reason
+    assert "ps" in output.reason.lower()

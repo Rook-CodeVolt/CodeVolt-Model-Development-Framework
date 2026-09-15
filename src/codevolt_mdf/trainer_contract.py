@@ -455,6 +455,7 @@ def run_trainer_contract(
             reason=(
                 f"training exceeded max_wall_seconds={budget.max_wall_seconds} "
                 f"(elapsed={measured.wall_seconds}s); adapter process was SIGKILLed"
+                f"{_pid_tree_walk_reason_suffix(measured)}"
             ),
             error_class=TrainerTimeoutError.__name__,
             resource_usage=_measured_usage_as_resource_usage(measured),
@@ -468,6 +469,7 @@ def run_trainer_contract(
                 "live-measured resource usage exceeded budget while running; "
                 "adapter process was SIGKILLed "
                 f"(cpu_seconds={measured.cpu_seconds}, memory_mb_peak={measured.memory_mb_peak})"
+                f"{_pid_tree_walk_reason_suffix(measured)}"
             ),
             error_class=ResourceBudgetExceededError.__name__,
             resource_usage=_measured_usage_as_resource_usage(measured),
@@ -565,6 +567,33 @@ def _measured_usage_as_resource_usage(measured: Any) -> ResourceUsage:
         memory_mb_peak=measured.memory_mb_peak,
         gpu_count_used=0,
         storage_mb_used=measured.storage_mb_used or 0.0,
+    )
+
+
+def _pid_tree_walk_reason_suffix(measured: Any) -> str:
+    """Append evidence-bundle-visible text when the pid-tree kill walk degraded.
+
+    Surfaces both originally-silent failure modes flagged in Maya's PR #14
+    review (issue #7's approved Layer 1 design, step 3): the underlying
+    ``ps`` call failing/timing out during the kill, and the bounded
+    walk-and-kill loop exhausting all its passes without confirming a
+    full reap. Returns an empty string when no kill ran or the walk fully
+    confirmed the reap, so the common, non-degraded case is unchanged.
+    See ``process_isolation.PidTreeWalkOutcome`` and
+    ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
+    """
+    outcome = getattr(measured, "pid_tree_walk_outcome", None)
+    if outcome is None or not outcome.degraded:
+        return ""
+    parts = []
+    if outcome.ps_call_failed:
+        parts.append("'ps' call failed/timed out on at least one pass")
+    if outcome.exhausted_without_confirmed_reap:
+        parts.append("walk exhausted all passes without confirming a full reap")
+    return (
+        " [pid-tree-walk degraded: " + "; ".join(parts) + " -- a descendant may "
+        "not have been individually confirmed killed by the ppid-lineage walk; "
+        "the redundant os.killpg group-kill still ran]"
     )
 
 

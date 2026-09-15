@@ -131,3 +131,63 @@ All checks passed!
   porting, or a training pilot — issue #7 steps 4 (independent
   evaluation) and 5 (Maya's independent security review) remain
   separately gated.
+
+## Addendum: failure/exhaustion observability (Maya's PR #14 review)
+
+Maya's independent review of the PR implementing this ADR (PR #14,
+review comment
+https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/pull/14#issuecomment-5683138092)
+issued REQUEST CHANGES on exactly one required item: the design in the
+"Decision" section above (step 3, `_kill_pid_tree`'s bounded re-walk)
+was implemented without the logging/evidence-bundle visibility that
+same design called for when the walk exhausts its passes without fully
+reaping a target, or when the underlying `ps` call itself fails. Before
+this addendum, both failure modes silently degraded `_kill_group` to a
+root-pid-only kill with zero observability — a real gap between the
+approved design and the shipped code, not merely an omitted nice-to-have.
+
+This is now closed, not deferred, by:
+
+- `process_isolation._list_pid_ppid_pairs()` now returns `(pairs, ok)`
+  instead of silently returning `[]` on a `ps` failure; `ok=False` is
+  distinguishable from a genuine empty snapshot and is logged via the
+  module's `_logger.warning(...)`.
+- `process_isolation._kill_pid_tree()` now returns a
+  `PidTreeWalkOutcome(ps_call_failed, exhausted_without_confirmed_reap)`
+  instead of `None`, logging a warning for each failure mode as it
+  happens (per-pass for a `ps` failure, once if all
+  `_MAX_PID_TREE_WALK_PASSES` passes exhaust without any pass reporting
+  zero live targets).
+- `_kill_group()` propagates that outcome to its caller;
+  `run_in_isolated_process()` threads it into a new
+  `MeasuredUsage.pid_tree_walk_outcome` field (`None` when no kill ever
+  ran, so the common non-degraded path is unaffected).
+- `trainer_contract.run_trainer_contract()` appends a
+  `_pid_tree_walk_reason_suffix(measured)` string to `TrainingOutput.reason`
+  on the timeout and resource-overrun paths (the two paths that call
+  `_kill_group`) whenever `PidTreeWalkOutcome.degraded` is true — this is
+  the evidence-bundle-visible half of the requirement, not just a log
+  line nobody reads afterward.
+
+Evidence (added in the PR #14 follow-up commit, `tests/test_trainer_contract.py`
+section 11):
+
+```
+test_kill_pid_tree_reports_and_logs_when_ps_call_fails            PASSED
+test_kill_pid_tree_reports_and_logs_when_passes_exhausted         PASSED
+test_evidence_bundle_reason_reflects_degraded_pid_tree_walk       PASSED
+```
+
+Negative control: stashing only the `process_isolation.py`/
+`trainer_contract.py` changes (new tests kept) reproduces all three
+tests failing — `AttributeError: 'NoneType' object has no attribute
+'exhausted_without_confirmed_reap'` for the two unit-level tests, and a
+`reason` string with no `[pid-tree-walk degraded` marker for the
+end-to-end one. Restoring the changes makes all three pass again, with
+the full 40-test suite (37 pre-existing + 3 new) green and `ruff check .`
+clean.
+
+This addendum does not change the Decision, the closed literal gap, or
+the explicitly-out-of-scope double-fork/orphan-adoption case above; it
+only adds the observability the original design specified for the
+walk's own failure/exhaustion, per Maya's required remediation.
