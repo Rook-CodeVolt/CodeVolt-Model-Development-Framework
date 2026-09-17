@@ -471,6 +471,247 @@ def test_missing_held_out_response_is_scored_incorrect_not_an_error(tmp_path):
     assert output.results[0].score == 0.0
 
 
+# 6b. Real inference: multiple_choice task type (WP-A, issue #24) ------------
+# Per-option log-likelihood scoring against the pinned checkpoint. Same
+# skip discipline as section 6 above.
+
+
+def _make_multiple_choice_held_out(
+    example_id: str, prompt: str, choices: list, expected, package_id: str
+) -> HeldOutSet:
+    return HeldOutSet.create(
+        package_id,
+        [
+            HeldOutExample(
+                example_id=example_id,
+                input={"prompt": prompt, "choices": choices},
+                expected=expected,
+                metadata=(("task_type", "multiple_choice"),),
+            )
+        ],
+    )
+
+
+def test_real_inference_scores_multiple_choice_by_log_likelihood(tmp_path):
+    """The core new multiple_choice behaviour: real per-option teacher-forced
+    log-likelihood scoring against the pinned checkpoint, end-to-end through
+    run_evaluator_contract -- same contamination/tamper gates as exact_match,
+    no special-casing."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter()
+    held_out = _make_multiple_choice_held_out(
+        "mc-0000",
+        "The opposite of hot is",
+        [" cold", " purple", " Tuesday"],
+        0,
+        package_id="P-mc-real",
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "base-checkpoint", model_path, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    assert output.aggregate_score is not None
+    assert 0.0 <= output.aggregate_score <= 1.0
+    assert len(output.results) == 1
+    result = output.results[0]
+    assert isinstance(result.raw_output, str)
+    assert "chose" in result.raw_output
+    assert "log-likelihoods" in result.raw_output
+    assert output.evidence_locator is not None
+    assert verify_evidence(output.evidence_locator, output.evidence_hash)
+
+
+def test_real_inference_multiple_choice_is_deterministic(tmp_path):
+    """Teacher-forced log-likelihood scoring has no sampling anywhere -- the
+    same artifact + example must reproduce the exact same choice and score."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter()
+    held_out = _make_multiple_choice_held_out(
+        "mc-0000", "2 + 2 = ", ["3", "4", "5"], "4", package_id="P-mc-determinism"
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output_a = run_evaluator_contract(
+        adapter, "run-a", model_path, held_out, registry, tmp_path / "a"
+    )
+    output_b = run_evaluator_contract(
+        adapter, "run-b", model_path, held_out, registry, tmp_path / "b"
+    )
+
+    assert output_a.status == output_b.status == EvaluationStatus.SCORED
+    assert output_a.results[0].raw_output == output_b.results[0].raw_output
+    assert output_a.results[0].correct == output_b.results[0].correct
+
+
+def test_real_inference_multiple_choice_resolves_expected_by_text_or_index(tmp_path):
+    """expected may be given as the choice's exact text or its 0-based index --
+    both must resolve to the identical scoring outcome against the same
+    real inference (same model, same prompt, same choices)."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter()
+    registry = HeldOutExclusionRegistry()
+
+    held_out_by_text = _make_multiple_choice_held_out(
+        "mc-text", "The opposite of hot is", [" cold", " purple"], " cold",
+        package_id="P-mc-by-text",
+    )
+    held_out_by_index = _make_multiple_choice_held_out(
+        "mc-index", "The opposite of hot is", [" cold", " purple"], 0,
+        package_id="P-mc-by-index",
+    )
+
+    output_text = run_evaluator_contract(
+        adapter, "run-text", model_path, held_out_by_text, registry, tmp_path / "text"
+    )
+    output_index = run_evaluator_contract(
+        adapter, "run-index", model_path, held_out_by_index, registry, tmp_path / "index"
+    )
+
+    assert output_text.status == output_index.status == EvaluationStatus.SCORED
+    assert output_text.results[0].correct == output_index.results[0].correct
+
+
+def test_real_inference_multiple_choice_malformed_input_is_invalid_without_loading_model(tmp_path):
+    """A malformed multiple_choice example (too few choices) is reported as
+    InvalidInputError -- exercised here against the real pinned checkpoint
+    to prove the shape-validation-before-model-load ordering holds for this
+    adapter's real (not fake) code path too."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter()
+    held_out = HeldOutSet.create(
+        "P-mc-malformed",
+        [
+            HeldOutExample(
+                example_id="mc-bad",
+                input={"prompt": "p", "choices": ["only-one"]},
+                expected="only-one",
+                metadata=(("task_type", "multiple_choice"),),
+            )
+        ],
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "run-bad", model_path, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert "at least 2" in output.reason
+
+
+# 6c. Real inference: format_conformance task type (WP-A, issue #24) ---------
+# Greedy generation + format check against the pinned checkpoint.
+
+
+def _make_format_conformance_held_out(
+    example_id: str, prompt: str, spec: dict, package_id: str
+) -> HeldOutSet:
+    return HeldOutSet.create(
+        package_id,
+        [
+            HeldOutExample(
+                example_id=example_id,
+                input=prompt,
+                expected=spec,
+                metadata=(("task_type", "format_conformance"),),
+            )
+        ],
+    )
+
+
+def test_real_inference_scores_format_conformance_via_generation(tmp_path):
+    """The core new format_conformance behaviour: real greedy generation
+    against the pinned checkpoint, checked against a declared format spec
+    (not a fixed expected string) -- end-to-end through
+    run_evaluator_contract, same contamination/tamper gates as exact_match."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=6)
+    held_out = _make_format_conformance_held_out(
+        "fc-0000", "2 + 2 = ", {"format": "regex", "pattern": r"."},
+        package_id="P-fc-real",
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "base-checkpoint", model_path, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    assert output.aggregate_score is not None
+    assert 0.0 <= output.aggregate_score <= 1.0
+    assert len(output.results) == 1
+    result = output.results[0]
+    assert isinstance(result.raw_output, str)
+    assert "matches pattern" in result.raw_output
+    assert output.evidence_locator is not None
+    assert verify_evidence(output.evidence_locator, output.evidence_hash)
+
+
+def test_real_inference_format_conformance_json_spec_scores_untrained_output_incorrect(tmp_path):
+    """The untrained base checkpoint's free-form continuation of an
+    arithmetic prompt is not valid JSON -- correctly scored non-conforming
+    (False), not an error, proving this mode measures shape, not equality,
+    and doesn't silently pass everything."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=6)
+    held_out = _make_format_conformance_held_out(
+        "fc-0001", "2 + 2 = ", {"format": "json"}, package_id="P-fc-json"
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "run-json", model_path, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    assert output.results[0].correct is False
+    assert output.results[0].score == 0.0
+    assert "not valid JSON" in output.results[0].raw_output
+
+
+def test_real_inference_format_conformance_is_deterministic(tmp_path):
+    """Greedy decoding (do_sample=False) means the same artifact + example
+    reproduces the same generated text and the same conformance verdict."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=6)
+    held_out = _make_format_conformance_held_out(
+        "fc-0000", "2 + 2 = ", {"format": "regex", "pattern": r"."},
+        package_id="P-fc-determinism",
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output_a = run_evaluator_contract(
+        adapter, "run-a", model_path, held_out, registry, tmp_path / "a"
+    )
+    output_b = run_evaluator_contract(
+        adapter, "run-b", model_path, held_out, registry, tmp_path / "b"
+    )
+
+    assert output_a.status == output_b.status == EvaluationStatus.SCORED
+    assert output_a.results[0].raw_output == output_b.results[0].raw_output
+    assert output_a.results[0].correct == output_b.results[0].correct
+
+
+def test_real_inference_format_conformance_malformed_spec_is_invalid_without_loading_model(tmp_path):
+    """A malformed format_conformance spec (unsupported format) is reported
+    as InvalidInputError -- exercised against the real pinned checkpoint to
+    prove the shape-validation-before-model-load ordering holds here too."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter()
+    held_out = _make_format_conformance_held_out(
+        "fc-bad", "2 + 2 = ", {"format": "xml"}, package_id="P-fc-malformed"
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "run-bad", model_path, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert "one of" in output.reason
+
+
 # 7. No self-promotion: aggregate_score alone never implies acceptance --------
 
 

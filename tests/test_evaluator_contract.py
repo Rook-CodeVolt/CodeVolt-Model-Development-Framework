@@ -25,7 +25,9 @@ from codevolt_mdf.evaluator_contract import (
     InvalidInputError,
     RejectedInputError,
     TamperDetectedError,
+    TaskType,
     run_evaluator_contract,
+    task_type_of,
     verify_evidence,
 )
 from codevolt_mdf.fake_evaluator_adapter import FakeEvaluatorAdapter
@@ -310,3 +312,230 @@ def test_held_out_set_hash_is_content_sensitive():
     examples_changed = [HeldOutExample(example_id="a", input="qa", expected="DIFFERENT")]
     set_b = HeldOutSet.create("P1", examples_changed)
     assert set_a.dataset_hash != set_b.dataset_hash
+
+
+# 8. WP-A (issue #24) task-type breadth: multiple_choice / format_conformance --
+# Fake-adapter-first conformance tests for both new scoring modes, going
+# through the exact same run_evaluator_contract runner and
+# HeldOutExclusionRegistry contamination check as the original
+# exact-match mode -- no special-casing, no bypass.
+
+
+def test_task_type_of_defaults_to_exact_match_for_pre_existing_examples():
+    """Every HeldOutExample built before this work package (no 'task_type'
+    metadata key) must keep scoring via the original exact-match path
+    with zero behaviour change -- this is the mechanism that makes the
+    new modes purely additive."""
+    example = HeldOutExample(example_id="q1", input="q", expected="a")
+    assert task_type_of(example) == TaskType.EXACT_MATCH.value
+
+
+def make_multiple_choice_held_out(package_id: str = "MC1") -> HeldOutSet:
+    examples = [
+        HeldOutExample(
+            example_id="mc-0000",
+            input={"prompt": "2 + 2 = ?", "choices": ["3", "4", "5"]},
+            expected="4",
+            metadata=(("task_type", "multiple_choice"),),
+        ),
+        HeldOutExample(
+            example_id="mc-0001",
+            input={"prompt": "Capital of France?", "choices": ["Berlin", "Paris", "Rome"]},
+            expected=1,  # by index this time
+            metadata=(("task_type", "multiple_choice"),),
+        ),
+    ]
+    return HeldOutSet.create(package_id, examples)
+
+
+def test_multiple_choice_fake_adapter_scores_correct_and_incorrect(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = make_multiple_choice_held_out()
+    artifact = make_artifact(
+        tmp_path, {"mc-0000": "4", "mc-0001": "Berlin"}  # first correct, second wrong
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "mc-art-1", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    by_id = {r.example_id: r for r in output.results}
+    assert by_id["mc-0000"].correct is True
+    assert by_id["mc-0001"].correct is False
+    assert output.aggregate_score == 0.5
+
+
+def test_multiple_choice_fake_adapter_missing_response_scores_incorrect(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = make_multiple_choice_held_out()
+    artifact = make_artifact(tmp_path, {"mc-0000": "4"})  # mc-0001 missing
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "mc-art-2", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    by_id = {r.example_id: r for r in output.results}
+    assert by_id["mc-0001"].correct is False
+
+
+def test_multiple_choice_invalid_expected_index_is_invalid(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = HeldOutSet.create(
+        "MC2",
+        [
+            HeldOutExample(
+                example_id="mc-bad",
+                input={"prompt": "p", "choices": ["a", "b"]},
+                expected=99,  # out of range
+                metadata=(("task_type", "multiple_choice"),),
+            )
+        ],
+    )
+    artifact = make_artifact(tmp_path, {"mc-bad": "a"})
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "mc-art-3", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert "out of range" in output.reason
+
+
+def make_format_conformance_held_out(package_id: str = "FMT1") -> HeldOutSet:
+    examples = [
+        HeldOutExample(
+            example_id="fmt-0000",
+            input="Return a JSON object with a 'name' key.",
+            expected={"format": "json", "required_keys": ["name"]},
+            metadata=(("task_type", "format_conformance"),),
+        ),
+        HeldOutExample(
+            example_id="fmt-0001",
+            input="Return a number.",
+            expected={"format": "regex", "pattern": r"^\d+$"},
+            metadata=(("task_type", "format_conformance"),),
+        ),
+    ]
+    return HeldOutSet.create(package_id, examples)
+
+
+def test_format_conformance_fake_adapter_scores_conforming_and_nonconforming(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = make_format_conformance_held_out()
+    artifact = make_artifact(
+        tmp_path,
+        {"fmt-0000": '{"name": "alice"}', "fmt-0001": "not-a-number"},
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "fmt-art-1", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    by_id = {r.example_id: r for r in output.results}
+    assert by_id["fmt-0000"].correct is True
+    assert by_id["fmt-0001"].correct is False
+
+
+def test_format_conformance_missing_required_key_is_incorrect(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = make_format_conformance_held_out()
+    artifact = make_artifact(
+        tmp_path,
+        {"fmt-0000": '{"other": "value"}', "fmt-0001": "42"},
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "fmt-art-2", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.SCORED
+    by_id = {r.example_id: r for r in output.results}
+    assert by_id["fmt-0000"].correct is False
+    assert by_id["fmt-0001"].correct is True
+
+
+def test_format_conformance_invalid_spec_is_invalid(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = HeldOutSet.create(
+        "FMT2",
+        [
+            HeldOutExample(
+                example_id="fmt-bad",
+                input="prompt",
+                expected={"format": "yaml"},  # unsupported
+                metadata=(("task_type", "format_conformance"),),
+            )
+        ],
+    )
+    artifact = make_artifact(tmp_path, {"fmt-bad": "anything"})
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "fmt-art-3", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert "format" in output.reason
+
+
+def test_unsupported_task_type_is_invalid(tmp_path):
+    adapter = FakeEvaluatorAdapter()
+    held_out = HeldOutSet.create(
+        "P-unsupported",
+        [
+            HeldOutExample(
+                example_id="q1",
+                input="q",
+                expected="a",
+                metadata=(("task_type", "not-a-real-mode"),),
+            )
+        ],
+    )
+    artifact = make_artifact(tmp_path, {"q1": "a"})
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(adapter, "unsupported-1", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert "unsupported task_type" in output.reason
+
+
+def test_multiple_choice_and_format_conformance_go_through_contamination_check(tmp_path):
+    """The core WP-A guarantee: neither new scoring mode bypasses the
+    same HeldOutExclusionRegistry bidirectional contamination check the
+    original exact-match mode goes through -- verified against both new
+    modes' held-out sets, not just re-asserted in prose."""
+    adapter = FakeEvaluatorAdapter()
+    held_out = make_multiple_choice_held_out(package_id="MC-contam")
+    artifact = make_artifact(tmp_path, {"mc-0000": "4", "mc-0001": "Paris"})
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P0", ["mc-0000"])
+
+    output = run_evaluator_contract(adapter, "mc-contam-1", artifact, held_out, registry, tmp_path)
+
+    assert output.status == EvaluationStatus.INVALID
+    assert output.error_class == "ContaminationDetectedError"
+    assert output.contaminated_ids == ("mc-0000",)
+    assert output.results == ()
+
+    held_out_fmt = make_format_conformance_held_out(package_id="FMT-contam")
+    artifact_fmt = make_artifact(
+        tmp_path, {"fmt-0000": '{"name": "a"}', "fmt-0001": "1"}, name="fmt-artifact.json"
+    )
+    registry.register_package_train("P0", ["mc-0000", "fmt-0001"])
+
+    output_fmt = run_evaluator_contract(
+        adapter, "fmt-contam-1", artifact_fmt, held_out_fmt, registry, tmp_path
+    )
+    assert output_fmt.status == EvaluationStatus.INVALID
+    assert output_fmt.error_class == "ContaminationDetectedError"
+    assert output_fmt.contaminated_ids == ("fmt-0001",)
+
+
+def test_evaluation_output_still_has_no_accept_reject_field_after_wp_a():
+    """Re-confirms the measurement-only boundary after WP-A's additions:
+    EvaluationOutput gained no accept/reject/promote field."""
+    from dataclasses import fields
+
+    from codevolt_mdf.evaluator_contract import EvaluationOutput
+
+    field_names = {f.name for f in fields(EvaluationOutput)}
+    assert "accepted" not in field_names
+    assert "promoted" not in field_names
+    assert "passed" not in field_names

@@ -207,6 +207,54 @@ def _hash_examples(examples: tuple[HeldOutExample, ...]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+class TaskType(str, Enum):
+    """Scoring-mode vocabulary a ``HeldOutExample`` may declare via its metadata.
+
+    Purely additive, dispatch-only information -- adding a member here
+    never changes ``HeldOutExample``, ``ExampleResult``, or
+    ``EvaluationOutput``'s shape, so it does not require a
+    ``CONTRACT_VERSION`` bump (see ``docs/decisions/0007-evaluator-task-type-breadth.md``).
+    An adapter that does not implement a given ``TaskType`` is free to
+    raise ``InvalidInputError`` for it; the contract itself does not
+    require every adapter to support every mode.
+    """
+
+    EXACT_MATCH = "exact_match"
+    """The original mode: case-insensitive, whitespace-normalized
+    containment of ``expected`` (a string) in the artifact's output."""
+
+    MULTIPLE_CHOICE = "multiple_choice"
+    """Per-option likelihood scoring: ``input`` names a prompt and a
+    list of candidate choices, ``expected`` names the correct one
+    (by exact text or index); an adapter picks the highest-likelihood
+    choice and scores whether it matches. See ``scoring_modes.py``."""
+
+    FORMAT_CONFORMANCE = "format_conformance"
+    """Structured-output conformance: ``expected`` is a format spec
+    (e.g. ``{"format": "json"}``); an adapter checks whether the
+    artifact's output conforms to that spec, not whether it equals a
+    specific string. See ``scoring_modes.py``."""
+
+
+def task_type_of(example: HeldOutExample) -> str:
+    """Read the declared scoring-mode task type from ``example.metadata``.
+
+    Defaults to ``TaskType.EXACT_MATCH.value`` when no ``"task_type"``
+    key is present in ``metadata`` -- so every ``HeldOutExample`` built
+    before this function existed (including every fixture in
+    ``tests/test_evaluator_contract.py`` and
+    ``tests/test_hf_local_evaluator_adapter.py``) keeps scoring via the
+    original exact-match/containment path with zero changes. This is
+    the mechanism that lets new scoring modes be additive: a caller
+    opts in to a new mode by adding one ``("task_type", ...)`` entry to
+    ``metadata``, nothing else about ``HeldOutExample`` changes.
+    """
+    for key, value in example.metadata:
+        if key == "task_type":
+            return str(value)
+    return TaskType.EXACT_MATCH.value
+
+
 @dataclass(frozen=True)
 class ExampleResult:
     """Per-example scoring result."""
