@@ -33,10 +33,16 @@ documented as such rather than oversold.
   value. The adapter's self-reported ``ResourceUsage`` is discarded for
   wall/CPU/memory and replaced with the measured figures before the
   contract runner checks them against the budget.
-- **Filesystem containment (Python-level)**: when ``budget.filesystem_root``
-  is set, the child's cwd is pinned there and ``builtins.open`` /
-  ``os.open`` are wrapped to reject any path that resolves outside that
-  root, for code running inside the child interpreter.
+- **Filesystem containment (Python-level, writes only)**: when
+  ``budget.filesystem_root`` is set, the child's cwd is pinned there and
+  ``builtins.open`` / ``os.open`` are wrapped to reject any *write*
+  (create/truncate/append/read-write) that resolves outside that root,
+  except ``/dev/null`` (explicitly allowlisted -- see
+  ``_DEVNULL_RESOLVED``; a write there cannot persist or exfiltrate
+  anything). Reads are not restricted to the root -- see "What this does
+  NOT enforce" below for why, and Finding 1 of Maya's pilot-specific
+  live-execution review (issue #7 step 5, PR #18) for the concrete
+  real-execution failures a read-restrictive guard caused.
 - **Network containment (Python-level)**: when ``budget.network_policy``
   is ``"offline"``, ``socket.socket.connect``/``create_connection``/
   ``getaddrinfo`` are wrapped to raise immediately. When it is
@@ -64,7 +70,28 @@ documented as such rather than oversold.
   not stop `os.system`/`subprocess` calls to external tools, does not
   use `chroot`/mount namespaces/`sandbox-exec`, and a sufficiently
   determined adapter written in a compiled extension could still touch
-  paths outside the declared root.
+  paths outside the declared root. As of the write-only scoping above,
+  it also does not restrict *reads* to the declared root at all: a real
+  training run needs to read its pinned model/dataset checkpoint
+  (validated by content hash in ``prepare()``, but not necessarily
+  located under ``filesystem_root`` -- ADR-0006 deliberately keeps
+  ``filesystem_root`` as an empty per-pilot scratch directory, separate
+  from model/dataset storage) plus hundreds of interpreter/site-packages
+  files transitively imported by ``datasets``/``transformers``/``trl``
+  (e.g. ``dill``'s module-load-time ``/dev/null`` probe, `transformers`'
+  lazy ``_LazyModule`` machinery reading arbitrary
+  ``site-packages/transformers/models/.../configuration_*.py`` files at
+  import time) -- none of which are writes and none of which are
+  meaningfully contained by rejecting them, since a read cannot itself
+  exfiltrate data anywhere the process couldn't already reach via other
+  means (subprocess, sockets already governed separately, etc). Trying
+  to keep reads root-restricted while training-engine imports work at
+  all was tried and rejected: pre-importing the ML dependency chain
+  before installing the guard only pushes the failure one import
+  deeper, and a curated site-packages/stdlib/devnull-only allowlist
+  still breaks on the model/dataset read the adapter must legitimately
+  perform. See Maya's pilot-specific live-execution review (issue #7
+  step 5, PR #18), Finding 1, for the concrete reproduction.
 - **Not GPU-usage measurement.** There is no portable stdlib way to
   measure GPU utilisation; ``gpu_count_used`` remains adapter
   self-reported. A real engine integration on GPU hardware needs a
@@ -319,8 +346,72 @@ def _sanitize_environment() -> None:
     os.environ.update(kept)
 
 
+def _open_mode_is_write(mode: str) -> bool:
+    """Return True if a ``builtins.open`` mode string requests any write access.
+
+    Read-only reads (``"r"``, ``"rb"``, ``"rt"``) must never be blocked outside
+    ``filesystem_root`` -- real training imports (``dill``'s ``/dev/null``
+    probe, ``transformers``' lazy ``_LazyModule`` site-packages reads, and
+    the adapter's own read of a model/dataset checkpoint that may live
+    outside the per-pilot scratch root) are all reads. Anything requesting
+    create/truncate/append/update access (``w``, ``a``, ``x``, or a ``+``
+    update flag in any combination) is a write and stays root-restricted.
+    """
+    return any(flag in mode for flag in ("w", "a", "x", "+"))
+
+
+def _os_open_flags_are_write(flags: int) -> bool:
+    """Return True if raw ``os.open`` flags request any write access.
+
+    Mirrors ``_open_mode_is_write`` for the lower-level ``os.open`` API:
+    checks the access-mode bits (``O_RDONLY``/``O_WRONLY``/``O_RDWR``) and
+    the creation/mutation bits (``O_CREAT``/``O_TRUNC``/``O_APPEND``/
+    ``O_EXCL``) that can accompany ``O_RDONLY`` to still mutate the
+    filesystem (e.g. creating an empty file read-only).
+    """
+    accmode = flags & os.O_ACCMODE
+    if accmode != os.O_RDONLY:
+        return True
+    mutating_bits = 0
+    for name in ("O_CREAT", "O_TRUNC", "O_APPEND", "O_EXCL"):
+        mutating_bits |= getattr(os, name, 0)
+    return bool(flags & mutating_bits)
+
+
+_DEVNULL_RESOLVED = Path(os.devnull).resolve()
+"""``/dev/null`` (POSIX) explicitly allowlisted for both reads and writes.
+
+``dill``'s module-load-time probe (``dill/_objects.py``:
+``open(os.devnull, 'wb', buffering=0).close()``) *writes* to
+``/dev/null`` to build its type-introspection table -- this is a write
+by mode, so it is not covered by the read/write split above, but it is
+categorically harmless regardless of ``filesystem_root``: the kernel
+discards everything written to it, nothing is created, persisted, or
+exfiltrated anywhere. Blocking it serves no containment purpose and
+was the literal first failure a real pilot run hit (Maya's
+pilot-specific live-execution review, issue #7 step 5, PR #18, Finding
+1). Explicitly allowlisted rather than silently exempted by the
+write-detection logic above, so the exemption is visible and
+auditable in one place.
+"""
+
+
 def _pin_filesystem_root(filesystem_root: str) -> None:
-    """Pin cwd to ``filesystem_root`` and reject Python-level I/O outside it.
+    """Pin cwd to ``filesystem_root`` and reject Python-level *writes* outside it.
+
+    Deliberately scoped to writes only (not reads) -- see module
+    docstring, "What this enforces" and "What this does NOT enforce" for
+    the full rationale. A read-restrictive guard is fail-closed in
+    intent but fails the pilot outright in practice: real training
+    imports (``dill``, ``transformers``' lazy module machinery) and the
+    adapter's own read of a model/dataset checkpoint outside
+    ``filesystem_root`` are all legitimate reads that a training run
+    cannot proceed without. Containing exfiltration/tamper risk from
+    writes -- checkpoints, evidence, any file the untrusted adapter code
+    creates or mutates -- is the actual security property this boundary
+    is for; reads outside the root are not a filesystem-containment gap
+    on their own (see Maya's pilot-specific live-execution review,
+    issue #7 step 5, PR #18, Finding 1).
 
     Honest scope: only intercepts ``builtins.open`` and ``os.open`` inside
     this interpreter. See module docstring, "What this does NOT enforce".
@@ -340,19 +431,22 @@ def _pin_filesystem_root(filesystem_root: str) -> None:
             resolved = candidate.resolve()
         except OSError:
             resolved = candidate
+        if resolved == _DEVNULL_RESOLVED:
+            return
         if root not in resolved.parents and resolved != root:
             raise SandboxViolationError(
-                f"path {resolved} is outside the declared filesystem_root {root}"
+                f"write to path {resolved} is outside the declared filesystem_root {root}"
             )
 
-    def _guarded_open(file, *args, **kwargs):
-        if isinstance(file, (str, bytes, os.PathLike)):
+    def _guarded_open(file, mode="r", *args, **kwargs):
+        if isinstance(file, (str, bytes, os.PathLike)) and _open_mode_is_write(mode):
             _check(file)
-        return real_open(file, *args, **kwargs)
+        return real_open(file, mode, *args, **kwargs)
 
-    def _guarded_os_open(path, *args, **kwargs):
-        _check(path)
-        return real_os_open(path, *args, **kwargs)
+    def _guarded_os_open(path, flags, *args, **kwargs):
+        if _os_open_flags_are_write(flags):
+            _check(path)
+        return real_os_open(path, flags, *args, **kwargs)
 
     builtins.open = _guarded_open  # type: ignore[assignment]
     os.open = _guarded_os_open  # type: ignore[assignment]

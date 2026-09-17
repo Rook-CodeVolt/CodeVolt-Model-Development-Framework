@@ -306,14 +306,34 @@ class TRLTrainerAdapter:
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
-        from datasets import load_dataset
-        from transformers import TrainerCallback, TrainerControl, TrainerState
-        from trl import SFTConfig, SFTTrainer
-
         params = inputs.params
         run_dir = self._run_dir(inputs.run_id)
         checkpoint_dir = run_dir / "checkpoints"
         final_dir = run_dir / "final"
+
+        # Redirect HF's own cache/lock-file writes (datasets' arrow-cache
+        # lock file, any hub/module cache huggingface_hub or transformers
+        # touches) into a subdirectory of this run's own directory --
+        # which is itself under filesystem_root -- instead of leaving them
+        # at the ambient default (~/.cache/huggingface). With
+        # filesystem_root set, that ambient default is outside the
+        # declared root, so datasets.load_dataset()'s own arrow-cache
+        # `.lock` file write there trips the write-scoped filesystem
+        # guard exactly like any other out-of-root write would (real
+        # reproduction: Maya's pilot-specific live-execution review,
+        # issue #7 step 5, PR #18, Finding 1 follow-on). Must happen
+        # before datasets/transformers/huggingface_hub are imported below
+        # (even lazily) since each reads these as module-level constants
+        # at import time, not per-call.
+        hf_cache_dir = run_dir / "hf_cache"
+        hf_cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("HF_HOME", str(hf_cache_dir))
+        os.environ.setdefault("HF_DATASETS_CACHE", str(hf_cache_dir / "datasets"))
+        os.environ.setdefault("HF_HUB_CACHE", str(hf_cache_dir / "hub"))
+
+        from datasets import load_dataset
+        from transformers import TrainerCallback, TrainerControl, TrainerState
+        from trl import SFTConfig, SFTTrainer
 
         max_steps = int(params["max_steps"])
         save_steps = int(params.get("save_steps", max(1, max_steps // 4)))
