@@ -411,6 +411,26 @@ class TRLTrainerAdapter:
 
         trainer.save_model(str(final_dir))
         evidence_locator, evidence_hash = self._write_evidence(inputs, trainer, final_dir)
+
+        # Prune the periodic-checkpoint directory (now containing full
+        # optimizer/scheduler/RNG state per the resumable-checkpoint fix
+        # above, not just model weights) once the run has ACCEPTED. Those
+        # checkpoints exist solely to make an *interrupted* run resumable;
+        # a run that completed successfully has nothing left to resume,
+        # and final_dir + evidence.json above is the actual retained
+        # deliverable. Real-measured during this fix's own verification:
+        # a full resumable checkpoint at this pilot's model size is
+        # dominated by fp32 Adam optimizer state (~1 GB, roughly 2x the
+        # model's own size) -- kept alongside final_dir (~540 MB) even at
+        # save_total_limit=1, that would leave >1.5 GB on disk for a
+        # successfully completed run for no reason, eating meaningfully
+        # into ADR-0006's locked 2048 MB budget on top of Finding 2's fix.
+        # Skipping this for a non-ACCEPTED/cancelled run is essential:
+        # that path returns via _safe_halt_output above, before this
+        # line, specifically to preserve the checkpoint for a future
+        # resume.
+        shutil.rmtree(checkpoint_dir, ignore_errors=True)
+
         usage = ResourceUsage(
             # wall/cpu/memory are overwritten by the contract runner with
             # OS-measured figures (see trainer_contract.run_trainer_contract);
@@ -465,7 +485,46 @@ class TRLTrainerAdapter:
             )
 
     def _safe_halt_output(self, inputs: TrainingInputs, trainer: Any, checkpoint_dir: Path) -> TrainingOutput:
+        """Persist a genuinely resumable checkpoint after cooperative cancellation.
+
+        ``trainer.save_model()`` alone only ever writes model weights and
+        tokenizer files -- never ``trainer_state.json``, optimizer state,
+        scheduler state, or RNG state. Resuming via the real
+        ``trainer.train(resume_from_checkpoint=...)`` needs all of those
+        (``transformers.Trainer._load_from_checkpoint`` / the
+        ``resume_from_checkpoint is not None`` branch in
+        ``Trainer._inner_training_loop`` both read
+        ``trainer_state.json`` unconditionally and raise ``FileNotFoundError``
+        if it is missing), so this reproduces exactly what
+        ``Trainer._save_checkpoint`` itself does for a normal ``save_steps``
+        checkpoint -- ``save_model`` + optimizer/scheduler + scaler + RNG
+        state + ``save_state()`` -- but writes to the adapter's flat,
+        step-suffix-free ``checkpoint_dir`` (matching this adapter's own
+        ``CheckpointHandle.state_locator`` contract) instead of
+        ``Trainer``'s own ``checkpoint-<step>`` subdirectory naming.
+        Reproduced twice against a real TRL ``Trainer`` at different real
+        cancellation points -- see Maya's pilot-specific live-execution
+        review (issue #7 step 5, PR #18) Finding 3.
+
+        These are private ``Trainer`` methods (leading underscore), used
+        deliberately: they are the exact machinery ``transformers`` itself
+        uses to build a resumable checkpoint, and ``Trainer`` exposes no
+        public API for "the non-model parts of a checkpoint" alone. If a
+        future ``transformers`` release renames/removes them,
+        ``test_trl_api_surface_matches_adapter_expectations``-style
+        signature checks should be extended to cover them (see
+        ``TRL_MIN_VERSION``/``TRL_MAX_VERSION`` comment on exact-pin
+        rationale).
+        """
         trainer.save_model(str(checkpoint_dir))
+        trainer._save_optimizer_and_scheduler(str(checkpoint_dir))
+        trainer._save_scaler(str(checkpoint_dir))
+        trainer._save_rng_state(str(checkpoint_dir))
+        # Trainer.save_state() writes to self.args.output_dir, which
+        # equals checkpoint_dir here (SFTConfig(output_dir=str(checkpoint_dir))
+        # in train()), so this lands in the same flat directory as the
+        # calls above rather than needing an explicit path argument.
+        trainer.save_state()
         state_hash = _hash_path_identity(checkpoint_dir)
         step = int(getattr(trainer.state, "global_step", 0))
         checkpoint = CheckpointHandle(

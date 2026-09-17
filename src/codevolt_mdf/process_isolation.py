@@ -146,10 +146,48 @@ _ENV_ALLOWLIST = ("PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
 # How often the parent polls the child's live resource usage via `ps`.
 DEFAULT_POLL_INTERVAL_SECONDS = 0.05
 
-# Grace period given to a cooperative cancellation signal before the
-# parent escalates to SIGKILL. Bounded and short: this is what makes
-# cancellation "real" rather than an indefinite cooperative wait.
+# Grace period given to a cooperative cancellation signal (via
+# ``mp_cancel_event``) before the parent escalates to SIGKILL on a
+# **wall-clock timeout**. Bounded and short: a timed-out adapter is
+# treated by the contract runner as having no usable checkpoint
+# regardless (see ``run_trainer_contract``, "timed out with no
+# checkpoint recorded: nothing to resume"), so there is no reason to
+# wait long enough for a full checkpoint save here -- only enough for
+# an unresponsive process to notice the event and exit promptly.
 DEFAULT_KILL_GRACE_SECONDS = 1.0
+
+# Grace period given specifically to a **cooperative cancellation**
+# request (distinct from the timeout grace above) before the parent
+# escalates to SIGKILL. This is the path where a real checkpoint save
+# is expected to complete and be reported back -- unlike the timeout
+# path, the contract runner keeps and trusts a checkpoint produced
+# here (see ``run_trainer_contract``'s ``killed_for_cancellation``
+# handling only discarding it when the adapter never got the chance).
+#
+# Raised from an original single shared 1.0s during Elias's
+# real-execution verification of the trl_adapter.py checkpoint/resume
+# fix (Maya's pilot-specific live-execution review, issue #7 step 5,
+# PR #18, Finding 3): once ``_safe_halt_output`` genuinely persists a
+# resumable checkpoint (``save_model`` + optimizer/scheduler/scaler/RNG
+# state + ``save_state()``, not just ``save_model`` alone), that save
+# itself measured ~1.4s wall-clock for a 135M-parameter model on this
+# host (dominated by the fp32 Adam optimizer state, ~2x model size) --
+# already longer than the previous shared 1.0s grace period on its own,
+# before accounting for the training loop's own per-step
+# callback-detection latency on top. At 1.0s, a real
+# cooperative-cancel-then-checkpoint cycle was reliably SIGKILLed
+# mid-save before it could report a checkpoint at all, silently
+# defeating the fix this constant is meant to support. 8.0s keeps
+# meaningful margin over the measured real save time (~5.5x) while
+# staying a small fraction (<0.5%) of ADR-0006's locked 1800s
+# wall-clock budget, so cancellation remains bounded and fast relative
+# to a real run, not indefinite. Kept as a separate constant from
+# ``DEFAULT_KILL_GRACE_SECONDS`` (rather than raising that one
+# directly) so the *timeout* path -- which discards any checkpoint
+# regardless and has no real-save-completion reason to wait longer --
+# is not slowed down by a change that exists purely to let a genuine
+# cancellation-triggered checkpoint save finish.
+DEFAULT_CANCELLATION_KILL_GRACE_SECONDS = 8.0
 
 
 @dataclass(frozen=True)
@@ -902,6 +940,7 @@ def run_in_isolated_process(
     cancel_event: Any,
     poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
     kill_grace_seconds: float = DEFAULT_KILL_GRACE_SECONDS,
+    cancellation_kill_grace_seconds: float = DEFAULT_CANCELLATION_KILL_GRACE_SECONDS,
 ) -> tuple[Any | None, BaseException | None, MeasuredUsage]:
     """Run ``adapter.train`` in a real child process with enforcement.
 
@@ -910,6 +949,13 @@ def run_in_isolated_process(
     hard-killed (timeout, resource overrun, or a non-cooperative
     cancellation escalating to SIGKILL), in which case both are ``None``
     and ``measured_usage.killed_for_*`` explains why.
+
+    ``kill_grace_seconds`` applies to the wall-clock-timeout path (a
+    timed-out run's checkpoint, if any, is discarded regardless, so no
+    real-save-completion grace is needed there); ``cancellation_kill_grace_seconds``
+    applies to the cooperative-cancellation path, where a genuine
+    checkpoint save is expected to complete and be kept -- see the two
+    constants' own docstrings for why they differ.
     """
     ctx = multiprocessing.get_context("spawn")
     result_queue: multiprocessing.Queue = ctx.Queue()
@@ -961,7 +1007,7 @@ def run_in_isolated_process(
             reason_bytes = cancel_event.reason.encode("utf-8")[:255]
             reason_buf.value = reason_bytes
             mp_cancel_event.set()
-            process.join(timeout=kill_grace_seconds)
+            process.join(timeout=cancellation_kill_grace_seconds)
             if process.is_alive():
                 killed_for_cancellation = True
                 pid_tree_walk_outcome = _kill_group(process)

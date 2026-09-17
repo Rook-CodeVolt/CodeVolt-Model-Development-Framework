@@ -136,8 +136,17 @@ The adapter-facing API is unchanged:
    finish, subject to `budget.max_wall_seconds`.
 2. If the deadline is reached, or a caller triggers cooperative
    cancellation, the parent signals the child's `CancellationToken` and
-   gives it a short, bounded grace period (`DEFAULT_KILL_GRACE_SECONDS`)
-   to notice and return on its own.
+   gives it a short, bounded grace period to notice and return on its
+   own -- `DEFAULT_KILL_GRACE_SECONDS` on the timeout path (a timed-out
+   run's checkpoint, if any, is discarded regardless, so this stays
+   short), or the longer `DEFAULT_CANCELLATION_KILL_GRACE_SECONDS` on
+   the cooperative-cancellation path, where a genuine checkpoint save
+   (`save_model` + optimizer/scheduler/scaler/RNG state +
+   `save_state()`) is expected to complete and be kept. The two differ
+   because a real full-checkpoint save for even a small model is
+   measurably slower than a bare model-weights save -- see
+   `process_isolation.py`'s constant docstrings for the exact
+   real-measured numbers this is based on.
 3. If the child has not exited by the end of that grace period, the
    parent sends it `SIGKILL` directly. This is real, unconditional
    process termination — unlike the pre-1.1 thread-based approach, a
