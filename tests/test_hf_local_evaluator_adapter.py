@@ -180,14 +180,22 @@ def test_model_hash_mismatch_is_rejected(tmp_path):
 
 
 def test_matching_model_hash_passes_provenance_check(tmp_path):
+    """The hash gate itself needs no transformers/torch -- but the code path
+    that runs immediately after it (attempting to load the fake checkpoint
+    as a real model) does import torch, so this test still needs those
+    optional deps importable to reach the (expected) inference-loading
+    failure rather than a provenance rejection. importorskip keeps this
+    clean in an environment without the optional hf-local-evaluator extra
+    installed, mirroring trl_adapter's tests' own skip discipline."""
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
     fake_dir = tmp_path / "checkpoint"
     fake_dir.mkdir()
     (fake_dir / "config.json").write_text('{"model_type": "fake"}', encoding="utf-8")
     real_hash = _hash_model_dir(fake_dir)
 
-    # No transformers/torch needed to prove the hash gate passes: use an
-    # adapter whose expected_model_hash matches, then confirm the failure
-    # that follows is the (expected) inference-loading failure, not a
+    # Adapter whose expected_model_hash matches: confirm the failure that
+    # follows is the (expected) inference-loading failure, not a
     # provenance rejection -- proving the hash check itself passed.
     adapter = HFLocalCausalLMEvaluatorAdapter(expected_model_hash=real_hash)
     held_out = make_held_out([("q1", "2 + 2 = ", "4")])
