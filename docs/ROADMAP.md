@@ -2,6 +2,8 @@
 
 The roadmap describes intent, not a promise of dates.
 
+For an evidence-led view of where the next real effort should go and why — informed by external open-source ecosystem research rather than internal planning alone — see [Next progression](PROGRESSION.md).
+
 ## v0.1 — Foundation
 
 - Versioned experiment contract and locked manifests.

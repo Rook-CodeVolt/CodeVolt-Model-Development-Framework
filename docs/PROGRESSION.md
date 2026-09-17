@@ -1,0 +1,102 @@
+# Next progression
+
+This document describes a route forward, not a timeline. Like [the roadmap](ROADMAP.md), it names intent and priority — not dates, quarters, or promised delivery order. It exists to answer a different question than the roadmap does: not "what stage are we at" but "given what the rest of the open-source ecosystem is actually doing and actually missing, where should the next real effort go, and why."
+
+## How to read this document
+
+Every claim below is sourced. Where a source is a primary, first-party document (a project's own README, its own docs, a peer-reviewed paper) retrieved directly, it is marked **[Verified]**. Where a claim is corroborated by multiple independent secondary sources but a primary source could not be directly retrieved, it is marked **[Corroborated, not Verified]**. Where a claim rests on thin, uncertain-provenance, or unverifiable sourcing, it is marked **[Unverified]** and should be treated as a directional signal only, not a fact to build decisions on. This grading is deliberate and should not be flattened in future edits — a claim's confidence level is as important as the claim itself when the claim is going to influence what a contributor works on next.
+
+This document draws on an external research pass conducted 2026-09-17 comparing this framework's design against the current fine-tuning, evaluation, experiment-tracking, and dataset-governance tooling ecosystem. Full source list is at the bottom; inline citations use the same numbering.
+
+## The core judgment call
+
+The evidence does **not** support racing incumbent fine-tuning frameworks on training-method breadth — DPO, GRPO, multi-node/multi-GPU parallelism, quantization-aware training, and similar. TRL, Axolotl, Unsloth, and LLaMA-Factory already cover this ground extensively and are well-funded, actively developed projects with large method surfaces **[Verified — retrieved directly from each project's own README/changelog: TRL [1], Axolotl [2], Unsloth [3], LLaMA-Factory [4]]**. Matching that breadth would consume significant effort to arrive at parity with tools that already have it, without closing the gap that most differentiates this framework.
+
+The evidence instead points at a different, less-crowded, and more defensible place to invest: **trustworthy, by-construction, contamination-resistant evaluation and evidence provenance.** That is the subject of the rest of this document.
+
+## 1. Priority: evaluation-suite depth, not training-method breadth
+
+**Why this matters.** Benchmark trust is a live, structural, industry-wide problem, not a hypothetical one:
+
+- EleutherAI's own `lm-evaluation-harness` documentation states plainly that "outside of models trained on the Pile and C4, it's very rare that people who train models disclose the contents of the training data" [7] — i.e. even the field's most-used academic eval harness admits it usually cannot verify whether a model has seen its own test set, because it depends on the trainer voluntarily disclosing training data. **[Verified — EleutherAI's own decontamination docs]**
+- The peer-reviewed and preprint contamination literature documents measurable, reproducible score inflation from contamination, and — more importantly — shows that even the best current *external, after-the-fact* contamination-detection methods are unreliable: one recent study found only 201 of 335 evaluated cases were correctly classified by leading detection methods [20]. **[Verified — retrieved directly, arXiv:2502.14425 [19], arXiv:2605.21442 [20], arXiv:2601.19334 [21], arXiv:2605.21543 [25]]**
+- SWE-bench Verified — a widely cited coding-agent benchmark — is reported to have been effectively deprecated by OpenAI after contamination concerns, with secondary sources describing roughly 94% of issues predating relevant model knowledge cutoffs and models reproducing gold patches near-verbatim [17][18]. **[Corroborated by multiple independent secondary sources, not Verified — no OpenAI first-party statement was retrieved confirming this]**
+- Community sentiment (informal, harder to verify) reportedly runs toward "no benchmark, I run it myself" as the dominant trust posture in practitioner forums [23][24]. **[Unverified — these sources trace to secondary aggregator content of uncertain editorial independence; treat as directionally plausible, not established]**
+
+**Why this framework is structurally positioned to help.** This framework's `HeldOutExclusionRegistry` and bidirectional contamination check are designed to prevent contamination *by construction* — a held-out set is registered and excluded from training data before an experiment runs, rather than being checked for overlap after the fact. `lm-evaluation-harness`'s n-gram decontamination utility is the closest prior art, and it is useful reference material, but it operates at a coarser granularity (corpus-index overlap) and, per its own documentation, still depends on the trainer disclosing what was trained on [7]. None of the other evaluation tools reviewed — promptfoo [8], DeepEval [9], RAGAS [10] — attempt manifest-level, pre-registered, bidirectional contamination checking at all; they are strong at what they do (red-teaming, CI-native regression metrics, RAG-specific scoring) but solve an adjacent problem. **[Verified for tool capabilities — each project's own README, retrieved directly]**
+
+**What "done" looks like here is already named in [the roadmap](ROADMAP.md)** under v0.2: "Evaluation suites covering capability, safety, and regression," currently marked `[partially done]` — one real scoring adapter (`hf_local_evaluator_adapter.py`) exists and is contract-tested, but it is a single exact-match/containment scorer against one model family, not the broader capability + safety + regression coverage that line names. Prioritizing this is continuity with a direction the project already committed to, not a new direction. Concretely, the gap to close is breadth of suite (more task types, safety/red-team probing, regression tracking across candidate revisions) while preserving the contamination-resistant, by-construction design that is this framework's actual point of difference — not adopting an off-the-shelf harness wholesale in place of it.
+
+## 2. Not prioritizing: DPO/GRPO/multi-GPU parity with TRL/Axolotl
+
+This framework's one real trainer adapter (`TRLTrainerAdapter`) deliberately wraps only TRL's `SFTTrainer`, by design decision (ADR-0005), excluding PPO/GRPO/DPO, multi-node training, and vLLM. Axolotl alone already covers full fine-tune, LoRA, QLoRA, GPTQ, QAT, DPO/IPO/KTO/ORPO, GRPO/GDPO, reward/process-reward modelling, and ND-parallelism (FSDP/TP/CP/EP) across single- and multi-node setups [2]. TRL itself ships SFTTrainer, GRPOTrainer, DPOTrainer, KTOTrainer, RewardTrainer, and a DistillationTrainer with native Unsloth kernel integration [1]. **[Verified — both projects' own READMEs/changelogs]**
+
+Closing that gap would mean re-implementing method and parallelism breadth that two well-resourced, actively developed projects already provide, for a benefit (method parity) that the contamination-trust evidence above does not identify as the thing practitioners are actually short on. Axolotl's own open issue tracker — a genuine, primary-source signal of what its own users are actually asking for — currently includes requests like RLOO/REINFORCE++ advantage estimators, automatic LoRA rank recommendation, and a second-order optimizer for low-VRAM setups [22]. None of these live requests are about evidence, provenance, or contamination — which is itself supporting evidence that training-method breadth is not where the unmet demand in this framework's specific niche sits. **[Verified — retrieved directly from Axolotl's GitHub issues]**
+
+This is a "not now" call based on where effort is better spent, not a claim that method breadth has no value or will never matter.
+
+## 3. Open decision: the second real adapter
+
+This framework currently has exactly one real trainer adapter (TRL, SFT-only) and one real evaluator adapter (local HF inference). [ARCHITECTURE.md](ARCHITECTURE.md) names MiniMind, TRL, Unsloth, Axolotl, and LLaMA-Factory as candidate replaceable adapters, and proving that the `TrainerAdapterV1` contract genuinely generalizes across engines — not just across engine brand names — matters for that plurality claim to mean anything.
+
+The evidence supports **two different, genuinely defensible answers** here, on different axes, and does not identify a single objectively correct choice. This is presented as an open decision for whoever picks up this work next, not as a recommendation to pursue both or a signal that one is secretly preferred.
+
+**Option A — MiniMind.** MiniMind's own README states its core algorithm code — pretrain, SFT, LoRA (implemented from scratch, not via `peft`), DPO (native PyTorch), and RLAIF (PPO/GRPO/CISPO) — "is implemented from 0 using native PyTorch, without relying on high-level abstraction interfaces provided by third-party libraries" [6]. That makes it architecturally the most different option from TRL of anything reviewed: Axolotl, Unsloth, and LLaMA-Factory all wrap TRL/PEFT/Transformers underneath, so building any of them as a "second adapter" would mostly re-wrap the same underlying HF stack this framework has already integrated — useful for config/UX breadth, but it would not prove engine-plurality the way a from-scratch adapter would. **[Verified — MiniMind's own README, Apache-2.0]**
+
+MiniMind also has a practical advantage specific to this framework's actual current blocker: no real training pilot has ever run here (see [REAL_ADAPTERS.md](REAL_ADAPTERS.md)), pending security review and owner authorisation. MiniMind's own README documents a full SFT epoch completing on a single RTX 3090 in roughly 2 hours at roughly $0.40 of GPU rental [6] — a far lower-cost, lower-blast-radius artifact for a first live pilot than a larger TRL run, and its from-scratch code is a smaller, more fully-readable surface for a security reviewer to go through line by line than a large third-party framework's internals. **[Verified — cost/time claim is from MiniMind's own README]**
+
+The honest caveat: MiniMind is a small-model (64M–198M parameter), educational/from-scratch project with heavily Chinese-community-oriented documentation, and its enterprise-adoption signal could not be independently verified (no reliable cross-check on star count, contributor count, or production usage was available). **[Unverified — this specific caveat applies to adoption/popularity claims only, not to the architectural or cost claims above, which are Verified from MiniMind's own README]** If community demand and practitioner familiarity is the deciding criterion, this is a real weakness for MiniMind relative to Option B.
+
+**Option B — Axolotl.** Axolotl has the broadest documented single-project method and parallelism coverage of anything reviewed (see §2), the most active changelog cadence of the frameworks compared, and a live, primary-source open issue tracker showing real, current feature demand from its own users [2][22]. Choosing Axolotl as the second adapter would track much more closely to what a practitioner coming from the standard HF fine-tuning ecosystem already expects a serious framework to support, and would exercise a config surface (YAML-driven, multi-method) that MiniMind's from-scratch approach does not. Axolotl is also, like the others, a TRL/PEFT/Transformers wrapper underneath — so it would not by itself prove engine-plurality beyond what the TRL adapter already does. **[Verified — Axolotl's own README/changelog]**
+
+**The actual decision axis:** pick MiniMind if the next milestone's goal is proving the adapter contract truly generalizes across engine philosophy *and* unblocking the cheapest possible first live pilot; pick Axolotl if the goal is matching practitioner expectations on method/parallelism breadth and community familiarity. Both are legitimate; this document does not resolve which axis matters more right now, because that is an owner call, not a research conclusion.
+
+## 4. Cheap interoperability wins (not priority investments)
+
+Two items below are worth doing because they are low-cost and remove a specific objection, not because they advance the core evaluation-trust mission. They should not compete for effort against §1.
+
+**MLflow evidence-bundle export.** MLflow 3.0 introduced `LoggedModel` as a persistent, run-independent entity, and its `EvaluationDataset` schema (`inputs`, `expectations`, `tags`, content-hash `digest`, `source` provenance) is structurally close to what this framework's evidence bundle already captures (dataset content hash, provenance, baseline/candidate scores, accept/reject decision) [11][12][13]. Exporting to that shape would let anyone with an MLflow viewer inspect a run from this framework without this framework needing to build its own UI. MLflow's own docs are explicit that "logging doesn't prove correctness... MLflow stores evidence; the team must decide which evidence is required" [11] — i.e. MLflow is a storage/visualization substrate, not a governance or acceptance-gate layer, so this framework's assurance gate remains a genuinely different, complementary layer that an export would not replace or weaken. **[Verified — MLflow's own docs]**
+
+**Croissant / JSON-LD dataset-card export.** Croissant (MLCommons, built on schema.org, arXiv:2403.19546) is a JSON-LD metadata format for ML datasets, natively supported by Hugging Face Hub's dataset viewer via an auto-generated `/croissant` endpoint [15][16]. This framework's dataset card already requires origin, ownership/licence, collection method, intended use, prohibited use, transformations, filters, known limitations, privacy review, and content hash (see [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md)) — materially more rigorous than the norm a large multi-institutional audit found in the wild (the Data Provenance Initiative found licence omission above 70% and error rates above 50% across 1,800+ audited datasets [14], evidence that this framework's stricter card requirement is addressing a real, documented failure mode, not a hypothetical one). Making that existing card machine-readable via Croissant export would let it interoperate with HF Hub and MLCommons tooling instead of remaining a framework-only free-text format. **[Verified — Croissant spec and HF docs; Verified, peer-reviewed — Data Provenance Initiative, arXiv:2310.16787 / Nature Machine Intelligence]**
+
+Neither of these should be read as urgent. They are listed here so that "why doesn't this integrate with anything" has a cheap, already-scoped answer when someone asks it, not because they compete with §1 for priority.
+
+## 5. Explicitly discounted: torchtune
+
+torchtune (`meta-pytorch/torchtune`) has real technical merit — PyTorch-native, Hydra-style recipes, SFT/DPO/PPO/GRPO/QAT with multi-node support for some recipes — but its own README states maintenance formally ended in 2025, confirmed by the project's own GitHub issue #2883 [5]. It should not be recommended as a future adapter target despite its technical design, and any secondary source that still describes it as actively developed should be discounted. This is called out explicitly because it is exactly the kind of technically-attractive dead end that is easy to recommend by mistake from stale secondary sources. **[Verified — torchtune's own README maintenance-ended banner]**
+
+## What this document is not
+
+This is not an approved plan. It does not commit anyone to building the second adapter, to a specific evaluation-suite scope, or to either interoperability export. The MiniMind-vs-Axolotl choice in particular is presented as open on purpose — the evidence supports either, for different reasons, and this document does not have the standing to close that decision. Anyone picking up work from this document should still go through the same [ADR](decisions/) process, [evaluation policy](EVALUATION_POLICY.md), and [data governance](DATA_GOVERNANCE.md) gates that any other change here does.
+
+## Sources
+
+Primary sources retrieved directly (own README, own docs, or peer-reviewed publication) are marked **[Verified]** inline above; corroborated-but-not-primary and unverified sources are marked accordingly. This list carries the same numbering used inline.
+
+1. huggingface/trl — GitHub README. https://github.com/huggingface/trl
+2. axolotl-ai-cloud/axolotl — GitHub README + open Issues list. https://github.com/axolotl-ai-cloud/axolotl ; https://github.com/axolotl-ai-cloud/axolotl/issues
+3. unslothai/unsloth — GitHub README. https://github.com/unslothai/unsloth
+4. hiyouga/LLaMA-Factory — GitHub README (ACL 2024 system paper). https://github.com/hiyouga/LLaMA-Factory
+5. meta-pytorch/torchtune — GitHub README (maintenance-ended banner), issue #2883. https://github.com/meta-pytorch/torchtune
+6. jingyaogong/minimind — GitHub README (Apache-2.0). https://github.com/jingyaogong/minimind
+7. EleutherAI/lm-evaluation-harness — GitHub README + `docs/decontamination.md`. https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/decontamination.md
+8. promptfoo/promptfoo — GitHub README. https://github.com/promptfoo/promptfoo
+9. confident-ai/deepeval — GitHub README. https://github.com/confident-ai/deepeval
+10. vibrantlabsai/ragas — GitHub README. https://github.com/vibrantlabsai/ragas
+11. MLflow official docs — Evaluation Dataset Concepts / Dataset SDK reference. https://mlflow.org/docs/latest/genai/concepts/evaluation-datasets ; https://mlflow.org/docs/latest/genai/datasets/sdk-guide
+12. MLflow official docs — Dataset abstraction / `LoggedModel`. https://mlflow.org/docs/latest/dataset
+13. Databricks docs mirror of MLflow evaluation dataset schema. https://learn.microsoft.com/en-us/azure/databricks/mlflow3/genai/eval-monitor/concepts/eval-datasets
+14. Longpre, Mahari, Chen et al., "The Data Provenance Initiative: A Large Scale Audit of Dataset Licensing & Attribution in AI," arXiv:2310.16787 (also Nature Machine Intelligence). https://arxiv.org/abs/2310.16787
+15. "Croissant: A Metadata Format for ML-Ready Datasets," arXiv:2403.19546, MLCommons. https://arxiv.org/html/2403.19546v2
+16. Hugging Face docs, "Get Croissant metadata." https://huggingface.co/docs/dataset-viewer/en/croissant
+17. "The benchmark leak: how your eval set quietly joins the training corpus" — secondary source, editorial independence unverified.
+18. "The Benchmark Contamination Crisis: How SWE-bench Training Data Leakage Inflates AI Coding Scores" — secondary source, editorial independence unverified.
+19. "A Survey on Data Contamination for Large Language Models," arXiv:2502.14425. https://arxiv.org/pdf/2502.14425.pdf
+20. "The Reliability Gap in Benchmark Auditing," arXiv:2605.21442. https://arxiv.org/pdf/2605.21442
+21. "When Benchmarks Leak: Inference-Time Decontamination for LLMs," arXiv:2601.19334. https://arxiv.org/pdf/2601.19334v1
+22. Axolotl GitHub Issues list (live, primary). https://github.com/axolotl-ai-cloud/axolotl/issues
+23. "AI Benchmark Race Spirals Out of Control" — secondary source, editorial independence unverified.
+24. "Nobody Trusts AI Benchmarks Anymore" — secondary source, editorial independence unverified.
+25. "Provable Joint Decontamination for Benchmarking Multiple Large Language Models," arXiv:2605.21543. https://arxiv.org/pdf/2605.21543
+
+Research pass conducted 2026-09-17 against each project's live GitHub state as of that date. Full internal evidence pack, including confidence grading and an explicit list of conflicts/gaps the research could not resolve, is available on request from the project's research lead. Coverage note: the underlying research was English-language only and did not exhaustively sample every named framework's issue tracker (only Axolotl's was sampled), so absence of a comparable open-issue citation for the other frameworks should not be read as absence of comparable demand signal there — it was not searched with the same depth.
