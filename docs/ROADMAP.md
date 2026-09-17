@@ -15,8 +15,8 @@ The roadmap describes intent, not a promise of dates.
 
 - Structured failure/correction intake with privacy review.
 - Pattern classification and a human-review proposal queue.
-- First real trainer adapter selected through an evidence-backed decision.
-- Evaluation suites covering capability, safety, and regression.
+- [done] First real trainer adapter selected through an evidence-backed decision — `TRLTrainerAdapter` (`src/codevolt_mdf/trl_adapter.py`, ADR-0005), a real `TrainerAdapterV1` for TRL's `SFTTrainer`, contract-tested (28 conformance tests). Not yet exercised by a live training run — see [docs/REAL_ADAPTERS.md](REAL_ADAPTERS.md).
+- [partially done] Evaluation suites covering capability, safety, and regression — a real (non-fake) `EvaluatorAdapterV1` now exists (`src/codevolt_mdf/hf_local_evaluator_adapter.py`), scoring held-out examples via local HF inference with bidirectional contamination checking against the training data. This is one real scoring adapter proven end-to-end, not the broader multi-suite capability/safety/regression coverage this line originally scoped — that broader coverage is still future work.
 
 ## v0.3 — Bounded experimentation
 
