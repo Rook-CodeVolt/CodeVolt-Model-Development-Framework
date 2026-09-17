@@ -303,3 +303,130 @@ validation code — it is not, and does not claim to be, pilot execution
 or pilot evidence. Gating (see above) is unchanged: Maya's pilot-specific
 live-execution review and separate owner authorisation to schedule
 remain required before `train()` is ever called.
+
+## Pilot execution result (2026-09-17, REAL, EXECUTED)
+
+Gating cleared: Maya's pilot-specific live-execution security review
+(issue #7 step 5, PR #18 review) returned CLEAR TO EXECUTE on findings
+1-3, all three fixed and merged (PR #21,
+`c3cbc5513fff8fc78526403ea75513c43229c1b8`), residual note LOW/
+non-blocking (pre-existing macOS `ps`-timing behaviour, no action
+needed). Owner authorised execution of this specific bounded run.
+
+Before execution, the trainer-adapter/evaluator-adapter wiring gap this
+ADR's "Independent evaluation wiring" section identified as open (a
+real, non-fake evaluator adapter scoring the pilot's actual trained
+artifact through `run_evaluator_contract` against the registered
+`HeldOutSet`, not merely a contract-and-tests demonstration) was closed
+by `examples/pilot-adr0006/run_pilot.py`: it runs
+`run_trainer_contract` (real `TRLTrainerAdapter.train()`) and, only if
+`TrainingOutput.status == ACCEPTED`, immediately scores the resulting
+artifact through `run_evaluator_contract` using the already-merged
+`HFLocalCausalLMEvaluatorAdapter` (PR #17) against the exact registered
+held-out set below -- both calls in the same script, same run, so the
+evaluator scores the artifact this specific trainer run actually
+produced, not a stand-in. A cheap 2-step synthetic dry-run against a
+throwaway dataset/held-out pair (not this pilot's registered packages)
+exercised the identical trainer-then-evaluator code path first, to
+prove the wiring end-to-end before spending the full 50-step budget.
+
+### Run identity
+
+- `run_id`: `adr0006-pilot-20260917`.
+- `model_hash` (independently recomputed via
+  `trl_adapter._hash_path_identity` against the live local snapshot at
+  execution time): `7f948d54bed4a691a8106c221ecd47b6f03ef34a8059be4b825ebb2d27c793d6`
+  -- matches this ADR's earlier "Locked pilot parameters" section exactly.
+- `dataset_hash` (same helper, against `examples/pilot-adr0006/dataset/train.jsonl`):
+  `3d290db4cf709add0fc120af59eeadb11ccd73f9418f7bbf0f3853e0f107ad2d` --
+  matches this ADR's earlier "Locked pilot parameters" section exactly.
+- `max_steps=50`, `seed=20260917`, `network_policy="offline"` -- all
+  ADR-0006 locked values, unmodified.
+
+### TrainingOutput (real `TRLTrainerAdapter.train()` call)
+
+| Field | Value |
+|---|---|
+| `status` | `ACCEPTED` |
+| `reason` | `trl SFT run completed 50 max_steps` |
+| `artifact_id` | `artifact-adr0006-pilot-20260917` |
+| `evidence_hash` (independently re-verified with `shasum -a 256` against the evidence file) | `98881a6ce342b2e8c4ceeca333afb37dbcec4e217ec08fd392f992b56c82e636` |
+| `resource_usage.wall_seconds` (OS-measured) | `15.708815` (budget: `1800`) |
+| `resource_usage.cpu_seconds` (OS-measured) | `14.084922` (budget: `3600`) |
+| `resource_usage.memory_mb_peak` (OS-measured) | `1621.5` (budget: `8192`) |
+| `resource_usage.storage_mb_used` | `517.76` (budget: `2048`) |
+| `resource_usage.gpu_count_used` | `0` (budget: `0`) |
+
+All five resource dimensions well inside budget; no kill criterion
+triggered. Sanitised evidence:
+`examples/pilot-adr0006/evidence/training-evidence.sanitised.json`
+(training log history only -- no secrets, no raw model weights).
+
+### EvaluationOutput (real `HFLocalCausalLMEvaluatorAdapter`, real held-out set)
+
+Scored via `run_evaluator_contract` against `HeldOutSet` package
+`adr0006-pilot-heldout-v1`, `dataset_hash`
+`c5ade195c2b4b8697b175b8c94e10add6206ad4d72137ea83d24c65dbf489e65`
+(re-verified by `HeldOutSet.validate()` at run time -- no tamper), with
+`HeldOutExclusionRegistry.check_held_out_not_trained` returning zero
+contaminated ids immediately before scoring.
+
+| Field | Value |
+|---|---|
+| `status` | `SCORED` |
+| `aggregate_score` | `0.7` (7/10 exact-match correct) |
+| `evidence_hash` (independently re-verified with `shasum -a 256`) | `0d3f1668e4d3b721db16425e71a10cb28d20ae3108cc5f29bc850d5040ecbfa0` |
+
+Per-example results (2-digit addition, exact-match after
+normalisation):
+
+| example_id | input | expected | raw_output | correct |
+|---|---|---|---|---|
+| heldout-0001 | `Add: 27 + 69 =` | `96` | ` 96` | true |
+| heldout-0002 | `Add: 69 + 28 =` | `97` | ` 97` | true |
+| heldout-0003 | `Add: 58 + 46 =` | `104` | ` 94` | **false** |
+| heldout-0004 | `Add: 28 + 56 =` | `84` | ` 84` | true |
+| heldout-0005 | `Add: 51 + 13 =` | `64` | ` 64` | true |
+| heldout-0006 | `Add: 11 + 49 =` | `60` | ` 50` | **false** |
+| heldout-0007 | `Add: 41 + 45 =` | `86` | ` 86` | true |
+| heldout-0008 | `Add: 42 + 49 =` | `91` | ` 181` | **false** |
+| heldout-0009 | `Add: 20 + 23 =` | `43` | ` 43` | true |
+| heldout-0010 | `Add: 64 + 17 =` | `81` | ` 81` | true |
+
+Reported honestly, not selectively: 3/10 wrong (heldout-0003, -0006,
+-0008), all three off by a small but non-trivial arithmetic amount (10,
+10, 90 respectively) rather than a formatting/parsing failure -- this
+looks like exactly what a 50-step SFT run on a 135M base model against
+40 training examples of two-digit addition is expected to produce
+(partial arithmetic generalisation, not memorisation, not a broken
+harness): training loss dropped from `1.71` to `0.69` over the run
+(`training-evidence.sanitised.json` log history) while still leaving
+30% of held-out arithmetic wrong. Sanitised evidence:
+`examples/pilot-adr0006/evidence/evaluation-evidence.sanitised.json`,
+full combined result:
+`examples/pilot-adr0006/evidence/pilot-result.sanitised.json`.
+
+### What this result does and does not establish
+
+This is exploratory pilot evidence, not a capability claim and not a
+promotion decision. `0.7` on a 10-example synthetic arithmetic
+held-out set says only: the trainer-adapter -> evaluator-adapter wiring
+this ADR's gating required now runs end-to-end against a real held-out
+set with real inference, and the one bounded 50-step run this ADR
+locked produced a trustworthy (budget-respecting, hash-verified,
+contamination-checked) artifact that a real evaluator scored honestly,
+including its failures. It does not establish general arithmetic
+capability, does not accept or promote the trained artifact, and does
+not authorise any further pilot, larger run, or production use --
+those remain separate, later governed actions (`docs/ARCHITECTURE.md`
+core contract #6) this ADR and this pilot do not perform.
+
+### Reproducibility
+
+`examples/pilot-adr0006/run_pilot.py` reproduces this run byte-for-byte
+given the same pinned model snapshot and dataset files (fixed seed,
+deterministic dataset, `do_sample=False` greedy evaluator decoding) --
+re-running it is expected to reproduce the same `TrainingOutput`/
+`EvaluationOutput` structure, though exact loss/entropy floating-point
+values may vary slightly by PyTorch/MPS backend version and are not
+themselves load-bearing for this ADR's gating.
