@@ -58,7 +58,9 @@ templates/              Experiment, dataset, model and release records
 tests/                  Positive, negative and tamper-oriented tests
 ```
 
-See [Architecture](docs/ARCHITECTURE.md), [Continual improvement](docs/CONTINUAL_IMPROVEMENT.md), [Roadmap](docs/ROADMAP.md), [Next progression](docs/PROGRESSION.md), [Real adapters](docs/REAL_ADAPTERS.md), [Agent integration](docs/AGENT_INTEGRATION.md), [Agent resumption](docs/AGENT_RESUMPTION_PLAYBOOK.md), [Training-loop reliability](docs/TRAINING_LOOP_RELIABILITY.md), [Data governance](docs/DATA_GOVERNANCE.md), [Feedback](docs/FEEDBACK.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
+See [Architecture](docs/ARCHITECTURE.md), [Continual improvement](docs/CONTINUAL_IMPROVEMENT.md), [Roadmap](docs/ROADMAP.md), [Next progression](docs/PROGRESSION.md), [Real adapters](docs/REAL_ADAPTERS.md), [Evidence log](docs/EVIDENCE_LOG.md), [Agent integration](docs/AGENT_INTEGRATION.md), [Agent resumption](docs/AGENT_RESUMPTION_PLAYBOOK.md), [Training-loop reliability](docs/TRAINING_LOOP_RELIABILITY.md), [Data governance](docs/DATA_GOVERNANCE.md), [Feedback](docs/FEEDBACK.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
+
+For a concrete, link-by-link worked example of this project's evidence-over-theory principle in practice — proposal, contract, independent review, a live-execution security review that found and blocked on real defects, and an independently re-verified real pilot run — see [docs/EVIDENCE_LOG.md](docs/EVIDENCE_LOG.md).
 
 ## Make it your own
 
