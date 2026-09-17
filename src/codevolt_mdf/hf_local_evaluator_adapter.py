@@ -94,6 +94,15 @@ from .evaluator_contract import (
     HeldOutExample,
     InvalidInputError,
     RejectedInputError,
+    TaskType,
+    task_type_of,
+)
+from .scoring_modes import (
+    check_format_conformance,
+    parse_format_conformance_input,
+    parse_format_spec,
+    parse_multiple_choice_input,
+    resolve_expected_choice,
 )
 
 # --------------------------------------------------------------------------
@@ -227,15 +236,34 @@ class HFLocalCausalLMEvaluatorAdapter:
                     "an unverified/tampered checkpoint)"
                 )
 
-        if not isinstance(example.input, str) or not example.input.strip():
+        # Shape-validate the example BEFORE ever touching the model, for every
+        # task type -- mirrors the original exact-match ordering (input/expected
+        # validated before model load) so a malformed example is reported as
+        # InvalidInputError without paying for (or masking behind) a model-load
+        # attempt, and so a bogus/unloadable checkpoint doesn't turn a clear
+        # input-shape error into a confusing "could not be loaded" one instead.
+        task_type = task_type_of(example)
+        if task_type == TaskType.MULTIPLE_CHOICE.value:
+            mc_prompt, mc_choices = parse_multiple_choice_input(example)
+            mc_expected_choice = resolve_expected_choice(example.expected, mc_choices)
+        elif task_type == TaskType.FORMAT_CONFORMANCE.value:
+            fc_prompt = parse_format_conformance_input(example)
+            fc_spec = parse_format_spec(example)
+        elif task_type == TaskType.EXACT_MATCH.value:
+            if not isinstance(example.input, str) or not example.input.strip():
+                raise InvalidInputError(
+                    f"example {example.example_id!r}: HeldOutExample.input must be a "
+                    "non-empty string prompt for this adapter"
+                )
+            if not isinstance(example.expected, str) or not example.expected.strip():
+                raise InvalidInputError(
+                    f"example {example.example_id!r}: HeldOutExample.expected must be a "
+                    "non-empty string for this adapter"
+                )
+        else:
             raise InvalidInputError(
-                f"example {example.example_id!r}: HeldOutExample.input must be a "
-                "non-empty string prompt for this adapter"
-            )
-        if not isinstance(example.expected, str) or not example.expected.strip():
-            raise InvalidInputError(
-                f"example {example.example_id!r}: HeldOutExample.expected must be a "
-                "non-empty string for this adapter"
+                f"example {example.example_id!r}: unsupported task_type {task_type!r} "
+                f"(this adapter supports {[t.value for t in TaskType]})"
             )
 
         try:
@@ -245,6 +273,13 @@ class HFLocalCausalLMEvaluatorAdapter:
                 f"artifact_locator {path} could not be loaded as a Hugging Face "
                 f"causal-LM checkpoint: {exc}"
             ) from exc
+
+        if task_type == TaskType.MULTIPLE_CHOICE.value:
+            return self._score_multiple_choice(
+                model, tokenizer, example, mc_prompt, mc_choices, mc_expected_choice
+            )
+        if task_type == TaskType.FORMAT_CONFORMANCE.value:
+            return self._score_format_conformance(model, tokenizer, example, fc_prompt, fc_spec)
 
         try:
             generated = self._generate(model, tokenizer, example.input)
@@ -259,6 +294,88 @@ class HFLocalCausalLMEvaluatorAdapter:
             correct=correct,
             score=1.0 if correct else 0.0,
             raw_output=generated,
+        )
+
+    # -- new scoring modes (WP-A, issue #24) ------------------------------
+
+    def _score_multiple_choice(
+        self,
+        model: Any,
+        tokenizer: Any,
+        example: HeldOutExample,
+        prompt: str,
+        choices: list[str],
+        expected_choice: str,
+    ) -> ExampleResult:
+        """Score a multiple-choice example by per-option log-likelihood.
+
+        Standard lm-evaluation-harness-style MMLU approach: for each
+        candidate choice, compute the model's total log-probability of
+        that choice's tokens conditioned on the prompt (teacher-forced,
+        no sampling, ``torch.no_grad()``), and pick the choice with the
+        highest length-normalized average log-probability -- length
+        normalization (dividing by token count) avoids systematically
+        favouring shorter choices purely because they have fewer terms
+        in the log-probability sum. Correct iff the argmax choice
+        equals the resolved expected choice. Deterministic given the
+        same artifact and example, matching the exact-match path's own
+        determinism guarantee. ``prompt``/``choices``/``expected_choice``
+        are pre-parsed by the caller (before any model load) so a
+        malformed example is reported without needing a model at all.
+        """
+        try:
+            scored = [
+                (choice, self._choice_log_likelihood(model, tokenizer, prompt, choice))
+                for choice in choices
+            ]
+        except Exception as exc:  # any inference failure is INVALID, not a crash
+            raise InvalidInputError(
+                f"multiple_choice inference failed for example {example.example_id!r}: {exc}"
+            ) from exc
+
+        predicted_choice = max(scored, key=lambda pair: pair[1])[0]
+        correct = predicted_choice == expected_choice
+        detail = ", ".join(f"{choice!r}={logprob:.4f}" for choice, logprob in scored)
+        return ExampleResult(
+            example_id=example.example_id,
+            correct=correct,
+            score=1.0 if correct else 0.0,
+            raw_output=f"chose {predicted_choice!r} | avg log-likelihoods: {detail}",
+        )
+
+    def _score_format_conformance(
+        self,
+        model: Any,
+        tokenizer: Any,
+        example: HeldOutExample,
+        prompt: str,
+        spec: dict[str, Any],
+    ) -> ExampleResult:
+        """Score a structured-output/format-conformance example.
+
+        Generates greedy-decoded output the same way exact-match does
+        (``do_sample=False``, ``self.max_new_tokens``), then checks the
+        generated text against the declared format spec via
+        ``scoring_modes.check_format_conformance`` instead of comparing
+        it to a fixed expected string -- correctness here means "the
+        model's output has the right shape" (valid JSON with required
+        keys, or matches a regex), not "the model's output equals a
+        specific value." ``prompt``/``spec`` are pre-parsed by the
+        caller (before any model load).
+        """
+        try:
+            generated = self._generate(model, tokenizer, prompt)
+        except Exception as exc:  # any inference failure is INVALID, not a crash
+            raise InvalidInputError(
+                f"format_conformance inference failed for example {example.example_id!r}: {exc}"
+            ) from exc
+
+        conforms, detail = check_format_conformance(generated, spec)
+        return ExampleResult(
+            example_id=example.example_id,
+            correct=conforms,
+            score=1.0 if conforms else 0.0,
+            raw_output=f"{generated} | {detail}",
         )
 
     # -- helpers (private: not part of the adapter's public contract surface) --
@@ -301,3 +418,41 @@ class HFLocalCausalLMEvaluatorAdapter:
         prompt_len = inputs["input_ids"].shape[1]
         continuation_ids = output_ids[0][prompt_len:]
         return tokenizer.decode(continuation_ids, skip_special_tokens=True)
+
+    def _choice_log_likelihood(self, model: Any, tokenizer: Any, prompt: str, choice: str) -> float:
+        """Length-normalized average log-probability of ``choice`` given ``prompt``.
+
+        Teacher-forced (no sampling, no ``generate()`` loop): tokenizes
+        ``prompt + choice`` once, runs a single forward pass under
+        ``torch.no_grad()``, and sums the model's own log-probability of
+        each of ``choice``'s tokens conditioned on everything before it
+        (prompt plus any preceding choice tokens) -- the standard
+        per-option-likelihood approach ``lm-evaluation-harness`` and
+        similar MMLU-style evaluators use, reimplemented directly here
+        with no dependency on that project. Divides by the number of
+        choice tokens so a longer choice is not penalised purely for
+        having more tokens to sum log-probabilities over.
+        """
+        import torch
+        import torch.nn.functional as F
+
+        prompt_ids = tokenizer(prompt, return_tensors="pt")["input_ids"]
+        full_ids = tokenizer(prompt + choice, return_tensors="pt")["input_ids"]
+        prompt_len = prompt_ids.shape[1]
+        choice_len = full_ids.shape[1] - prompt_len
+        if choice_len <= 0:
+            raise InvalidInputError(
+                f"choice {choice!r} tokenizes to zero additional tokens beyond the prompt; "
+                "cannot score its likelihood"
+            )
+
+        with torch.no_grad():
+            logits = model(full_ids).logits  # (1, seq_len, vocab)
+
+        # logits[i] predicts token i+1, so the logits that predict the
+        # choice's tokens are indices [prompt_len - 1, full_len - 2].
+        relevant_logits = logits[0, prompt_len - 1 : full_ids.shape[1] - 1, :]
+        target_ids = full_ids[0, prompt_len:]
+        log_probs = F.log_softmax(relevant_logits.float(), dim=-1)
+        token_log_probs = log_probs.gather(1, target_ids.unsqueeze(-1)).squeeze(-1)
+        return float(token_log_probs.sum().item() / choice_len)
