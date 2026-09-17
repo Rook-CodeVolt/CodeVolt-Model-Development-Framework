@@ -367,13 +367,36 @@ this repository as a result of this document.
 is now implemented — see `src/codevolt_mdf/trl_adapter.py`
 (`TRLTrainerAdapter`) and
 `docs/decisions/0005-trl-trainer-adapter-v1.md` (engine choice: TRL,
-`UpstreamRequirement` bounds `[0.20.0, 0.24.0]`). Its contract tests
-(`tests/test_trl_adapter.py`, 28 cases) reuse the fake-adapter-style
+`UpstreamRequirement` bounds pinned to the exact verified version
+`0.24.0` — originally a range `[0.20.0, 0.24.0)`, narrowed per Maya's
+PR #15 review; see ADR-0005's "Exact pin, not a range" amendment). Its
+contract tests (`tests/test_trl_adapter.py`, 28 cases) reuse the
+fake-adapter-style
 conformance pattern wherever the contract allows proving behaviour
 without an actual training run (rejection, invalid-input, provenance/
 hash-tamper, offline-policy, upstream-version-incompatibility). No real
 pilot run has occurred: `adapter.train()` is fully implemented but never
 called by any test, script, or CI step. Steps (b) and (c) below remain
+unmet and are the explicit condition for any pilot run.
+
+**Status update (2026-09-17, package 2):** `pyproject.toml`'s
+`trl-adapter` extra and `TRLTrainerAdapter`'s `UpstreamRequirement` are
+now pinned to the exact verified version `trl==0.24.0` (previously a
+range) — see ADR-0005's "Exact pin, not a range" amendment, addressing
+a medium finding from Maya's PR #15 review. Issue #7 step 4
+(independent evaluation) now has a separate, contract-tested harness:
+`src/codevolt_mdf/evaluator_contract.py`
+(`EvaluatorAdapterV1`/`run_evaluator_contract`) and
+`src/codevolt_mdf/held_out_registry.py`
+(`HeldOutExclusionRegistry`, reusing the bidirectional, per-package
+pattern from issue #11/`docs/DATA_GOVERNANCE.md`). This is a separate
+component from `trl_adapter.py` — no import relationship in either
+direction, enforced by a structural test
+(`tests/test_evaluator_contract.py`).
+`docs/decisions/0006-bounded-real-trl-pilot-plan.md` drafts (does not
+authorise execution of) the bounded pilot's exact configuration. No
+pilot has run; a real (non-fake) scoring adapter and Maya's
+pilot-specific review of the live TRL process (step (c) below) remain
 unmet and are the explicit condition for any pilot run.
 
 - **Scope**: exactly one real engine adapter (e.g. TRL or Unsloth — the
@@ -396,12 +419,19 @@ unmet and are the explicit condition for any pilot run.
   smallest set of hosts the real engine's pinned dependency resolution
   strictly requires, reviewed before the pilot runs.
 - **Gating**: the pilot does not run until (a) an ADR records the chosen
-  engine and its `UpstreamRequirement` bounds, (b) independent evaluation
-  is configured with a held-out set inaccessible to the trainer (issue #7
-  step 4), and (c) Maya's independent security review of sandbox, egress,
-  secrets, artifact hashes, supply-chain identity, and safe-stop behaviour
-  is complete (issue #7 step 5). None of that review is performed by this
-  PR.
+  engine and its `UpstreamRequirement` bounds — done, ADR-0005, amended
+  to an exact pin; (b) independent evaluation is configured with a
+  held-out set inaccessible to the trainer (issue #7 step 4) — the
+  contract-tested harness (`evaluator_contract.py`/
+  `held_out_registry.py`) is done; a real (non-fake) scoring adapter
+  and an actual pilot-specific held-out set are not yet built; and
+  (c) Maya's independent security review of sandbox, egress, secrets,
+  artifact hashes, supply-chain identity, and safe-stop behaviour of
+  the live TRL process is complete (issue #7 step 5) — not started,
+  distinct from her PR #15 code review of the adapter itself.
+  `docs/decisions/0006-bounded-real-trl-pilot-plan.md` drafts the
+  bounded pilot's exact configuration for that review to evaluate; it
+  does not itself authorise execution.
 - **Kill criteria** (unchanged from the issue): stop on missing
   provenance, unbounded resources, trainer access to held-out data,
   unverifiable artifacts, unsafe network/filesystem access, or any path
