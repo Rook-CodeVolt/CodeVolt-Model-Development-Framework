@@ -2,7 +2,7 @@
 
 An evidence-led framework for developing, training, evaluating, and safely evolving language models.
 
-> **Project status:** early foundation (`v0.1`). The contracts and contribution model are usable; real training-engine integrations are the next milestone. This project does not claim autonomous or production-safe self-improvement.
+> **Project status:** early foundation (`v0.1`). The contracts and contribution model are usable. A real (non-fake) trainer adapter for TRL and a real (non-fake) evaluator adapter backed by local Hugging Face inference are both merged — see [Real adapters](docs/REAL_ADAPTERS.md) for what that does and does not mean. A real bounded training pilot has **not** run yet: it is drafted (`docs/decisions/0006-bounded-real-trl-pilot-plan.md`) but blocked pending a pilot-specific live-execution security review and owner authorisation. This project does not claim autonomous or production-safe self-improvement.
 
 ## Why this exists
 
@@ -35,7 +35,16 @@ codevolt-mdf validate examples/deterministic-experiment.json
 codevolt-mdf run examples/deterministic-experiment.json --output runs
 ```
 
-The demo performs no model training. It exercises the experiment contract and writes a locked manifest, baseline, candidate evaluation, provenance, and keep/reject decision to a run directory.
+The demo performs no model training. It exercises the experiment contract and writes a locked manifest, baseline, candidate evaluation, provenance, and keep/reject decision to a run directory — using the deterministic fake trainer/evaluator adapters (`src/codevolt_mdf/fake_adapter.py`, `fake_evaluator_adapter.py`), not the real engines below.
+
+## Real (non-fake) adapters
+
+Beyond the deterministic demo, two real engine integrations are merged and contract-tested (see [docs/REAL_ADAPTERS.md](docs/REAL_ADAPTERS.md) for the full picture):
+
+- `TRLTrainerAdapter` (`src/codevolt_mdf/trl_adapter.py`) — a real `TrainerAdapterV1` implementation wrapping TRL's `SFTTrainer` for supervised fine-tuning.
+- The local HF evaluator (`src/codevolt_mdf/hf_local_evaluator_adapter.py`) — a real `EvaluatorAdapterV1` implementation that scores held-out examples via local Hugging Face causal-LM inference.
+
+Both are implemented against real upstream APIs and pass their own conformance test suites, but neither has been exercised in a live training/evaluation pilot yet. `adapter.train()` has never actually been run by anything in this repository. The next step — a real bounded pilot — is drafted but not authorised to execute; see [docs/REAL_ADAPTERS.md](docs/REAL_ADAPTERS.md) for the exact gating status.
 
 ## How it is structured
 
@@ -49,7 +58,7 @@ templates/              Experiment, dataset, model and release records
 tests/                  Positive, negative and tamper-oriented tests
 ```
 
-See [Architecture](docs/ARCHITECTURE.md), [Continual improvement](docs/CONTINUAL_IMPROVEMENT.md), [Roadmap](docs/ROADMAP.md), [Agent integration](docs/AGENT_INTEGRATION.md), [Agent resumption](docs/AGENT_RESUMPTION_PLAYBOOK.md), [Training-loop reliability](docs/TRAINING_LOOP_RELIABILITY.md), [Data governance](docs/DATA_GOVERNANCE.md), [Feedback](docs/FEEDBACK.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
+See [Architecture](docs/ARCHITECTURE.md), [Continual improvement](docs/CONTINUAL_IMPROVEMENT.md), [Roadmap](docs/ROADMAP.md), [Real adapters](docs/REAL_ADAPTERS.md), [Agent integration](docs/AGENT_INTEGRATION.md), [Agent resumption](docs/AGENT_RESUMPTION_PLAYBOOK.md), [Training-loop reliability](docs/TRAINING_LOOP_RELIABILITY.md), [Data governance](docs/DATA_GOVERNANCE.md), [Feedback](docs/FEEDBACK.md), and [Contributing](CONTRIBUTING.md) for the full design and ways to participate.
 
 ## Make it your own
 
