@@ -363,6 +363,19 @@ This PR documents — and does **not** implement or run — the one bounded
 real-integration path issue #7 asks for. No training engine is invoked by
 this repository as a result of this document.
 
+**Status update (2026-09-17):** the adapter side of this plan's step (a)
+is now implemented — see `src/codevolt_mdf/trl_adapter.py`
+(`TRLTrainerAdapter`) and
+`docs/decisions/0005-trl-trainer-adapter-v1.md` (engine choice: TRL,
+`UpstreamRequirement` bounds `[0.20.0, 0.24.0]`). Its contract tests
+(`tests/test_trl_adapter.py`, 28 cases) reuse the fake-adapter-style
+conformance pattern wherever the contract allows proving behaviour
+without an actual training run (rejection, invalid-input, provenance/
+hash-tamper, offline-policy, upstream-version-incompatibility). No real
+pilot run has occurred: `adapter.train()` is fully implemented but never
+called by any test, script, or CI step. Steps (b) and (c) below remain
+unmet and are the explicit condition for any pilot run.
+
 - **Scope**: exactly one real engine adapter (e.g. TRL or Unsloth — the
   specific engine choice is a separate follow-up ADR, not decided here),
   implementing `TrainerAdapterV1` against `CONTRACT_VERSION = "1.1.0"`
