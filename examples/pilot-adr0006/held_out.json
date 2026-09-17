@@ -1,0 +1,55 @@
+{
+  "examples": [
+    {
+      "example_id": "heldout-0001",
+      "expected": "96",
+      "input": "Add: 27 + 69 ="
+    },
+    {
+      "example_id": "heldout-0002",
+      "expected": "97",
+      "input": "Add: 69 + 28 ="
+    },
+    {
+      "example_id": "heldout-0003",
+      "expected": "104",
+      "input": "Add: 58 + 46 ="
+    },
+    {
+      "example_id": "heldout-0004",
+      "expected": "84",
+      "input": "Add: 28 + 56 ="
+    },
+    {
+      "example_id": "heldout-0005",
+      "expected": "64",
+      "input": "Add: 51 + 13 ="
+    },
+    {
+      "example_id": "heldout-0006",
+      "expected": "60",
+      "input": "Add: 11 + 49 ="
+    },
+    {
+      "example_id": "heldout-0007",
+      "expected": "86",
+      "input": "Add: 41 + 45 ="
+    },
+    {
+      "example_id": "heldout-0008",
+      "expected": "91",
+      "input": "Add: 42 + 49 ="
+    },
+    {
+      "example_id": "heldout-0009",
+      "expected": "43",
+      "input": "Add: 20 + 23 ="
+    },
+    {
+      "example_id": "heldout-0010",
+      "expected": "81",
+      "input": "Add: 64 + 17 ="
+    }
+  ],
+  "package_id": "adr0006-pilot-heldout-v1"
+}
