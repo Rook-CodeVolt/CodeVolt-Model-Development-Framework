@@ -1,0 +1,90 @@
+{
+  "evaluation_output": {
+    "aggregate_score": 0.7,
+    "artifact_id": "artifact-adr0006-pilot-20260917",
+    "contaminated_ids": [],
+    "error_class": null,
+    "evidence_hash": "0d3f1668e4d3b721db16425e71a10cb28d20ae3108cc5f29bc850d5040ecbfa0",
+    "evidence_locator": "<REPO_ROOT>/examples/pilot-adr0006/scratch/adr0006-pilot-20260917/evaluation_work/evaluation-artifact-adr0006-pilot-20260917-adr0006-pilot-heldout-v1.json",
+    "package_id": "adr0006-pilot-heldout-v1",
+    "reason": "scored 10 held-out example(s)",
+    "results": [
+      {
+        "correct": true,
+        "example_id": "heldout-0001",
+        "raw_output": " 96",
+        "score": 1.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0002",
+        "raw_output": " 97",
+        "score": 1.0
+      },
+      {
+        "correct": false,
+        "example_id": "heldout-0003",
+        "raw_output": " 94",
+        "score": 0.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0004",
+        "raw_output": " 84",
+        "score": 1.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0005",
+        "raw_output": " 64",
+        "score": 1.0
+      },
+      {
+        "correct": false,
+        "example_id": "heldout-0006",
+        "raw_output": " 50",
+        "score": 0.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0007",
+        "raw_output": " 86",
+        "score": 1.0
+      },
+      {
+        "correct": false,
+        "example_id": "heldout-0008",
+        "raw_output": " 181",
+        "score": 0.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0009",
+        "raw_output": " 43",
+        "score": 1.0
+      },
+      {
+        "correct": true,
+        "example_id": "heldout-0010",
+        "raw_output": " 81",
+        "score": 1.0
+      }
+    ],
+    "status": "scored"
+  },
+  "training_output": {
+    "artifact_id": "artifact-adr0006-pilot-20260917",
+    "error_class": null,
+    "evidence_hash": "98881a6ce342b2e8c4ceeca333afb37dbcec4e217ec08fd392f992b56c82e636",
+    "evidence_locator": "<REPO_ROOT>/examples/pilot-adr0006/scratch/adr0006-pilot-20260917/trainer_work/adr0006-pilot-20260917/evidence.json",
+    "reason": "trl SFT run completed 50 max_steps",
+    "resource_usage": {
+      "cpu_seconds": 14.084922,
+      "gpu_count_used": 0,
+      "memory_mb_peak": 1621.5,
+      "storage_mb_used": 517.7566337585449,
+      "wall_seconds": 15.708815
+    },
+    "status": "accepted"
+  }
+}

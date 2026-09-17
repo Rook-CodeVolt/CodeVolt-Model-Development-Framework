@@ -1,0 +1,67 @@
+{
+  "aggregate_score": 0.7,
+  "artifact_id": "artifact-adr0006-pilot-20260917",
+  "package_id": "adr0006-pilot-heldout-v1",
+  "results": [
+    {
+      "correct": true,
+      "example_id": "heldout-0001",
+      "raw_output": " 96",
+      "score": 1.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0002",
+      "raw_output": " 97",
+      "score": 1.0
+    },
+    {
+      "correct": false,
+      "example_id": "heldout-0003",
+      "raw_output": " 94",
+      "score": 0.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0004",
+      "raw_output": " 84",
+      "score": 1.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0005",
+      "raw_output": " 64",
+      "score": 1.0
+    },
+    {
+      "correct": false,
+      "example_id": "heldout-0006",
+      "raw_output": " 50",
+      "score": 0.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0007",
+      "raw_output": " 86",
+      "score": 1.0
+    },
+    {
+      "correct": false,
+      "example_id": "heldout-0008",
+      "raw_output": " 181",
+      "score": 0.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0009",
+      "raw_output": " 43",
+      "score": 1.0
+    },
+    {
+      "correct": true,
+      "example_id": "heldout-0010",
+      "raw_output": " 81",
+      "score": 1.0
+    }
+  ]
+}
