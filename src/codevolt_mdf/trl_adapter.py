@@ -191,11 +191,15 @@ class TRLTrainerAdapter:
     Optional ``training_params`` keys: ``learning_rate`` (float,
     default ``2e-5``), ``per_device_train_batch_size`` (int, default
     ``1``), ``save_steps`` (int, default ``max(1, max_steps // 4)`` --
-    how often a resumable checkpoint is written), ``use_lora`` (bool,
-    default ``False`` -- requires the optional ``peft`` package; raises
-    ``RejectedInputError`` in ``prepare()`` if requested but ``peft`` is
-    not importable, rather than silently falling back to full
-    fine-tuning).
+    how often a resumable checkpoint is written), ``save_total_limit``
+    (int, default ``2`` -- how many recent checkpoints are kept on
+    disk; older ones are pruned by TRL/transformers, bounding storage
+    growth for any given ``save_steps`` cadence rather than
+    accumulating one full un-pruned checkpoint per save), ``use_lora``
+    (bool, default ``False`` -- requires the optional ``peft`` package;
+    raises ``RejectedInputError`` in ``prepare()`` if requested but
+    ``peft`` is not importable, rather than silently falling back to
+    full fine-tuning).
     """
 
     work_dir: Path
@@ -345,6 +349,19 @@ class TRLTrainerAdapter:
             max_steps=max_steps,
             save_steps=save_steps,
             save_strategy="steps",
+            # Without a limit, a full un-pruned checkpoint (config +
+            # tokenizer + model.safetensors) is written every save_steps,
+            # in addition to the final saved model -- a real 50-step pilot
+            # run at the default save_steps cadence measured 8,239 MB
+            # against a locked 2,048 MB storage budget (5 un-pruned
+            # checkpoints, ~257 MB each, plus the final artifact). Maya's
+            # pilot-specific live-execution review (issue #7 step 5, PR #18
+            # Finding 2) recommended this one-line fix over raising the
+            # budget: it caps storage growth generically for any future
+            # pilot's checkpoint cadence, not just this one's numbers.
+            # 2 keeps one checkpoint of margin behind the most recent for
+            # resume-after-a-bad-checkpoint safety without unbounded growth.
+            save_total_limit=int(params.get("save_total_limit", 2)),
             learning_rate=float(params.get("learning_rate", 2e-5)),
             per_device_train_batch_size=int(params.get("per_device_train_batch_size", 1)),
             seed=inputs.seed,
