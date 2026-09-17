@@ -2,6 +2,12 @@
 
 - Status: accepted
 - Date: 2026-09-17
+- Amended: 2026-09-17 — `UpstreamRequirement`/`pyproject.toml` bound
+  narrowed from range `[0.20.0, 0.24.0)` to exact pin `0.24.0`, per
+  Maya's PR #15 independent review (medium finding, required before any
+  pilot). See "Exact pin, not a range" under "UpstreamRequirement version
+  bounds" below for the full rationale; every other part of this ADR is
+  unchanged.
 
 ## Context
 
@@ -36,54 +42,92 @@ Add `src/codevolt_mdf/trl_adapter.py` (`TRLTrainerAdapter`,
 `contract_version = "1.1.0"`) implementing `TrainerAdapterV1` against
 `CONTRACT_VERSION = "1.1.0"`, and `tests/test_trl_adapter.py` (28
 conformance tests). Declare the optional `trl-adapter` extra in
-`pyproject.toml` (`trl>=0.20.0,<0.25.0`, plus the transformers/datasets/
+`pyproject.toml` (`trl==0.24.0`, plus the transformers/datasets/
 accelerate floors TRL itself requires) so the adapter's real dependency
 is opt-in, not a new hard dependency of `codevolt-model-development-framework`
 itself — consistent with `docs/GOVERNANCE.md`'s "optional engines must
 not become core dependencies without an accepted architecture decision"
 (this ADR is that acceptance, scoped to optional-extra status only).
+`pyproject.toml` originally declared `trl>=0.20.0,<0.25.0`; see "Exact
+pin, not a range" below for why this was narrowed to `trl==0.24.0`.
 
 ### UpstreamRequirement version bounds
 
 ```python
 UpstreamRequirement(
     engine_name="trl",
-    min_version="0.20.0",
+    min_version="0.24.0",
     max_version="0.24.0",
     installed_version=<detected at adapter construction>,
 )
 ```
 
-- **Lower bound `0.20.0`**: the oldest release in this project's
-  supported range that still targets the modern `SFTTrainer`/`SFTConfig`
-  shape this adapter's `train()` calls (`output_dir`, `max_steps`,
-  `save_steps`, `save_strategy`, `learning_rate`,
-  `per_device_train_batch_size`, `seed`, `report_to`, `logging_steps` on
-  `SFTConfig`; `model`, `args`, `train_dataset`, `peft_config`,
-  `callbacks` on `SFTTrainer`). Not independently re-verified against
-  every release back to 0.20.0 in this work package — the floor is a
-  documented choice, not a claim every intermediate version was
-  installed and exercised.
-- **Upper bound `0.24.0`**: the last TRL release that still supports
-  Python 3.9 (`Requires-Python: >=3.9`; confirmed by downloading and
-  inspecting `trl-0.24.0-py3-none-any.whl`'s `METADATA` directly from
-  PyPI). TRL 0.25.0 raises its own floor to `Requires-Python: >=3.10`
-  (confirmed the same way against `trl-0.25.1-py3-none-any.whl`), which
-  is incompatible with this project's own `pyproject.toml`
-  `requires-python = ">=3.9"` floor. Widening this bound past 0.24.0
-  requires either (a) raising this project's own Python floor to >=3.10
-  first (a separate, broader decision this ADR does not make), or (b) a
-  new ADR if TRL ever backports a >=3.9-compatible release above 0.24.0
-  (no evidence such a release exists or is planned).
+- **Exact pin, not a range (amended 2026-09-17, post-PR#15 review)**:
+  this ADR originally declared `min_version="0.20.0"`,
+  `max_version="0.24.0"` (an inclusive range spanning five minor
+  releases) while only independently verifying the API surface and
+  Python-compatibility claims at the upper end, `0.24.0`. Maya's PR #15
+  independent review flagged this as a **medium-severity finding
+  required before any pilot**: `pyproject.toml`'s
+  `trl>=0.20.0,<0.25.0` constraint let `pip` resolve anywhere in that
+  range depending on the installing environment, but only `0.24.0` had
+  actually been installed, run through the test suite, and had its
+  `SFTTrainer`/`SFTConfig` signatures checked against what
+  `trl_adapter.py`'s `train()` calls
+  (`test_trl_api_surface_matches_adapter_expectations`). A pilot that
+  resolved, say, `0.20.0` or `0.22.1` would be running against an API
+  surface this project never verified, on the strength of a bound that
+  looked like verified evidence but wasn't for four of its five
+  covered minor versions. Per the review's own remediation options
+  ("either tighten the constraint to the exact verified version ...
+  or independently re-verify the API-surface/behaviour assumptions ...
+  against whatever version actually gets installed"), this amendment
+  takes the first option: `min_version` and `max_version` are both set
+  to `0.24.0`, and `pyproject.toml`'s `trl-adapter` extra changes from
+  `trl>=0.20.0,<0.25.0` to `trl==0.24.0`. `pip install -e
+  ".[trl-adapter]"` can now resolve exactly one version, the one this
+  project has actually installed and exercised.
+  - The original "oldest release that still targets the modern
+    `SFTTrainer`/`SFTConfig` shape" rationale for a `0.20.0` floor is
+    retracted as a *compatibility bound*, not as false: `0.20.0` may
+    well still work, but "may well" is not this project's own evidence
+    bar (`docs/GOVERNANCE.md`: "claims of improvement require
+    reproducible evidence"; the same standard applies to a compatibility
+    claim). Re-admitting a range would require actually installing and
+    running the conformance suite (in particular
+    `test_trl_api_surface_matches_adapter_expectations` and
+    `test_installed_trl_version_is_within_declared_bounds`) against
+    each intermediate version to be admitted, not just asserting the
+    range from release-note reading.
+- **Why `0.24.0` specifically (unchanged from the original decision)**:
+  the last TRL release that still supports Python 3.9
+  (`Requires-Python: >=3.9`; confirmed by downloading and inspecting
+  `trl-0.24.0-py3-none-any.whl`'s `METADATA` directly from PyPI). TRL
+  0.25.0 raises its own floor to `Requires-Python: >=3.10` (confirmed
+  the same way against `trl-0.25.1-py3-none-any.whl`), which is
+  incompatible with this project's own `pyproject.toml`
+  `requires-python = ">=3.9"` floor. Moving this pin to a different
+  version — up to a newer release or down to an older one — requires
+  either (a) raising this project's own Python floor to >=3.10 first (a
+  separate, broader decision this ADR does not make) if moving upward
+  past `0.24.0`, or (b) a new ADR that independently re-verifies the
+  API-surface/Python-compatibility claims against whichever specific
+  version replaces this one, in either direction. No range is
+  reintroduced by this amendment; the next change to this pin is
+  expected to still be a single exact version, chosen and verified the
+  same way this one was.
 - TRL's own `1.0.0` release (2026-03-31) is a breaking rearchitecture
   around a shared `_BaseTrainer` (per TRL's own `MIGRATION.md`); this
-  bound does not reach it, so that migration is explicitly out of scope
+  pin does not reach it, so that migration is explicitly out of scope
   for this adapter as written.
 - `_detect_installed_trl_version()` returns `"0.0.0"` (not an exception)
   when `trl` is not importable, so `UpstreamRequirement.is_compatible()`
   fails closed (rejects) through the contract runner's existing
   unconditional pre-`prepare()` check, rather than the adapter itself
-  needing special-case handling for "not installed."
+  needing special-case handling for "not installed." With an exact pin,
+  this same fail-closed path also now rejects *any* other installed
+  version, not only "below 0.20.0 or above 0.24.0" — a stricter, not
+  weaker, posture.
 
 ### Scope: one training method, offline-only, hash-verified provenance
 

@@ -69,18 +69,25 @@ from .trainer_contract import (
 # --------------------------------------------------------------------------
 # Upstream compatibility bounds.
 #
-# Chosen deliberately narrow and pinned to versions this repository has
-# actually installed and import-checked (see
-# docs/decisions/0005-trl-trainer-adapter-v1.md, "Evidence"). Upper bound
-# stops at the last TRL release that still supports Python 3.9
-# (this project's pyproject.toml floor, `requires-python = ">=3.9"`):
-# TRL 0.25.0 raises its own floor to Python >=3.10. Raising this bound to
-# track a newer TRL release requires either (a) a new ADR revisiting this
-# bound once this project's own Python floor moves to >=3.10, or (b) a new
-# ADR re-verifying a specific newer 0.9-series-compatible release against
-# Python 3.9 if TRL ever backports one (unlikely upstream policy).
+# Pinned to the exact single version this repository has installed,
+# import-checked, and API-surface-verified (see
+# docs/decisions/0005-trl-trainer-adapter-v1.md, "Evidence" and its
+# "Exact pin, not a range" addendum). Originally this declared a range
+# ([0.20.0, 0.24.0)) that was only ever independently verified at its
+# upper end; Maya's PR #15 review flagged that as a medium finding
+# (pip could resolve anywhere in the unverified range) required before
+# any pilot. Fixed by pinning min == max == the one version actually
+# tested, rather than widening verification to match the range. Widening
+# this back to a range requires either (a) independently re-verifying
+# `test_trl_api_surface_matches_adapter_expectations`-style checks against
+# every version the wider range would admit, or (b) a new ADR narrating
+# why a specific different exact version replaces this one. TRL 0.25.0
+# raises its own floor to Python >=3.10 (this project's own floor is
+# `requires-python = ">=3.9"`), so moving off 0.24.0 upward also needs
+# this project's Python floor raised first, or a new ADR if TRL ever
+# backports a >=3.9-compatible release above 0.24.0.
 # --------------------------------------------------------------------------
-TRL_MIN_VERSION = "0.20.0"
+TRL_MIN_VERSION = "0.24.0"
 TRL_MAX_VERSION = "0.24.0"
 
 _HASH_MANIFEST_EXCLUDE_NAMES = {".DS_Store", "__pycache__"}
