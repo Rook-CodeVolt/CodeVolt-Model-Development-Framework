@@ -191,11 +191,15 @@ class TRLTrainerAdapter:
     Optional ``training_params`` keys: ``learning_rate`` (float,
     default ``2e-5``), ``per_device_train_batch_size`` (int, default
     ``1``), ``save_steps`` (int, default ``max(1, max_steps // 4)`` --
-    how often a resumable checkpoint is written), ``use_lora`` (bool,
-    default ``False`` -- requires the optional ``peft`` package; raises
-    ``RejectedInputError`` in ``prepare()`` if requested but ``peft`` is
-    not importable, rather than silently falling back to full
-    fine-tuning).
+    how often a resumable checkpoint is written), ``save_total_limit``
+    (int, default ``2`` -- how many recent checkpoints are kept on
+    disk; older ones are pruned by TRL/transformers, bounding storage
+    growth for any given ``save_steps`` cadence rather than
+    accumulating one full un-pruned checkpoint per save), ``use_lora``
+    (bool, default ``False`` -- requires the optional ``peft`` package;
+    raises ``RejectedInputError`` in ``prepare()`` if requested but
+    ``peft`` is not importable, rather than silently falling back to
+    full fine-tuning).
     """
 
     work_dir: Path
@@ -306,14 +310,34 @@ class TRLTrainerAdapter:
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
-        from datasets import load_dataset
-        from transformers import TrainerCallback, TrainerControl, TrainerState
-        from trl import SFTConfig, SFTTrainer
-
         params = inputs.params
         run_dir = self._run_dir(inputs.run_id)
         checkpoint_dir = run_dir / "checkpoints"
         final_dir = run_dir / "final"
+
+        # Redirect HF's own cache/lock-file writes (datasets' arrow-cache
+        # lock file, any hub/module cache huggingface_hub or transformers
+        # touches) into a subdirectory of this run's own directory --
+        # which is itself under filesystem_root -- instead of leaving them
+        # at the ambient default (~/.cache/huggingface). With
+        # filesystem_root set, that ambient default is outside the
+        # declared root, so datasets.load_dataset()'s own arrow-cache
+        # `.lock` file write there trips the write-scoped filesystem
+        # guard exactly like any other out-of-root write would (real
+        # reproduction: Maya's pilot-specific live-execution review,
+        # issue #7 step 5, PR #18, Finding 1 follow-on). Must happen
+        # before datasets/transformers/huggingface_hub are imported below
+        # (even lazily) since each reads these as module-level constants
+        # at import time, not per-call.
+        hf_cache_dir = run_dir / "hf_cache"
+        hf_cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("HF_HOME", str(hf_cache_dir))
+        os.environ.setdefault("HF_DATASETS_CACHE", str(hf_cache_dir / "datasets"))
+        os.environ.setdefault("HF_HUB_CACHE", str(hf_cache_dir / "hub"))
+
+        from datasets import load_dataset
+        from transformers import TrainerCallback, TrainerControl, TrainerState
+        from trl import SFTConfig, SFTTrainer
 
         max_steps = int(params["max_steps"])
         save_steps = int(params.get("save_steps", max(1, max_steps // 4)))
@@ -325,6 +349,19 @@ class TRLTrainerAdapter:
             max_steps=max_steps,
             save_steps=save_steps,
             save_strategy="steps",
+            # Without a limit, a full un-pruned checkpoint (config +
+            # tokenizer + model.safetensors) is written every save_steps,
+            # in addition to the final saved model -- a real 50-step pilot
+            # run at the default save_steps cadence measured 8,239 MB
+            # against a locked 2,048 MB storage budget (5 un-pruned
+            # checkpoints, ~257 MB each, plus the final artifact). Maya's
+            # pilot-specific live-execution review (issue #7 step 5, PR #18
+            # Finding 2) recommended this one-line fix over raising the
+            # budget: it caps storage growth generically for any future
+            # pilot's checkpoint cadence, not just this one's numbers.
+            # 2 keeps one checkpoint of margin behind the most recent for
+            # resume-after-a-bad-checkpoint safety without unbounded growth.
+            save_total_limit=int(params.get("save_total_limit", 2)),
             learning_rate=float(params.get("learning_rate", 2e-5)),
             per_device_train_batch_size=int(params.get("per_device_train_batch_size", 1)),
             seed=inputs.seed,
@@ -374,6 +411,26 @@ class TRLTrainerAdapter:
 
         trainer.save_model(str(final_dir))
         evidence_locator, evidence_hash = self._write_evidence(inputs, trainer, final_dir)
+
+        # Prune the periodic-checkpoint directory (now containing full
+        # optimizer/scheduler/RNG state per the resumable-checkpoint fix
+        # above, not just model weights) once the run has ACCEPTED. Those
+        # checkpoints exist solely to make an *interrupted* run resumable;
+        # a run that completed successfully has nothing left to resume,
+        # and final_dir + evidence.json above is the actual retained
+        # deliverable. Real-measured during this fix's own verification:
+        # a full resumable checkpoint at this pilot's model size is
+        # dominated by fp32 Adam optimizer state (~1 GB, roughly 2x the
+        # model's own size) -- kept alongside final_dir (~540 MB) even at
+        # save_total_limit=1, that would leave >1.5 GB on disk for a
+        # successfully completed run for no reason, eating meaningfully
+        # into ADR-0006's locked 2048 MB budget on top of Finding 2's fix.
+        # Skipping this for a non-ACCEPTED/cancelled run is essential:
+        # that path returns via _safe_halt_output above, before this
+        # line, specifically to preserve the checkpoint for a future
+        # resume.
+        shutil.rmtree(checkpoint_dir, ignore_errors=True)
+
         usage = ResourceUsage(
             # wall/cpu/memory are overwritten by the contract runner with
             # OS-measured figures (see trainer_contract.run_trainer_contract);
@@ -428,7 +485,46 @@ class TRLTrainerAdapter:
             )
 
     def _safe_halt_output(self, inputs: TrainingInputs, trainer: Any, checkpoint_dir: Path) -> TrainingOutput:
+        """Persist a genuinely resumable checkpoint after cooperative cancellation.
+
+        ``trainer.save_model()`` alone only ever writes model weights and
+        tokenizer files -- never ``trainer_state.json``, optimizer state,
+        scheduler state, or RNG state. Resuming via the real
+        ``trainer.train(resume_from_checkpoint=...)`` needs all of those
+        (``transformers.Trainer._load_from_checkpoint`` / the
+        ``resume_from_checkpoint is not None`` branch in
+        ``Trainer._inner_training_loop`` both read
+        ``trainer_state.json`` unconditionally and raise ``FileNotFoundError``
+        if it is missing), so this reproduces exactly what
+        ``Trainer._save_checkpoint`` itself does for a normal ``save_steps``
+        checkpoint -- ``save_model`` + optimizer/scheduler + scaler + RNG
+        state + ``save_state()`` -- but writes to the adapter's flat,
+        step-suffix-free ``checkpoint_dir`` (matching this adapter's own
+        ``CheckpointHandle.state_locator`` contract) instead of
+        ``Trainer``'s own ``checkpoint-<step>`` subdirectory naming.
+        Reproduced twice against a real TRL ``Trainer`` at different real
+        cancellation points -- see Maya's pilot-specific live-execution
+        review (issue #7 step 5, PR #18) Finding 3.
+
+        These are private ``Trainer`` methods (leading underscore), used
+        deliberately: they are the exact machinery ``transformers`` itself
+        uses to build a resumable checkpoint, and ``Trainer`` exposes no
+        public API for "the non-model parts of a checkpoint" alone. If a
+        future ``transformers`` release renames/removes them,
+        ``test_trl_api_surface_matches_adapter_expectations``-style
+        signature checks should be extended to cover them (see
+        ``TRL_MIN_VERSION``/``TRL_MAX_VERSION`` comment on exact-pin
+        rationale).
+        """
         trainer.save_model(str(checkpoint_dir))
+        trainer._save_optimizer_and_scheduler(str(checkpoint_dir))
+        trainer._save_scaler(str(checkpoint_dir))
+        trainer._save_rng_state(str(checkpoint_dir))
+        # Trainer.save_state() writes to self.args.output_dir, which
+        # equals checkpoint_dir here (SFTConfig(output_dir=str(checkpoint_dir))
+        # in train()), so this lands in the same flat directory as the
+        # calls above rather than needing an explicit path argument.
+        trainer.save_state()
         state_hash = _hash_path_identity(checkpoint_dir)
         step = int(getattr(trainer.state, "global_step", 0))
         checkpoint = CheckpointHandle(

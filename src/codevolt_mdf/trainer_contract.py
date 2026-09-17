@@ -319,7 +319,7 @@ class CancellationToken:
     and to keep ``TrainerAdapterV1`` unchanged. As of v1.1 the contract
     runner additionally enforces cancellation at the OS-process level:
     if the adapter does not honour this token within
-    ``process_isolation.DEFAULT_KILL_GRACE_SECONDS`` of it being set, the
+    ``process_isolation.DEFAULT_CANCELLATION_KILL_GRACE_SECONDS`` of it being set, the
     runner escalates to ``SIGKILL`` on the child process. Cooperative
     checking (``is_cancelled()``/``wait(interval)``) is still the polite,
     low-latency path; it is no longer the *only* backstop. See
@@ -442,7 +442,7 @@ def run_trainer_contract(
     # environments where multiprocessing's spawn method is restricted
     # (e.g. certain sandboxes); process_isolation is stdlib-only so this
     # is purely to avoid a hard import-time dependency cycle risk.
-    from .process_isolation import DEFAULT_KILL_GRACE_SECONDS, run_in_isolated_process
+    from .process_isolation import DEFAULT_CANCELLATION_KILL_GRACE_SECONDS, run_in_isolated_process
 
     output_payload, exc_payload, measured = run_in_isolated_process(
         adapter, inputs, budget, resume_from, token
@@ -482,7 +482,7 @@ def run_trainer_contract(
             reason=(
                 f"cancellation requested ({token.reason}); adapter did not "
                 f"cooperate with cancel_token within "
-                f"{DEFAULT_KILL_GRACE_SECONDS}s grace period "
+                f"{DEFAULT_CANCELLATION_KILL_GRACE_SECONDS}s grace period "
                 "and was SIGKILLed"
                 f"{_pid_tree_walk_reason_suffix(measured)}"
             ),
