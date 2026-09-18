@@ -19,8 +19,18 @@ framework's trainer -- because it is decoupled from all of them.
 
 from __future__ import annotations
 
-from .registry import ContaminationError, HeldOutExclusionRegistry, HeldOutRegistryError
+from .registry import (
+    ContaminationError,
+    HeldOutExclusionRegistry,
+    HeldOutRegistryError,
+    UnsupportedSchemaVersionError,
+)
 
-__all__ = ["ContaminationError", "HeldOutExclusionRegistry", "HeldOutRegistryError"]
+__all__ = [
+    "ContaminationError",
+    "HeldOutExclusionRegistry",
+    "HeldOutRegistryError",
+    "UnsupportedSchemaVersionError",
+]
 
 __version__ = "0.1.0"

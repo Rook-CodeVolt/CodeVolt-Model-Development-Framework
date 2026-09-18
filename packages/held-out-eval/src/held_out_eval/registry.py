@@ -48,13 +48,42 @@ Design rules (both required; see the docstring above and
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+#: Current on-disk schema version written by :meth:`HeldOutExclusionRegistry.to_dict`.
+#: Bump this, and add the old value to ``SUPPORTED_SCHEMA_VERSIONS`` with an
+#: explicit migration in :meth:`from_dict`, whenever the persisted shape changes.
+CURRENT_SCHEMA_VERSION = 1
+
+#: Schema versions this version of the library can load without migration.
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+
 
 class HeldOutRegistryError(Exception):
     """Base class for every error this module defines."""
+
+
+class UnsupportedSchemaVersionError(HeldOutRegistryError):
+    """A persisted registry file's ``schema_version`` is missing or unrecognized.
+
+    Raised by :meth:`HeldOutExclusionRegistry.from_dict` rather than letting
+    an old or newer file be silently misparsed as the current schema, or
+    fail later with an opaque ``KeyError``/``TypeError``.
+    """
+
+    def __init__(self, found: object) -> None:
+        self.found = found
+        super().__init__(
+            f"unsupported or missing schema_version {found!r} in persisted registry "
+            f"payload; this version of held-out-eval supports "
+            f"{sorted(SUPPORTED_SCHEMA_VERSIONS)}. Loading a file written by a "
+            "materially different version of this library without an explicit "
+            "migration is refused rather than silently misinterpreted."
+        )
 
 
 class ContaminationError(HeldOutRegistryError):
@@ -172,28 +201,61 @@ class HeldOutExclusionRegistry:
 
     # -- persistence: per-package, not a flat blob --------------------------
 
-    def to_dict(self) -> dict[str, dict[str, list[str]]]:
+    def to_dict(self) -> dict[str, object]:
         return {
+            "schema_version": CURRENT_SCHEMA_VERSION,
             "package_train_ids": {k: sorted(v) for k, v in self.package_train_ids.items()},
             "package_held_out_ids": {k: sorted(v) for k, v in self.package_held_out_ids.items()},
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, dict[str, list[str]]]) -> HeldOutExclusionRegistry:
+    def from_dict(cls, payload: dict[str, object]) -> HeldOutExclusionRegistry:
+        version = payload.get("schema_version")
+        if version not in SUPPORTED_SCHEMA_VERSIONS:
+            raise UnsupportedSchemaVersionError(version)
+        train_ids = payload.get("package_train_ids", {})
+        held_out_ids = payload.get("package_held_out_ids", {})
+        assert isinstance(train_ids, dict) and isinstance(held_out_ids, dict)
         return cls(
-            package_train_ids={
-                k: frozenset(v) for k, v in payload.get("package_train_ids", {}).items()
-            },
-            package_held_out_ids={
-                k: frozenset(v) for k, v in payload.get("package_held_out_ids", {}).items()
-            },
+            package_train_ids={k: frozenset(v) for k, v in train_ids.items()},
+            package_held_out_ids={k: frozenset(v) for k, v in held_out_ids.items()},
         )
 
     def save(self, path: Path) -> None:
-        path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        """Write this registry to ``path``, atomically.
+
+        Writes to a temporary file in the same directory, ``fsync``s it,
+        then ``os.replace()``s it into place. A crash or interruption
+        mid-write can never leave a partially-written file at ``path`` --
+        either the previous file remains fully intact, or the new one is
+        fully in place. This does NOT make concurrent writers to the same
+        path safe: two processes calling ``save()`` on the same path at
+        the same time can still race (last writer wins), it only protects
+        against a single writer being interrupted mid-write. Coordinate
+        external locking yourself if multiple processes may write the
+        same path concurrently.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+                tmp_file.write(payload)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+            os.replace(tmp_name, path)
+        except BaseException:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     @classmethod
     def load(cls, path: Path) -> HeldOutExclusionRegistry:
+        path = Path(path)
         if not path.exists():
             return cls()
         return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
