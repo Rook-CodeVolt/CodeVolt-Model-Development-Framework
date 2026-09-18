@@ -140,6 +140,36 @@ in that repository for the extraction rationale.
 - It has no opinion on data formats, model architectures, or training
   methods -- it tracks opaque string ids only.
 
+## Limitations
+
+**This registry detects exact-id collisions only.** It compares the
+opaque string ids you register as train data against the ids you
+register as held-out data, and raises if the *same id* appears on both
+sides. That is the entire check.
+
+It does **not** detect near-duplicate, paraphrased, or otherwise
+semantically-overlapping contamination -- a held-out example that has
+been lightly edited, reworded, translated, or paraphrased and then
+registered under a different id will not be caught, because no part of
+this package ever looks at content, only at ids. Real-world
+contamination is not limited to exact duplicates; this framework's own
+research (see [`docs/PROGRESSION.md`](https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/blob/main/docs/PROGRESSION.md)
+in the parent repository, citing arXiv:2502.14425 and related
+contamination literature) documents near-duplicate and paraphrase
+contamination as a significant share of contamination that occurs in
+practice.
+
+If you need that broader coverage, pair this registry with a
+content-similarity check -- for example an n-gram or embedding overlap
+scan -- run against your actual training and held-out text.
+`lm-evaluation-harness`'s decontamination utility is one example of
+such a complementary, different-granularity approach: it operates
+after the fact on corpus content rather than before the fact on
+registered ids, so it can catch near-duplicates this registry cannot,
+at the cost of the stronger by-construction guarantee this registry
+provides for exact-id contamination. The two approaches address
+different failure modes and are not substitutes for each other.
+
 ## License
 
 Apache-2.0, matching the parent repository.
