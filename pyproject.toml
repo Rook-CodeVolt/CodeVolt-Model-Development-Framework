@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Apache-2.0"}
 authors = [{name = "CodeVolt"}]
-dependencies = []
+dependencies = ["held-out-eval @ file:packages/held-out-eval"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "pyyaml>=6"]

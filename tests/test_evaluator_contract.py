@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from held_out_eval import HeldOutExclusionRegistry
 
 from codevolt_mdf.evaluator_contract import (
     CONTRACT_VERSION,
@@ -31,7 +32,6 @@ from codevolt_mdf.evaluator_contract import (
     verify_evidence,
 )
 from codevolt_mdf.fake_evaluator_adapter import FakeEvaluatorAdapter
-from codevolt_mdf.held_out_registry import HeldOutExclusionRegistry
 
 
 def make_held_out(package_id: str = "P1", n: int = 4) -> HeldOutSet:
