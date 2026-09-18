@@ -10,8 +10,7 @@ later package's held-out ids.
 from __future__ import annotations
 
 import pytest
-
-from codevolt_mdf.held_out_registry import ContaminationError, HeldOutExclusionRegistry
+from held_out_eval import ContaminationError, HeldOutExclusionRegistry
 
 # 1. Basic registration and derived flat views -------------------------------
 

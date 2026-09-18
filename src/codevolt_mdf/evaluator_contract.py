@@ -24,7 +24,11 @@ this module is the only code path that ever constructs or reads a
 
 Held-out exclusion is enforced, not only declared: before scoring
 anything, ``run_evaluator_contract`` calls
-``held_out_registry.HeldOutExclusionRegistry.check_held_out_not_trained``
+``HeldOutExclusionRegistry.check_held_out_not_trained`` (from the
+standalone ``held-out-eval`` package, ``packages/held-out-eval/`` in
+this repository -- extracted so it is independently usable outside
+this framework; see
+``docs/decisions/0012-extract-held-out-eval-standalone-package.md``)
 against every example id in the held-out set being evaluated. If any id
 is already registered as train data by *any* package (including a
 different package than the one under evaluation), the run is rejected
@@ -57,7 +61,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from .held_out_registry import HeldOutExclusionRegistry
+from held_out_eval import HeldOutExclusionRegistry
 
 CONTRACT_VERSION = "1.0.0"
 """Semantic version of EvaluatorAdapterContract. Bump on any breaking
@@ -96,7 +100,8 @@ class ContaminationDetectedError(EvaluatorContractError):
 
     Maps to run status ``invalid``: the held-out claim cannot be
     trusted, so the evidence this run would produce is not admissible
-    evidence of held-out performance. See ``held_out_registry.py``.
+    evidence of held-out performance. See the standalone
+    ``held-out-eval`` package (``packages/held-out-eval/``).
     """
 
 

@@ -6,6 +6,8 @@ __pycache__/
 *.egg-info/
 runs/
 artifacts/
+dist/
+build/
 models/
 datasets/
 .DS_Store

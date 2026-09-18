@@ -24,6 +24,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
+from held_out_eval import HeldOutExclusionRegistry
 
 from codevolt_mdf.evaluator_contract import (
     CONTRACT_VERSION,
@@ -33,7 +34,6 @@ from codevolt_mdf.evaluator_contract import (
     run_evaluator_contract,
     verify_evidence,
 )
-from codevolt_mdf.held_out_registry import HeldOutExclusionRegistry
 from codevolt_mdf.hf_local_evaluator_adapter import (
     PINNED_MODEL_REPO,
     HFLocalCausalLMEvaluatorAdapter,

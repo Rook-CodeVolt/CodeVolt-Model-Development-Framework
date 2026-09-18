@@ -8,6 +8,14 @@ Every contract in this framework (`TrainerAdapterV1`, `EvaluatorAdapterV1`) ship
 
 A **real** adapter wraps an actual training or inference engine. Three now exist:
 
+## Standalone package — `held-out-eval`
+
+- Location: `packages/held-out-eval/` (importable as `held_out_eval`), independently pip-installable, own `pyproject.toml`/`README.md`/`LICENSE`/tests.
+- Decision record: [ADR-0012](decisions/0012-extract-held-out-eval-standalone-package.md)
+- What it is: `HeldOutExclusionRegistry`, previously a module inside this framework (`src/codevolt_mdf/held_out_registry.py`), extracted because it was already stdlib-only and had zero dependency on any trainer adapter, evaluator contract class, or the `codevolt-mdf` CLI — but had no adoption path for anyone not already using this framework's full adapter architecture.
+- Verified, not assumed: building the package into a wheel and installing *only* that wheel into a brand-new virtual environment (no `codevolt-mdf` present) succeeds; the package's own 16 tests pass against the installed wheel; `examples/plain_training_loop.py` runs end to end against a plain PyTorch training loop unrelated to any trainer this framework integrates; and `import held_out_eval` does not import `codevolt_mdf`.
+- What this does not establish: no external team has adopted this package yet. This is proof of adoptability, not proof of adoption. The main framework's evaluator adapters below now depend on this package (not the reverse) — no public adapter/CLI contract changed.
+
 ## TrainerAdapterV1 — TRLTrainerAdapter
 
 - File: `src/codevolt_mdf/trl_adapter.py`

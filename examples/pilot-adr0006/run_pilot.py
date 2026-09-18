@@ -53,13 +53,14 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from held_out_eval import HeldOutExclusionRegistry
+
 from codevolt_mdf.evaluator_contract import (
     EvaluationOutput,
     HeldOutExample,
     HeldOutSet,
     run_evaluator_contract,
 )
-from codevolt_mdf.held_out_registry import HeldOutExclusionRegistry
 from codevolt_mdf.hf_local_evaluator_adapter import HFLocalCausalLMEvaluatorAdapter
 from codevolt_mdf.trainer_contract import (
     ResourceBudget,

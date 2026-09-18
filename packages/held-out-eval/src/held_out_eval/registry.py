@@ -20,12 +20,17 @@ ids from one package's train split were also present in a later
 package's held-out split, undetected until a general train/held-out
 contamination check ran in *both* directions.
 
-This module is used by ``evaluator_contract.py``'s
-``run_evaluator_contract`` to make that bidirectional check a real,
+This class originated inside the CodeVolt-Model-Development-Framework,
+where it is used by that project's ``evaluator_contract.py``'s
+``run_evaluator_contract`` to make this bidirectional check a real,
 enforced precondition of every evaluation run -- not just a documented
 pattern -- so "the trainer adapter never has access to the held-out
 set" is backed by "and the held-out set was never actually used as
-train data either," not merely declared.
+train data either," not merely declared. It now also ships standalone
+as the ``held-out-eval`` package (this file), with zero dependency on
+that framework or on any specific trainer/evaluator, precisely so it
+can be used the same way next to any training loop -- see this
+package's README for a trainer-agnostic usage example.
 
 Design rules (both required; see the docstring above and
 ``docs/DATA_GOVERNANCE.md`` for the full rationale):
