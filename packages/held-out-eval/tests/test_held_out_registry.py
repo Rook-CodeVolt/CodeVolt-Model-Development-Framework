@@ -9,9 +9,15 @@ later package's held-out ids.
 
 from __future__ import annotations
 
-import pytest
+import os
 
-from codevolt_mdf.held_out_registry import ContaminationError, HeldOutExclusionRegistry
+import held_out_eval.registry
+import pytest
+from held_out_eval import (
+    ContaminationError,
+    HeldOutExclusionRegistry,
+    UnsupportedSchemaVersionError,
+)
 
 # 1. Basic registration and derived flat views -------------------------------
 
@@ -222,5 +228,120 @@ def test_saved_registry_is_per_package_not_a_flat_blob(tmp_path):
     registry.save(path)
 
     on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["schema_version"] == 1
     assert on_disk["package_train_ids"] == {"P1": ["t1"]}
     assert on_disk["package_held_out_ids"] == {"P2": ["h1"]}
+
+
+# 6. Schema versioning (issue #53) --------------------------------------------
+
+
+def test_to_dict_includes_current_schema_version():
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P1", ["t1"])
+    payload = registry.to_dict()
+    assert payload["schema_version"] == held_out_eval.registry.CURRENT_SCHEMA_VERSION
+
+
+def test_from_dict_round_trips_with_schema_version():
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P1", ["t1", "t2"])
+    registry.register_package_held_out("P2", ["h1"])
+    payload = registry.to_dict()
+
+    restored = HeldOutExclusionRegistry.from_dict(payload)
+    assert restored.package_train_ids == registry.package_train_ids
+    assert restored.package_held_out_ids == registry.package_held_out_ids
+
+
+def test_from_dict_missing_schema_version_raises():
+    payload = {"package_train_ids": {"P1": ["t1"]}, "package_held_out_ids": {}}
+    with pytest.raises(UnsupportedSchemaVersionError):
+        HeldOutExclusionRegistry.from_dict(payload)
+
+
+def test_from_dict_unknown_schema_version_raises():
+    payload = {
+        "schema_version": 9999,
+        "package_train_ids": {},
+        "package_held_out_ids": {},
+    }
+    with pytest.raises(UnsupportedSchemaVersionError):
+        HeldOutExclusionRegistry.from_dict(payload)
+
+
+def test_load_file_with_unknown_schema_version_raises(tmp_path):
+    import json
+
+    path = tmp_path / "future.json"
+    path.write_text(
+        json.dumps({"schema_version": 9999, "package_train_ids": {}, "package_held_out_ids": {}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(UnsupportedSchemaVersionError):
+        HeldOutExclusionRegistry.load(path)
+
+
+# 7. save() atomicity (issue #54) ---------------------------------------------
+
+
+def test_save_uses_atomic_replace(tmp_path, monkeypatch):
+    """save() must go through os.replace(), not a direct in-place write,
+    so an interruption mid-write can never leave a partial file at the
+    target path."""
+    import os as os_module
+
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P1", ["t1"])
+    path = tmp_path / "registry.json"
+
+    calls = []
+    real_replace = os_module.replace
+
+    def spy_replace(src, dst):
+        calls.append((src, dst))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(os_module, "replace", spy_replace)
+    registry.save(path)
+
+    assert len(calls) == 1
+    assert calls[0][1] == path
+    assert path.exists()
+
+
+def test_save_leaves_original_file_untouched_on_mid_write_failure(tmp_path, monkeypatch):
+    """If writing the temp file fails partway through, the original file
+    at the target path (if any) must remain fully intact -- never
+    truncated or partially overwritten."""
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P1", ["t1"])
+    path = tmp_path / "registry.json"
+
+    original = HeldOutExclusionRegistry()
+    original.register_package_train("ORIGINAL", ["orig1"])
+    original.save(path)
+    original_bytes = path.read_bytes()
+
+    def broken_fsync(_fd):
+        raise OSError("simulated crash mid-write")
+
+    monkeypatch.setattr(os, "fsync", broken_fsync)
+
+    with pytest.raises(OSError):
+        registry.save(path)
+
+    assert path.read_bytes() == original_bytes
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_save_creates_parent_directories(tmp_path):
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("P1", ["t1"])
+    nested_path = tmp_path / "nested" / "dirs" / "registry.json"
+
+    registry.save(nested_path)
+
+    assert nested_path.exists()
+    restored = HeldOutExclusionRegistry.load(nested_path)
+    assert restored.all_train_ids() == frozenset({"t1"})

@@ -27,6 +27,7 @@ skips).
 from __future__ import annotations
 
 import pytest
+from held_out_eval import HeldOutExclusionRegistry
 
 from codevolt_mdf.evaluator_contract import (
     EvaluationStatus,
@@ -34,7 +35,6 @@ from codevolt_mdf.evaluator_contract import (
     HeldOutSet,
     run_evaluator_contract,
 )
-from codevolt_mdf.held_out_registry import HeldOutExclusionRegistry
 from codevolt_mdf.hf_local_evaluator_adapter import (
     PINNED_MODEL_REPO,
     HFLocalCausalLMEvaluatorAdapter,
