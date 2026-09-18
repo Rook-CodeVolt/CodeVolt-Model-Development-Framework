@@ -1,12 +1,12 @@
 # Real (non-fake) adapters
 
-This page is the cold-reader entry point for "does this framework actually train or evaluate anything yet." Short answer: two real engine integrations exist and are contract-tested, but neither has been exercised by a live run in this repository, and no real training pilot has been executed.
+This page is the cold-reader entry point for "does this framework actually train or evaluate anything yet." Short answer: three real engine integrations exist and are contract-tested, but none has been exercised by a live run in this repository, and no real training pilot has been executed.
 
 ## What "real" means here
 
 Every contract in this framework (`TrainerAdapterV1`, `EvaluatorAdapterV1`) ships with a deterministic **fake** reference implementation (`fake_adapter.py`, `fake_evaluator_adapter.py`) used by `codevolt-mdf run` in the [deterministic demo](../README.md#try-the-deterministic-demo). Fakes prove the contract shape and evidence plumbing; they do not train or evaluate anything against a real model.
 
-A **real** adapter wraps an actual training or inference engine. Two now exist:
+A **real** adapter wraps an actual training or inference engine. Three now exist:
 
 ## TrainerAdapterV1 — TRLTrainerAdapter
 
@@ -17,6 +17,17 @@ A **real** adapter wraps an actual training or inference engine. Two now exist:
 - Scope: exactly one training method — supervised fine-tuning via TRL's `SFTTrainer`/`SFTConfig`. No RL trainers (PPO/GRPO/DPO/...), no distributed/multi-node training, no vLLM. Fully offline — both model and dataset must already exist as verified local paths before `prepare()` is called.
 - Tests: 28 conformance tests (`tests/test_trl_adapter.py`) exercising the same contract-conformance scenarios (provenance, resource budget, cancellation, tamper detection, etc.) the fake adapter is tested against.
 - **Not yet done:** `adapter.train()` is fully implemented against real TRL/transformers APIs but has never been exercised by any run in this repository. No real training has happened.
+
+## TrainerAdapterV1 — MiniMindTrainerAdapter
+
+- File: `src/codevolt_mdf/minimind_adapter.py`
+- Contract: `TrainerAdapterV1` (`src/codevolt_mdf/trainer_contract.py`), `contract_version = "1.1.0"`
+- Engine: [MiniMind](https://github.com/jingyaogong/minimind) (Apache-2.0, from-scratch native PyTorch, no TRL/PEFT dependency), pinned to exact commit `cc312c1cc614bc371cd85dcbcbc1d3ba1590f364` on `master`
+- Decision record: `docs/decisions/0010-minimind-trainer-adapter-v1.md` (issue #36)
+- Scope: exactly one training method — full-parameter supervised fine-tuning via MiniMind's `trainer/train_full_sft.py`, invoked as a subprocess (not imported — MiniMind has no PyPI package or importable API). No pretraining, LoRA, RLHF/DPO, or distillation scripts. Fully offline — the MiniMind checkout, model, and dataset must already exist as verified local paths before `prepare()` is called.
+- **Deviation from the TRL adapter**: MiniMind has no importable version to check, so the pin is verified by running `git rev-parse HEAD` against the caller-supplied MiniMind checkout directory and requiring exact equality with the pinned commit — not an installed-package `__version__` comparison. See the ADR's "Pin verification" section for the full rationale.
+- Tests: 37 conformance tests (`tests/test_minimind_adapter.py`) covering the pin-verification path, offline-policy enforcement, provenance/hash checks, required-parameter validation, and `train()`'s subprocess argument construction/cancellation handling — all against local, throwaway git-repo fixtures and a mocked `subprocess.Popen`, never a real MiniMind checkout or subprocess call.
+- **Not yet done:** `adapter.train()` is fully implemented against the real MiniMind CLI but has never been exercised by any run in this repository. No real training has happened.
 
 ## EvaluatorAdapterV1 — local HF evaluator
 
@@ -53,4 +64,4 @@ A real bounded training pilot — actually running `TRLTrainerAdapter.train()` o
   3. Owner authorisation to schedule the pilot itself.
 - Separately, findings from an initial live-execution security pass are being addressed in an in-flight fix before Maya's re-review can happen; the pilot stays blocked until that work lands and is re-reviewed.
 
-No training engine has been invoked, no pilot has been scheduled, and no resource has been reserved by anything merged to date. Do not read the existence of these adapters as evidence that training capability is production-ready — it explicitly is not.
+This applies to both real trainer adapters — TRL and MiniMind alike. No training engine has been invoked, no pilot has been scheduled, and no resource has been reserved by anything merged to date. Do not read the existence of these adapters as evidence that training capability is production-ready — it explicitly is not.
