@@ -28,9 +28,31 @@ from __future__ import annotations
 
 import json
 import re
+import signal
+import threading
 from typing import Any
 
-from .evaluator_contract import HeldOutExample, InvalidInputError
+from .evaluator_contract import EvaluatorContractError, HeldOutExample, InvalidInputError
+
+# Hard wall-clock bound for scoring a single regex against a single output.
+# Dataset-author-controlled patterns (HeldOutExample.expected["pattern"]) are
+# untrusted input: a pathological pattern like ``(a+)+$`` can trigger
+# catastrophic backtracking in Python's re engine and hang effectively
+# forever on a short string. See issue #26.
+_REGEX_MATCH_TIMEOUT_SECONDS = 2.0
+
+# signal.alarm/setitimer only works in the main thread of the main
+# interpreter on POSIX. This process is a POSIX (macOS/Linux) dev/CI
+# target, and re.search's C-level backtracking loop does not otherwise
+# yield to check for a thread-join timeout (a plain worker-thread timeout
+# would appear to "work" but never actually preempt the stuck match --
+# verified empirically), so SIGALRM is the one mechanism that reliably
+# interrupts it.
+_SIGALRM_USABLE = (
+    hasattr(signal, "SIGALRM")
+    and hasattr(signal, "setitimer")
+    and threading.current_thread() is threading.main_thread()
+)
 
 # --------------------------------------------------------------------------
 # Multiple-choice / likelihood scoring
@@ -131,6 +153,15 @@ def resolve_expected_choice(expected: Any, choices: list[str]) -> str:
 _SUPPORTED_FORMATS = ("json", "regex")
 
 
+class RegexScoringTimeoutError(EvaluatorContractError):
+    """A format_conformance regex pattern did not finish matching in time.
+
+    Raised instead of letting a pathological, dataset-author-controlled
+    pattern (e.g. one with nested quantifiers like ``(a+)+$``) hang the
+    evaluation run via catastrophic backtracking. See issue #26.
+    """
+
+
 def parse_format_conformance_input(example: HeldOutExample) -> str:
     """Validate a format-conformance ``HeldOutExample.input`` is a non-empty prompt string."""
     prompt = example.input
@@ -211,8 +242,66 @@ def check_format_conformance(text: str, spec: dict[str, Any]) -> tuple[bool, str
         return True, "valid JSON"
     if fmt == "regex":
         pattern = spec["pattern"]
-        if re.search(pattern, text):
+        if _regex_search_bounded(pattern, text):
             return True, f"output matches pattern {pattern!r}"
         return False, f"output does not match pattern {pattern!r}"
     # Unreachable if callers always validate via parse_format_spec first.
     raise InvalidInputError(f"unsupported format_conformance spec format {fmt!r}")
+
+
+# SIGALRM is used instead of a plain worker-thread join timeout because
+# re.search's C-level backtracking loop never releases the GIL to check
+# for a timeout -- a joining thread would simply never observe the
+# worker as finished. SIGALRM delivery interrupts the C loop directly.
+# It only works on POSIX and only from the interpreter's main thread, so
+# when called from a worker thread (or on a platform without SIGALRM) we
+# fall back to a join-based timeout: it still bounds *this call's* wait
+# and reports the same typed error, it just cannot forcibly abort the
+# still-running match in the background (that thread is abandoned as a
+# daemon thread, same trade-off ``concurrent.futures`` accepts too).
+def _regex_search_bounded(pattern: str, text: str) -> bool:
+    """Run ``re.search(pattern, text)`` with a hard wall-clock timeout.
+
+    Raises ``RegexScoringTimeoutError`` if the match does not finish
+    within ``_REGEX_MATCH_TIMEOUT_SECONDS``, instead of letting a
+    catastrophically-backtracking pattern hang the caller indefinitely.
+    See issue #26.
+    """
+    if _SIGALRM_USABLE:
+        return _regex_search_bounded_via_signal(pattern, text)
+    return _regex_search_bounded_via_thread(pattern, text)
+
+
+def _regex_search_bounded_via_signal(pattern: str, text: str) -> bool:
+    def _on_alarm(signum: int, frame: Any) -> None:
+        raise RegexScoringTimeoutError(
+            f"format_conformance regex pattern {pattern!r} did not finish matching within "
+            f"{_REGEX_MATCH_TIMEOUT_SECONDS}s (possible catastrophic backtracking); "
+            "rejecting this example instead of hanging the evaluation run"
+        )
+
+    previous_handler = signal.signal(signal.SIGALRM, _on_alarm)
+    signal.setitimer(signal.ITIMER_REAL, _REGEX_MATCH_TIMEOUT_SECONDS)
+    try:
+        return re.search(pattern, text) is not None
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+
+def _regex_search_bounded_via_thread(pattern: str, text: str) -> bool:
+    result_box: dict[str, Any] = {}
+
+    def _run() -> None:
+        result_box["match"] = re.search(pattern, text)
+
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
+    worker.join(timeout=_REGEX_MATCH_TIMEOUT_SECONDS)
+    if worker.is_alive():
+        raise RegexScoringTimeoutError(
+            f"format_conformance regex pattern {pattern!r} did not finish matching within "
+            f"{_REGEX_MATCH_TIMEOUT_SECONDS}s (possible catastrophic backtracking); "
+            "rejecting this example instead of hanging the evaluation run"
+        )
+    return result_box["match"] is not None
