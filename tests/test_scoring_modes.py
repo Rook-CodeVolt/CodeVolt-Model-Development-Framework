@@ -15,6 +15,7 @@ import pytest
 
 from codevolt_mdf.evaluator_contract import HeldOutExample, InvalidInputError
 from codevolt_mdf.scoring_modes import (
+    RegexScoringTimeoutError,
     check_format_conformance,
     parse_format_conformance_input,
     parse_format_spec,
@@ -205,6 +206,31 @@ def test_check_format_conformance_regex_no_match():
         "no numbers here", {"format": "regex", "pattern": r"\d+"}
     )
     assert conforms is False
+
+
+def test_check_format_conformance_regex_catastrophic_backtracking_times_out():
+    """ReDoS guard (issue #26): a pathological pattern must fail fast, not hang.
+
+    ``(a+)+$`` against a run of 'a's followed by a non-matching character
+    is a textbook catastrophic-backtracking case for Python's re engine --
+    reproduced locally at 42+ seconds for a 30-character input with no
+    guard in place. With the timeout guard, this must raise a typed
+    ``RegexScoringTimeoutError`` well within a couple of seconds instead
+    of hanging the evaluation run.
+    """
+    import time
+
+    pathological_pattern = r"(a+)+$"
+    pathological_text = "a" * 30 + "b"
+
+    start = time.monotonic()
+    with pytest.raises(RegexScoringTimeoutError, match="did not finish matching"):
+        check_format_conformance(
+            pathological_text, {"format": "regex", "pattern": pathological_pattern}
+        )
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 3.0, f"regex timeout guard should bound evaluation time, took {elapsed}s"
 
 
 # 5. Structural separation from trl_adapter.py / trainer_contract.py ---------
