@@ -1,0 +1,55 @@
+{
+  "examples": [
+    {
+      "example_id": "adr0011-heldout-0001",
+      "expected": "600",
+      "input": "Convert 60 centilitres to millilitres."
+    },
+    {
+      "example_id": "adr0011-heldout-0002",
+      "expected": "260",
+      "input": "Convert 26 centilitres to millilitres."
+    },
+    {
+      "example_id": "adr0011-heldout-0003",
+      "expected": "49000",
+      "input": "Convert 49 grams to milligrams."
+    },
+    {
+      "example_id": "adr0011-heldout-0004",
+      "expected": "78000",
+      "input": "Convert 78 grams to milligrams."
+    },
+    {
+      "example_id": "adr0011-heldout-0005",
+      "expected": "38000",
+      "input": "Convert 38 litres to millilitres."
+    },
+    {
+      "example_id": "adr0011-heldout-0006",
+      "expected": "9000",
+      "input": "Convert 9 litres to millilitres."
+    },
+    {
+      "example_id": "adr0011-heldout-0007",
+      "expected": "59000",
+      "input": "Convert 59 grams to milligrams."
+    },
+    {
+      "example_id": "adr0011-heldout-0008",
+      "expected": "730",
+      "input": "Convert 73 centilitres to millilitres."
+    },
+    {
+      "example_id": "adr0011-heldout-0009",
+      "expected": "22000",
+      "input": "Convert 22 kilograms to grams."
+    },
+    {
+      "example_id": "adr0011-heldout-0010",
+      "expected": "460",
+      "input": "Convert 46 centilitres to millilitres."
+    }
+  ],
+  "package_id": "adr0011-pilot-heldout-v1"
+}

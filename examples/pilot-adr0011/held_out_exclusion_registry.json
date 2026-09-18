@@ -1,0 +1,61 @@
+{
+  "package_held_out_ids": {
+    "adr0011-pilot-heldout-v1": [
+      "adr0011-heldout-0001",
+      "adr0011-heldout-0002",
+      "adr0011-heldout-0003",
+      "adr0011-heldout-0004",
+      "adr0011-heldout-0005",
+      "adr0011-heldout-0006",
+      "adr0011-heldout-0007",
+      "adr0011-heldout-0008",
+      "adr0011-heldout-0009",
+      "adr0011-heldout-0010"
+    ]
+  },
+  "package_train_ids": {
+    "adr0011-pilot-train-v1": [
+      "adr0011-train-0001",
+      "adr0011-train-0002",
+      "adr0011-train-0003",
+      "adr0011-train-0004",
+      "adr0011-train-0005",
+      "adr0011-train-0006",
+      "adr0011-train-0007",
+      "adr0011-train-0008",
+      "adr0011-train-0009",
+      "adr0011-train-0010",
+      "adr0011-train-0011",
+      "adr0011-train-0012",
+      "adr0011-train-0013",
+      "adr0011-train-0014",
+      "adr0011-train-0015",
+      "adr0011-train-0016",
+      "adr0011-train-0017",
+      "adr0011-train-0018",
+      "adr0011-train-0019",
+      "adr0011-train-0020",
+      "adr0011-train-0021",
+      "adr0011-train-0022",
+      "adr0011-train-0023",
+      "adr0011-train-0024",
+      "adr0011-train-0025",
+      "adr0011-train-0026",
+      "adr0011-train-0027",
+      "adr0011-train-0028",
+      "adr0011-train-0029",
+      "adr0011-train-0030",
+      "adr0011-train-0031",
+      "adr0011-train-0032",
+      "adr0011-train-0033",
+      "adr0011-train-0034",
+      "adr0011-train-0035",
+      "adr0011-train-0036",
+      "adr0011-train-0037",
+      "adr0011-train-0038",
+      "adr0011-train-0039",
+      "adr0011-train-0040"
+    ]
+  },
+  "schema_version": 1
+}
