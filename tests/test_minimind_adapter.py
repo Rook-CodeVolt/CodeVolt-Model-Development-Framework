@@ -635,6 +635,13 @@ def test_train_builds_expected_subprocess_args(tmp_path, monkeypatch):
     assert str(Path(repo_path) / "trainer" / "train_full_sft.py") in argv
     assert "--data_path" in argv
     assert "--epochs" in argv
+    assert "--save_dir" in argv
+    assert "--from_weight" in argv
+    # Regression guard for issue #47: these flags do not exist in the
+    # real pinned train_full_sft.py and must never be constructed.
+    assert "--out_dir" not in argv
+    assert "--model_path" not in argv
+    assert "--max_steps" not in argv
     assert called_args[1]["cwd"] == str(repo_path)
 
 

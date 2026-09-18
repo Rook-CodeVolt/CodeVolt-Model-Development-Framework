@@ -484,16 +484,41 @@ class MiniMindTrainerAdapter:
         checkpoint_dir: Path,
         seed: int,
     ) -> list[str]:
+        """Build the real ``trainer/train_full_sft.py`` CLI invocation.
+
+        Flag names below are verified directly against the pinned commit's
+        argparse block (``MINIMIND_PINNED_COMMIT``, see
+        ``tests/test_minimind_trainer_cli_flags.py`` for the static
+        regression guard). Do not add a flag here without re-verifying it
+        exists at the currently pinned commit -- see issue #47, where
+        ``--out_dir``, ``--model_path``, and ``--max_steps`` were
+        previously constructed despite not existing in the real script.
+
+        Two of this adapter's own concepts have no exact 1:1 real flag:
+
+        - ``model_path`` (a caller-verified local file path) is passed as
+          ``--from_weight``, MiniMind's own "which weight to start
+          training from" flag. Note this is a *name/prefix* MiniMind
+          resolves against ``--save_dir`` internally
+          (``{save_dir}/{from_weight}_{hidden_size}.pth``), not a literal
+          path passed through verbatim -- a known adapter limitation
+          tracked separately from this flag-name fix.
+        - ``max_steps`` has no real MiniMind CLI equivalent (the script
+          only supports ``--epochs``). It remains a valid adapter-level
+          stopping-bound input (validated in ``prepare()``) but is not
+          forwarded as a nonexistent CLI flag; when only ``max_steps`` is
+          supplied (no ``epochs``), the adapter-enforced bound is
+          upheld by the contract runner's wall-clock/cancellation
+          machinery rather than a MiniMind subprocess flag.
+        """
         args = [python_executable, str(script_path)]
-        args += ["--out_dir", str(checkpoint_dir)]
+        args += ["--save_dir", str(checkpoint_dir)]
         args += ["--data_path", str(params["dataset_path"])]
         args += ["--seed", str(seed)]
         if params.get("model_path"):
-            args += ["--model_path", str(params["model_path"])]
+            args += ["--from_weight", str(params["model_path"])]
         if isinstance(params.get("epochs"), int):
             args += ["--epochs", str(params["epochs"])]
-        if isinstance(params.get("max_steps"), int):
-            args += ["--max_steps", str(params["max_steps"])]
         args += ["--learning_rate", str(params.get("learning_rate", 5e-4))]
         args += ["--batch_size", str(params.get("batch_size", 1))]
         args += ["--save_interval", str(params.get("save_interval", 100))]
@@ -524,7 +549,7 @@ class MiniMindTrainerAdapter:
         """Copy MiniMind's own checkpoint output into this run's final dir.
 
         MiniMind's ``train_full_sft.py`` writes its own checkpoint
-        file(s) directly into ``--out_dir`` (no separate "final model"
+        file(s) directly into ``--save_dir`` (no separate "final model"
         save step the way TRL's ``Trainer.save_model`` provides); this
         simply relocates whatever was produced into the run's
         ``final/`` directory so cleanup of ``checkpoint_dir`` below does

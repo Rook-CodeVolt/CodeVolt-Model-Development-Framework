@@ -30,3 +30,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+# Vendored byte-for-byte from the real MiniMind repo at the pinned commit
+# (see tests/test_minimind_trainer_cli_flags.py) -- must stay untouched so
+# it keeps matching MINIMIND_PINNED_COMMIT; never lint or reformat it.
+extend-exclude = ["tests/fixtures/minimind_pinned"]

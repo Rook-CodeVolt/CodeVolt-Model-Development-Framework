@@ -162,7 +162,7 @@ being folded into ADR-0005 as "another engine, same pattern":
   enforcement, mirroring the rationale in ADR-0005's equivalent
   `max_steps` requirement.
 - **Checkpoint/resume**: on cooperative cancellation, whatever MiniMind
-  itself had already flushed to `--out_dir` at its own `--save_interval`
+  itself had already flushed to `--save_dir` at its own `--save_interval`
   cadence is hashed and returned as a `CheckpointHandle`. This is
   weaker than the TRL adapter's checkpoint story: TRL's in-process hook
   can force a clean `save_state()` at the exact moment of cancellation;
