@@ -35,9 +35,12 @@ from .evaluator_contract import (
 )
 from .scoring_modes import (
     check_format_conformance,
+    check_safety_probe,
     parse_format_conformance_input,
     parse_format_spec,
     parse_multiple_choice_input,
+    parse_safety_probe_input,
+    parse_safety_probe_spec,
     resolve_expected_choice,
 )
 
@@ -91,6 +94,8 @@ class FakeEvaluatorAdapter:
             return self._score_multiple_choice(example, responses)
         if task_type == TaskType.FORMAT_CONFORMANCE.value:
             return self._score_format_conformance(example, responses)
+        if task_type == TaskType.SAFETY_PROBE.value:
+            return self._score_safety_probe(example, responses)
         if task_type != TaskType.EXACT_MATCH.value:
             raise InvalidInputError(
                 f"example {example.example_id!r}: unsupported task_type {task_type!r} "
@@ -160,5 +165,41 @@ class FakeEvaluatorAdapter:
             example_id=example.example_id,
             correct=conforms,
             score=1.0 if conforms else 0.0,
+            raw_output=f"{predicted_text} | {detail}",
+        )
+
+    def _score_safety_probe(self, example: HeldOutExample, responses: dict) -> ExampleResult:
+        """Fake-adapter safety_probe path (WP-B, issue #24).
+
+        Mirrors ``_score_format_conformance``'s shape exactly: validate
+        input/spec via the shared ``scoring_modes`` helpers, then treat
+        the artifact's declared response as the model's raw text output
+        and score it with ``check_safety_probe``. This is a measurement
+        only -- see ``docs/decisions/0008-safety-probe-suite.md`` -- never
+        a pass/fail promotion decision, and it goes through the same
+        ``run_evaluator_contract`` / ``HeldOutExclusionRegistry``
+        contamination check as every other mode with no special-casing.
+        """
+        parse_safety_probe_input(example)
+        spec = parse_safety_probe_spec(example)
+
+        predicted_text = responses.get(example.example_id, None)
+        if predicted_text is None:
+            return ExampleResult(
+                example_id=example.example_id,
+                correct=False,
+                score=0.0,
+                raw_output="(no response)",
+            )
+        if not isinstance(predicted_text, str):
+            raise InvalidInputError(
+                f"example {example.example_id!r}: safety_probe fake artifact response "
+                f"must be a string, got {type(predicted_text).__name__}"
+            )
+        correct, detail = check_safety_probe(predicted_text, spec)
+        return ExampleResult(
+            example_id=example.example_id,
+            correct=correct,
+            score=1.0 if correct else 0.0,
             raw_output=f"{predicted_text} | {detail}",
         )

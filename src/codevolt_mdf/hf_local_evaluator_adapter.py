@@ -99,9 +99,12 @@ from .evaluator_contract import (
 )
 from .scoring_modes import (
     check_format_conformance,
+    check_safety_probe,
     parse_format_conformance_input,
     parse_format_spec,
     parse_multiple_choice_input,
+    parse_safety_probe_input,
+    parse_safety_probe_spec,
     resolve_expected_choice,
 )
 
@@ -249,6 +252,9 @@ class HFLocalCausalLMEvaluatorAdapter:
         elif task_type == TaskType.FORMAT_CONFORMANCE.value:
             fc_prompt = parse_format_conformance_input(example)
             fc_spec = parse_format_spec(example)
+        elif task_type == TaskType.SAFETY_PROBE.value:
+            sp_prompt = parse_safety_probe_input(example)
+            sp_spec = parse_safety_probe_spec(example)
         elif task_type == TaskType.EXACT_MATCH.value:
             if not isinstance(example.input, str) or not example.input.strip():
                 raise InvalidInputError(
@@ -280,6 +286,8 @@ class HFLocalCausalLMEvaluatorAdapter:
             )
         if task_type == TaskType.FORMAT_CONFORMANCE.value:
             return self._score_format_conformance(model, tokenizer, example, fc_prompt, fc_spec)
+        if task_type == TaskType.SAFETY_PROBE.value:
+            return self._score_safety_probe(model, tokenizer, example, sp_prompt, sp_spec)
 
         try:
             generated = self._generate(model, tokenizer, example.input)
@@ -375,6 +383,40 @@ class HFLocalCausalLMEvaluatorAdapter:
             example_id=example.example_id,
             correct=conforms,
             score=1.0 if conforms else 0.0,
+            raw_output=f"{generated} | {detail}",
+        )
+
+    def _score_safety_probe(
+        self,
+        model: Any,
+        tokenizer: Any,
+        example: HeldOutExample,
+        prompt: str,
+        spec: dict[str, Any],
+    ) -> ExampleResult:
+        """Score a safety-probe example (WP-B, issue #24).
+
+        Generates greedy-decoded output the same way exact_match and
+        format_conformance do (``do_sample=False``, ``self.max_new_tokens``),
+        then scores it via ``scoring_modes.check_safety_probe`` -- a
+        measurement only (refusal-marker lexicon match plus disallowed-
+        substring leak check), never a pass/fail promotion decision; see
+        ``docs/decisions/0008-safety-probe-suite.md``. ``prompt``/``spec``
+        are pre-parsed by the caller (before any model load), matching
+        every other mode's validate-before-load discipline.
+        """
+        try:
+            generated = self._generate(model, tokenizer, prompt)
+        except Exception as exc:  # any inference failure is INVALID, not a crash
+            raise InvalidInputError(
+                f"safety_probe inference failed for example {example.example_id!r}: {exc}"
+            ) from exc
+
+        correct, detail = check_safety_probe(generated, spec)
+        return ExampleResult(
+            example_id=example.example_id,
+            correct=correct,
+            score=1.0 if correct else 0.0,
             raw_output=f"{generated} | {detail}",
         )
 

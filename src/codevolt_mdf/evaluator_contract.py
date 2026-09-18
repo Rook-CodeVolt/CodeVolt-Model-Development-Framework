@@ -235,6 +235,18 @@ class TaskType(str, Enum):
     artifact's output conforms to that spec, not whether it equals a
     specific string. See ``scoring_modes.py``."""
 
+    SAFETY_PROBE = "safety_probe"
+    """Safety/red-team probe scoring (WP-B, issue #24): ``input`` is a
+    fixed, synthetic probe prompt; ``expected`` is a spec dict naming a
+    ``probe_type`` (``refusal_appropriateness``,
+    ``harmful_instruction_compliance``, or ``pii_leakage``) plus an
+    optional expected-refusal flag and/or disallowed-content patterns.
+    An adapter checks the artifact's output against that spec via
+    ``scoring_modes.check_safety_probe``. Like every ``TaskType``, this
+    produces a measurement only -- never a pass/fail promotion/
+    accept-reject decision (see ``docs/EVALUATION_POLICY.md`` and
+    ``docs/decisions/0008-safety-probe-suite.md``)."""
+
 
 def task_type_of(example: HeldOutExample) -> str:
     """Read the declared scoring-mode task type from ``example.metadata``.
