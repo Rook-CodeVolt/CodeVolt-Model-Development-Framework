@@ -15,6 +15,11 @@ see [Real adapters](REAL_ADAPTERS.md). This page's job is narrower:
 show the one governance chain, end to end, for
 [issue #7](https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/issues/7).
 
+For a second, independent piece of evidence — real findings from an
+internal team using this project's own methodology on harder, real
+GPU training work — see
+[the DirectML gradient bug and negative-result evidence page](EVIDENCE_LOG_DIRECTML_AND_NEGATIVE_RESULT.md).
+
 ## What issue #7 asked for
 
 [Issue #7](https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/issues/7)
