@@ -48,11 +48,17 @@ _REGEX_MATCH_TIMEOUT_SECONDS = 2.0
 # would appear to "work" but never actually preempt the stuck match --
 # verified empirically), so SIGALRM is the one mechanism that reliably
 # interrupts it.
-_SIGALRM_USABLE = (
-    hasattr(signal, "SIGALRM")
-    and hasattr(signal, "setitimer")
-    and threading.current_thread() is threading.main_thread()
-)
+# signal.alarm/setitimer only works in the main thread of the main
+# interpreter on POSIX. Whether the *current* call is happening on that
+# thread can change between calls (e.g. a worker-pool caller), so this is
+# a function checked fresh on every call, not a module-level constant
+# computed once at import time.
+def _sigalrm_usable() -> bool:
+    return (
+        hasattr(signal, "SIGALRM")
+        and hasattr(signal, "setitimer")
+        and threading.current_thread() is threading.main_thread()
+    )
 
 # --------------------------------------------------------------------------
 # Multiple-choice / likelihood scoring
@@ -162,6 +168,24 @@ class RegexScoringTimeoutError(EvaluatorContractError):
     """
 
 
+class RegexScoringUnsupportedContextError(EvaluatorContractError):
+    """format_conformance regex scoring has no way to bound this call's wait time.
+
+    Raised immediately (never after waiting out a timeout) when SIGALRM
+    isn't usable -- i.e. this call is happening off the POSIX main thread,
+    or on a platform without SIGALRM/setitimer (e.g. Windows). See the
+    PR #27 review discussion: a thread-join timeout does *not* actually
+    bound wait time for a catastrophically-backtracking pattern, because
+    ``re.search``'s C loop never yields the GIL, so the joining thread
+    can't get scheduled to notice its timeout elapsed either. Rather than
+    silently returning a result from an unbounded match (which looks
+    handled but isn't), we fail closed here: callers must not invoke
+    format_conformance regex checks from a context where SIGALRM can't be
+    used, or must catch this and handle it explicitly (e.g. route the
+    check to a real subprocess-based executor of their own).
+    """
+
+
 def parse_format_conformance_input(example: HeldOutExample) -> str:
     """Validate a format-conformance ``HeldOutExample.input`` is a non-empty prompt string."""
     prompt = example.input
@@ -249,16 +273,18 @@ def check_format_conformance(text: str, spec: dict[str, Any]) -> tuple[bool, str
     raise InvalidInputError(f"unsupported format_conformance spec format {fmt!r}")
 
 
-# SIGALRM is used instead of a plain worker-thread join timeout because
-# re.search's C-level backtracking loop never releases the GIL to check
-# for a timeout -- a joining thread would simply never observe the
-# worker as finished. SIGALRM delivery interrupts the C loop directly.
-# It only works on POSIX and only from the interpreter's main thread, so
-# when called from a worker thread (or on a platform without SIGALRM) we
-# fall back to a join-based timeout: it still bounds *this call's* wait
-# and reports the same typed error, it just cannot forcibly abort the
-# still-running match in the background (that thread is abandoned as a
-# daemon thread, same trade-off ``concurrent.futures`` accepts too).
+# SIGALRM interrupts re.search's C-level backtracking loop directly, so
+# it is the only mechanism here that reliably bounds wait time for a
+# catastrophically-backtracking pattern. It only works on POSIX and only
+# from the interpreter's main thread. A plain thread-join timeout looks
+# like a fallback but is NOT one: re.search's C loop never releases the
+# GIL while backtracking, so a joining thread can't get scheduled to
+# even notice its timeout elapsed -- it silently waits out the full
+# match just like an unguarded call would (empirically confirmed: 44.5s+
+# on a pathological input that SIGALRM correctly bounds to 2s; see the
+# PR #27 review). Rather than ship a "guard" that looks handled but
+# isn't, we fail closed: when SIGALRM isn't usable we raise immediately
+# instead of attempting an unbounded wait.
 def _regex_search_bounded(pattern: str, text: str) -> bool:
     """Run ``re.search(pattern, text)`` with a hard wall-clock timeout.
 
@@ -266,8 +292,15 @@ def _regex_search_bounded(pattern: str, text: str) -> bool:
     within ``_REGEX_MATCH_TIMEOUT_SECONDS``, instead of letting a
     catastrophically-backtracking pattern hang the caller indefinitely.
     See issue #26.
+
+    Raises ``RegexScoringUnsupportedContextError`` immediately (not
+    after any wait) if this call cannot use SIGALRM -- i.e. it is
+    running off the POSIX main thread, or on a platform without
+    SIGALRM/setitimer -- since no other mechanism available here can
+    actually bound the wait for a catastrophically-backtracking
+    pattern. See the PR #27 review.
     """
-    if _SIGALRM_USABLE:
+    if _sigalrm_usable():
         return _regex_search_bounded_via_signal(pattern, text)
     return _regex_search_bounded_via_thread(pattern, text)
 
@@ -290,18 +323,30 @@ def _regex_search_bounded_via_signal(pattern: str, text: str) -> bool:
 
 
 def _regex_search_bounded_via_thread(pattern: str, text: str) -> bool:
-    result_box: dict[str, Any] = {}
+    """Fail closed: this call cannot bound a catastrophically-backtracking match.
 
-    def _run() -> None:
-        result_box["match"] = re.search(pattern, text)
+    Deliberately does NOT attempt a thread-join timeout. A join-based
+    "fallback" was tried and empirically does not work: ``re.search``'s
+    C loop never yields the GIL while backtracking, so the calling
+    thread can't get scheduled to observe its own join timeout elapsing
+    either -- it just waits out the full unbounded match, silently. That
+    is worse than no guard at all because it looks handled. Only
+    process-level preemption (``multiprocessing`` + ``.terminate()``)
+    can interrupt a GIL-holding C loop from outside, and spawning a
+    subprocess per regex check is a complexity/reliability cost this
+    narrow edge case (off-main-thread or non-POSIX callers) does not
+    currently justify. So: raise immediately instead of pretending to
+    guard anything. See the PR #27 review (Maya-CodeVolt) for the full
+    empirical finding (44.5s-180s+ observed wait on pathological input
+    via the old thread-join code).
+    """
+    raise RegexScoringUnsupportedContextError(
+        f"format_conformance regex pattern {pattern!r} cannot be safely bounded here: "
+        "SIGALRM is not usable in this context (this call is off the POSIX main thread, "
+        "or running on a platform without SIGALRM/setitimer), and a thread-join timeout "
+        "cannot actually interrupt a catastrophically-backtracking match -- re.search's C "
+        "loop never yields the GIL, so a joining thread cannot observe its own timeout "
+        "elapsing either. Call format_conformance regex scoring from the POSIX main thread, "
+        "or handle this error explicitly (e.g. dispatch it to a subprocess-based executor)."
+    )
 
-    worker = threading.Thread(target=_run, daemon=True)
-    worker.start()
-    worker.join(timeout=_REGEX_MATCH_TIMEOUT_SECONDS)
-    if worker.is_alive():
-        raise RegexScoringTimeoutError(
-            f"format_conformance regex pattern {pattern!r} did not finish matching within "
-            f"{_REGEX_MATCH_TIMEOUT_SECONDS}s (possible catastrophic backtracking); "
-            "rejecting this example instead of hanging the evaluation run"
-        )
-    return result_box["match"] is not None
