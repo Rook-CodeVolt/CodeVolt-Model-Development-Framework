@@ -111,10 +111,39 @@ test actually executes.
   `check_held_out_not_trained`, `to_dict`/`from_dict`, `save`/`load`.
 - `ContaminationError` -- raised by the two `register_*` methods when a
   registration would create train/held-out contamination.
-- `HeldOutRegistryError` -- base class for both.
+- `UnsupportedSchemaVersionError` -- raised by `from_dict`/`load` when a
+  persisted payload's `schema_version` is missing or not recognized by
+  this version of the library (see "Persistence: schema versioning and
+  atomicity" below).
+- `HeldOutRegistryError` -- base class for all of the above.
 
 See `src/held_out_eval/registry.py` for full docstrings on every
 method, including the exact bidirectional-check semantics.
+
+## Persistence: schema versioning and atomicity
+
+Every payload written by `to_dict()`/`save()` includes a `schema_version`
+integer field. `from_dict()`/`load()` check it and raise
+`UnsupportedSchemaVersionError` (naming the version found) for anything
+missing or unrecognized, rather than silently misparsing a file written
+by an incompatible future or ancient version of this library. If the
+persisted shape ever needs to change, the version will be bumped and an
+explicit migration path documented here.
+
+`save()` is atomic with respect to a single writer: it writes to a
+temporary file in the same directory, `fsync`s it, then `os.replace()`s
+it into place, so an interrupted or crashed write can never leave a
+partially-written file at the target path -- either the previous
+contents remain fully intact or the new ones are fully in place.
+
+**This does not make concurrent writers safe.** If two processes call
+`save()` on the same path at the same time, they can still race (last
+writer wins); atomicity only protects against a single writer being
+interrupted mid-write, not against simultaneous writers stepping on
+each other. If your use case has multiple processes writing the same
+registry file concurrently (e.g. parallel training jobs sharing one
+registry), coordinate that with your own external locking -- this
+package does not provide one.
 
 ## Relationship to CodeVolt-Model-Development-Framework
 
