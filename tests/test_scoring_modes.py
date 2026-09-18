@@ -11,11 +11,15 @@ by ``test_evaluator_contract.py`` and
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from codevolt_mdf.evaluator_contract import HeldOutExample, InvalidInputError
 from codevolt_mdf.scoring_modes import (
     RegexScoringTimeoutError,
+    RegexScoringUnsupportedContextError,
+    _regex_search_bounded_via_thread,
     check_format_conformance,
     parse_format_conformance_input,
     parse_format_spec,
@@ -231,6 +235,75 @@ def test_check_format_conformance_regex_catastrophic_backtracking_times_out():
     elapsed = time.monotonic() - start
 
     assert elapsed < 3.0, f"regex timeout guard should bound evaluation time, took {elapsed}s"
+
+
+def test_regex_search_bounded_via_thread_fails_closed_immediately():
+    """PR #27 review (Maya-CodeVolt): the thread-join fallback did not actually
+
+    bound wait time for a catastrophically-backtracking pattern -- empirically
+    it took 44.5s-180s+ on pathological input instead of the intended ~2s,
+    because ``re.search``'s C loop never yields the GIL so a joining thread
+    can't get scheduled to notice its own timeout elapsed either.
+
+    Fixed by failing closed: ``_regex_search_bounded_via_thread`` (the
+    function used off the POSIX main thread, or on a platform without
+    SIGALRM) must now raise ``RegexScoringUnsupportedContextError``
+    immediately -- not after any wait -- rather than attempt an unbounded
+    match. Calling it directly here (regardless of which thread this test
+    itself runs on) exercises exactly that fallback path.
+    """
+    import time
+
+    pathological_pattern = r"(a+)+$"
+    pathological_text = "a" * 30 + "b"
+
+    start = time.monotonic()
+    with pytest.raises(RegexScoringUnsupportedContextError, match="cannot be safely bounded"):
+        _regex_search_bounded_via_thread(pathological_pattern, pathological_text)
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 1.0, (
+        f"fail-closed fallback must raise immediately, not after any wait, took {elapsed}s"
+    )
+
+
+def test_check_format_conformance_regex_off_main_thread_fails_closed():
+    """End-to-end: calling ``check_format_conformance`` for a regex spec from a
+
+    real background thread (not just the fallback function directly) must
+    also fail closed with the new typed error, immediately, even for a
+    catastrophically-backtracking pattern -- proving ``_sigalrm_usable()``'s
+    main-thread check correctly routes off-main-thread callers to the
+    fail-closed fallback instead of silently running unbounded.
+    """
+    import threading
+    import time
+
+    pathological_pattern = r"(a+)+$"
+    pathological_text = "a" * 30 + "b"
+
+    outcome: dict[str, Any] = {}
+
+    def _call_from_worker_thread() -> None:
+        start = time.monotonic()
+        try:
+            check_format_conformance(
+                pathological_text, {"format": "regex", "pattern": pathological_pattern}
+            )
+        except BaseException as exc:  # noqa: BLE001 - captured for assertion in main thread
+            outcome["exception"] = exc
+        outcome["elapsed"] = time.monotonic() - start
+
+    worker = threading.Thread(target=_call_from_worker_thread)
+    worker.start()
+    worker.join(timeout=5.0)
+
+    assert not worker.is_alive(), "worker thread should have returned promptly, not hung"
+    assert isinstance(outcome.get("exception"), RegexScoringUnsupportedContextError)
+    assert outcome["elapsed"] < 1.0, (
+        f"fail-closed path must not wait out the match, took {outcome['elapsed']}s"
+    )
+
 
 
 # 5. Structural separation from trl_adapter.py / trainer_contract.py ---------
