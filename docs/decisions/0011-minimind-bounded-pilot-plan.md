@@ -229,20 +229,24 @@ pilot-specific live-execution security review" (see "Gating") should
 require resolved before clearing execution, not a detail to discover
 during a live run.
 
-**Tracking note (added after initial drafting):** this defect is now
-tracked as **issue #47**, with a fix reportedly in flight in a
-parallel PR at the time of this note. Until issue #47 lands and its
-fix is independently re-verified (conformance tests updated and
-passing against the corrected `_build_subprocess_args`, and — per
-"Gating" below — re-checked as part of Maya's pilot-specific
-live-execution review), `MiniMindTrainerAdapter.train()` cannot be
-invoked as currently coded: any attempt would fail immediately on the
-first CLI-argument mismatch, before any compute is spent. This is
-named here as an additional precondition for this pilot's execution,
-alongside the three gates already required by "Gating" below — it
-does not relax, replace, or reorder that gating sequence, and nothing
-in this ADR should be read as asserting the adapter's CLI-argument
-construction is already correct.
+**Tracking note (updated):** this defect was tracked as **issue #47**
+and is now **fixed and merged** via PR #49 — `_build_subprocess_args`
+was corrected to emit `--save_dir`, `--from_weight`, and `--epochs`
+(dropping the nonexistent `--out_dir`/`--model_path`/`--max_steps`
+flags), the existing mocked-subprocess conformance test was updated,
+and a new static regression guard
+(`tests/test_minimind_trainer_cli_flags.py`) now `ast.parse`s a
+vendored copy of the real pinned `trainer/train_full_sft.py` and
+asserts every flag the adapter can ever construct is a subset of the
+real script's actual flag set — independently re-verified against the
+real pinned MiniMind script, not merely re-asserted against the
+adapter's own prior assumptions. This precondition is therefore
+**satisfied**: the adapter's CLI-argument construction is no longer
+the blocker this ADR flagged during drafting. This does **not**
+change anything else about "Gating" below — Maya's pilot-specific
+live-execution security review of the actual running subprocess, and
+separate owner authorisation to schedule the pilot, remain required
+and outstanding, in that order, exactly as before.
 
 ### Filesystem
 
@@ -334,12 +338,15 @@ order:
    `held_out_registry.py`/`regression_check.py` components, satisfies
    the contract-and-configuration half of this work package. The
    blocking pre-condition named above (fixing the three
-   `_build_subprocess_args` CLI mismatches, tracked as **issue #47**,
-   with its own updated conformance tests) and a real, registered
-   `adr0011-pilot-heldout-v1` held-out set remain to be built when the
-   pilot is scheduled — this ADR records the requirement, not the
-   completed artifact, identical posture to ADR-0006 at the same
-   stage.
+   `_build_subprocess_args` CLI mismatches, tracked as **issue #47**)
+   is now **satisfied**: issue #47 is fixed and merged via **PR #49**,
+   with its own updated conformance tests and a new static
+   flag-introspection regression guard, and the adapter's CLI flags
+   are now independently verified correct against the real pinned
+   MiniMind script. A real, registered `adr0011-pilot-heldout-v1`
+   held-out set still remains to be built when the pilot is scheduled
+   — this ADR records that remaining requirement, not a completed
+   artifact, identical posture to ADR-0006 at the same stage.
 2. **Maya's pilot-specific live-execution security review** — sandbox,
    egress, secrets, artifact hashes, supply-chain identity (including
    re-verifying the `MINIMIND_PINNED_COMMIT` pin and its Apache-2.0
