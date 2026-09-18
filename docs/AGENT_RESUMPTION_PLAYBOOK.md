@@ -7,9 +7,22 @@ This playbook lets an authorised agent resume interrupted model-development work
 1. Read repository `AGENTS.md`, governance, decisions, latest report, and this playbook.
 2. Record local `HEAD`, upstream divergence, worktree status, active processes, and relevant scheduler state.
 3. Do not pull, rebase, clean, reset, checkout, delete, or bulk-format a dirty worktree.
-4. Acquire the repository/project work claim required by the active control plane.
+4. Acquire the repository/project work claim required by the active control plane (see "Work-claim convention" below).
 5. Create a hash-bound inventory of modified, deleted, and untracked paths without reading or publishing secrets.
 6. Stop if another owner is active, provenance is unknowable, or the required claim cannot be acquired.
+
+### Work-claim convention
+
+Where no heavier control plane is already in force, the claim in step 4 is a plain marker file, not a new subsystem:
+
+- Before starting, check for a `.agent-claim` file at the repository root (or, for a per-run working directory, at that directory's root). If one exists and is not stale or your own, treat this as "another owner is active" and stop per step 6.
+- If none exists, create `.agent-claim` containing, at minimum:
+  - `agent_id`: a stable identifier for the acting agent or session;
+  - `started_at`: an ISO 8601 UTC timestamp;
+  - `question`: the single bounded question being worked, matching the "Learning-oriented work pattern" below.
+- Treat `.agent-claim` as evidence, not as disposable state: never overwrite or delete another agent's claim, and never use it to justify a destructive worktree action.
+- On completion or handoff, remove the `.agent-claim` file you created as part of the evidence handoff step, or update it in place if handing off directly to a named next agent.
+- `.agent-claim` is local coordination state, not committed evidence; do not commit it, and do not treat its presence or absence as a substitute for the completion report.
 
 ## Learning-oriented work pattern
 

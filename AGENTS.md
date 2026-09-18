@@ -6,6 +6,14 @@ These instructions apply to agents working anywhere in this repository.
 
 Complete the user's scoped task first. While doing so, preserve useful evidence about framework defects and improvements you directly observe. Do not invent findings merely to produce feedback.
 
+## Agent quick-start
+
+Before doing any work in this repository, an agent (or an agent swarm) should read the following three documents in order: this file first for the operating contract, then the integration and feedback pattern, then the resumption playbook for how to safely pick up or hand off work.
+
+- [`AGENTS.md`](AGENTS.md) — this file: the repository-level operating contract, required feedback loop, and contribution quality bar.
+- [`docs/AGENT_INTEGRATION.md`](docs/AGENT_INTEGRATION.md) — how agent observations become reviewable evidence, and how agent feedback relates to model learning.
+- [`docs/AGENT_RESUMPTION_PLAYBOOK.md`](docs/AGENT_RESUMPTION_PLAYBOOK.md) — how to resume interrupted work, claim it safely, and hand it off without destroying evidence.
+
 ## Required feedback loop
 
 When you identify a reproducible defect, unsafe behaviour, missing contract, evidence-integrity problem, recurring friction, or a concrete improvement:
