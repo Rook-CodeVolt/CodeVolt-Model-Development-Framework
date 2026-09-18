@@ -393,9 +393,83 @@ class MiniMindTrainerAdapter:
             seed=inputs.seed,
         )
 
+        # Run cwd: a per-run "shadow trainer directory" inside this run's
+        # OWN work_dir, not <repo>/trainer directly, so the two relative
+        # paths trainer/train_full_sft.py's real code hardcodes against its
+        # cwd -- init_model()'s tokenizer_path='../model' default and
+        # train_epoch()'s second, CLI-flag-independent
+        # lm_checkpoint(..., save_dir='../checkpoints') call -- both resolve
+        # to locations this adapter controls, not to the checkout itself.
+        #
+        # Why this matters (found and empirically verified fixing issue
+        # #46/ADR-0011's Maya-reported secondary defect, internal tracking item
+        #): once the cwd is corrected to <repo>/trainer, MiniMind's
+        # own train_epoch() unconditionally also calls
+        # lm_checkpoint(..., save_dir='../checkpoints') at least once per
+        # epoch (`step == iters` always triggers it) -- a second checkpoint
+        # write path with no CLI flag, entirely independent of --save_dir,
+        # and NOT contained by process_isolation._pin_filesystem_root's
+        # open()/os.open() write guard: that guard only patches builtins in
+        # the immediate process_isolation child interpreter, and this write
+        # happens inside a *separate OS subprocess* (MiniMind's own Python
+        # interpreter, spawned via subprocess.Popen) whose own builtins/os
+        # module were never patched. Direct reproduction against a genuinely
+        # writable pinned checkout confirmed the escape is real, silent, and
+        # uncaught: the checkpoint (including raw model + optimizer state)
+        # was written to <repo>/checkpoints/ with TrainingOutput.status
+        # still ACCEPTED and no exception raised anywhere -- this is worse
+        # than the "no real exfiltration path exists" read from a read-only
+        # checkout's incidental PermissionError, and must not be relied on
+        # as the containment mechanism.
+        #
+        # This shadow directory closes the gap structurally, independent of
+        # whether the caller's checkout happens to be read-only. It MUST use
+        # real directory copies of trainer/ and model/ (never symlinks):
+        # POSIX resolves ".." against the real parent directory of the
+        # target a symlink points at, not against the symlink's own
+        # location -- a symlinked shadow_trainer_dir would still make
+        # '../checkpoints' resolve back into the real checkout's parent,
+        # completely defeating the containment. This was verified directly:
+        # a symlink-based version of this fix still wrote checkpoints into
+        # the real checkout. trainer/ and model/ are both small
+        # (script/tokenizer files, not model weights -- a few hundred KB
+        # combined for the pinned commit), so copying them fresh per run is
+        # cheap. Reads inside the shadow trainer/ dir (e.g. `from
+        # trainer.trainer_utils import ...`, `sys.path.append('..')`
+        # patterns) still work identically because the copy is
+        # byte-for-byte identical Python source, not a stub.
+        # NOTE (live-execution verification): the shadow copy
+        # must include every sibling package trainer/train_full_sft.py's
+        # own module-level imports resolve relative to the checkout root
+        # -- not just trainer/ and model/. A real subprocess run against
+        # the pinned commit's trainer/train_full_sft.py failed with
+        # ModuleNotFoundError: No module named 'dataset' until dataset/
+        # (containing lm_dataset.py, the source of SFTDataset/
+        # PretrainDataset/etc.) was copied alongside trainer/ and model/
+        # -- train_full_sft.py's own import block reads
+        # ``from dataset.lm_dataset import SFTDataset``, a sibling-package
+        # import resolved against cwd, exactly like ``from model...`` and
+        # ``from trainer.trainer_utils import ...``. If a future re-pin
+        # adds further top-level sibling packages to train_full_sft.py's
+        # (or trainer_utils.py's) import block, they must be added here
+        # too -- this is not auto-discovered.
+        shadow_dir = run_dir / "mm_shadow"
+        shadow_trainer_dir = shadow_dir / "trainer"
+        shadow_model_dir = shadow_dir / "model"
+        shadow_dataset_dir = shadow_dir / "dataset"
+        shadow_checkpoints_dir = shadow_dir / "checkpoints"
+        shadow_dir.mkdir(parents=True, exist_ok=True)
+        shadow_checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        if not shadow_trainer_dir.exists():
+            shutil.copytree(minimind_repo_path / "trainer", shadow_trainer_dir)
+        if not shadow_model_dir.exists() and (minimind_repo_path / "model").exists():
+            shutil.copytree(minimind_repo_path / "model", shadow_model_dir)
+        if not shadow_dataset_dir.exists() and (minimind_repo_path / "dataset").exists():
+            shutil.copytree(minimind_repo_path / "dataset", shadow_dataset_dir)
+
         process = subprocess.Popen(
             args,
-            cwd=str(minimind_repo_path),
+            cwd=str(shadow_trainer_dir),
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

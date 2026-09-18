@@ -642,7 +642,80 @@ def test_train_builds_expected_subprocess_args(tmp_path, monkeypatch):
     assert "--out_dir" not in argv
     assert "--model_path" not in argv
     assert "--max_steps" not in argv
-    assert called_args[1]["cwd"] == str(repo_path)
+    # Regression guard for issue #46/ADR-0011: the
+    # subprocess MUST run with cwd inside a per-run "shadow trainer
+    # directory", never the checkout root and never <repo>/trainer
+    # directly. MiniMind's own trainer/trainer_utils.py:init_model()
+    # defaults tokenizer_path to '../model' (relative to cwd), and
+    # trainer/train_full_sft.py's train_epoch() unconditionally also
+    # writes a second, CLI-flag-independent checkpoint to
+    # '../checkpoints' -- both resolve outside the checkout when cwd is
+    # the shadow trainer dir under this run's own work_dir, closing the
+    # write-escape gap structurally (see test_train_creates_isolated_shadow_directory_layout
+    # below for the real-filesystem proof this data-copy actually happens).
+    actual_cwd = Path(called_args[1]["cwd"])
+    assert actual_cwd != Path(repo_path)
+    assert actual_cwd != Path(repo_path) / "trainer"
+    assert actual_cwd.name == "trainer"
+    assert actual_cwd.parent.name == "mm_shadow"
+
+
+def test_train_creates_isolated_shadow_directory_layout(tmp_path, monkeypatch):
+    """Real-filesystem proof (no mocking of shutil/Path) that train() copies
+    trainer/, model/, and dataset/ into a per-run shadow directory before
+    invoking the subprocess, and that the shadow checkpoints dir exists
+    ready to receive MiniMind's hardcoded '../checkpoints' write.
+
+    This is the regression guard for the exact defect Maya's live-execution
+    review found (issue #46/ADR-0011): a fake MiniMind
+    checkout fixture here includes model/ and dataset/ directories (the
+    real pinned commit has both), and this test fails if either is missing
+    from the shadow copy -- exactly the gap a first fix attempt had (it
+    copied trainer/ and model/ but not dataset/, which
+    trainer/train_full_sft.py's own `from dataset.lm_dataset import
+    SFTDataset` import needs at the real pinned commit).
+    """
+    repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
+    monkeypatch.setattr("codevolt_mdf.minimind_adapter.MINIMIND_PINNED_COMMIT", head)
+
+    repo_path_obj = Path(repo_path)
+    (repo_path_obj / "model").mkdir(parents=True, exist_ok=True)
+    (repo_path_obj / "model" / "tokenizer_config.json").write_text("{}")
+    (repo_path_obj / "dataset").mkdir(parents=True, exist_ok=True)
+    (repo_path_obj / "dataset" / "lm_dataset.py").write_text("# fake lm_dataset stand-in\n")
+
+    adapter = make_adapter(tmp_path)
+    inputs = make_inputs(tmp_path, minimind_repo_path=repo_path, extra_params={"epochs": 1})
+    budget = make_budget()
+    token = CancellationToken()
+
+    mock_process = MagicMock()
+    mock_process.wait.return_value = 0
+    mock_process.returncode = 0
+    mock_process.stdout.read.return_value = "fake minimind training log\n"
+
+    with patch("subprocess.Popen", return_value=mock_process) as mock_popen:
+        output = adapter.train(inputs, budget, token)
+
+    assert output.status == TrainingStatus.ACCEPTED
+    shadow_trainer_dir = Path(mock_popen.call_args[1]["cwd"])
+    shadow_dir = shadow_trainer_dir.parent
+
+    assert (shadow_dir / "trainer" / "train_full_sft.py").is_file()
+    assert (shadow_dir / "model" / "tokenizer_config.json").is_file()
+    assert (shadow_dir / "dataset" / "lm_dataset.py").is_file()
+    assert (shadow_dir / "checkpoints").is_dir()
+
+    # The shadow copies must be real files, not symlinks back into the
+    # checkout: a symlinked shadow dir would make MiniMind's own
+    # '../checkpoints'/'../model' relative-path resolution walk back
+    # through the symlink target's real parent (the actual checkout),
+    # completely defeating containment. Verified directly against a real
+    # symlink-based variant of this fix during: it still wrote
+    # checkpoints into the real checkout.
+    assert not (shadow_dir / "trainer").is_symlink()
+    assert not (shadow_dir / "model").is_symlink()
+    assert not (shadow_dir / "dataset").is_symlink()
 
 
 def test_train_never_invoked_through_prepare_only_path(tmp_path, monkeypatch):
