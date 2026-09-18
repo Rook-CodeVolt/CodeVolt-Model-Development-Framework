@@ -41,8 +41,12 @@ training setup.
 
 ## Install
 
+This package is not yet published to PyPI (publication is planned but
+not yet done -- see issue #52). Until then, install directly from this
+repository via a git URL:
+
 ```bash
-pip install held-out-eval
+pip install "held-out-eval @ git+https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework.git#subdirectory=packages/held-out-eval"
 ```
 
 Zero runtime dependencies: it imports only `json`, `dataclasses`,
