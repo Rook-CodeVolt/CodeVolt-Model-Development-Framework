@@ -1,7 +1,11 @@
-# ADR-0006: Bounded real TRL pilot plan (drafted, NOT authorised to execute)
+# ADR-0006: Bounded real TRL pilot plan (drafted, then executed per gating)
 
-- Status: proposed — drafted per issue #7 step 4/5 sequencing; execution
-  is explicitly **not** authorised by this ADR (see "Gating" below).
+- Status: accepted — drafted per issue #7 step 4/5 sequencing; execution
+  was gated on Maya's pilot-specific live-execution security review and
+  owner authorisation (see "Gating" below), both of which cleared, and
+  the single bounded pilot run this ADR planned has since executed
+  (PR #22; see "Pilot execution result" below for the outcome and its
+  explicit scope limits).
 - Date: 2026-09-17
 
 ## Context
