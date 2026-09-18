@@ -1,6 +1,6 @@
 # Real (non-fake) adapters
 
-This page is the cold-reader entry point for "does this framework actually train or evaluate anything yet." Short answer: three real engine integrations exist and are contract-tested, but none has been exercised by a live run in this repository, and no real training pilot has been executed.
+This page is the cold-reader entry point for "does this framework actually train or evaluate anything yet." Short answer: three real engine integrations exist and are contract-tested. One bounded, exploratory TRL training pilot has been executed and accepted (`TrainingOutput.status=ACCEPTED`, evaluator `aggregate_score=0.7`/1.0, zero contamination) per `docs/decisions/0006-bounded-real-trl-pilot-plan.md`'s "Pilot execution result" — a single, scope-limited result that does not authorise a further/repeated TRL pilot or any pilot for MiniMind, which has not been exercised by a live run at all.
 
 ## What "real" means here
 
@@ -16,7 +16,7 @@ A **real** adapter wraps an actual training or inference engine. Three now exist
 - Decision record: `docs/decisions/0005-trl-trainer-adapter-v1.md`
 - Scope: exactly one training method — supervised fine-tuning via TRL's `SFTTrainer`/`SFTConfig`. No RL trainers (PPO/GRPO/DPO/...), no distributed/multi-node training, no vLLM. Fully offline — both model and dataset must already exist as verified local paths before `prepare()` is called.
 - Tests: 28 conformance tests (`tests/test_trl_adapter.py`) exercising the same contract-conformance scenarios (provenance, resource budget, cancellation, tamper detection, etc.) the fake adapter is tested against.
-- **Not yet done:** `adapter.train()` is fully implemented against real TRL/transformers APIs but has never been exercised by any run in this repository. No real training has happened.
+- **Pilot executed (one bounded run, 2026-09-17):** per ADR-0006's "Pilot execution result" section, `adapter.train()` was exercised for one bounded, gated, 50-`max_steps` SFT run against `HuggingFaceTB/SmolLM2-135M` (`run_id=adr0006-pilot-20260917`). `TrainingOutput.status=ACCEPTED` (wall time 15.7s of a 1800s budget), and the resulting artifact was scored by the real evaluator against a held-out set: `EvaluationOutput.status=SCORED`, `aggregate_score=0.7` (7/10), zero contamination. This is a single bounded exploratory result, not a capability claim or promotion decision, and it does **not** authorise scheduling a further or repeated TRL pilot — that remains a separate, later governed action per ADR-0006's "What this result does and does not establish."
 
 ## TrainerAdapterV1 — MiniMindTrainerAdapter
 
@@ -53,15 +53,13 @@ A **real** adapter wraps an actual training or inference engine. Three now exist
 - Scope: a stand-alone, measurement-only module (not a new `TaskType`, not a contract change) that compares already-produced `EvaluationOutput` objects. `compare_for_regressions(baseline, candidate, previous_candidate=None)` restricts attention to examples that were previously passing (in baseline, and in the previous candidate when supplied) and reports whether the new candidate now fails any of them — closing the "Regression checks for retained capabilities" gap named in `docs/EVALUATION_POLICY.md`. It calls no adapter and performs no inference itself; it consumes `EvaluationOutput`s a caller already produced. It has no threshold, no aggregate verdict, and no accept/reject/promote authority — output is evidence for a separate, later governed acceptance step.
 - Tests: `tests/test_regression_check.py` (14 fake-data tests: no-regression, regression-detected, already-failing-excluded, 3-way comparison, tamper/malformed-input rejection, AST-import boundary, no-verdict-field). `tests/test_regression_check_real.py` adds two real-adapter integration tests running the pinned `HuggingFaceTB/SmolLM2-135M` checkpoint through the real evaluator twice and feeding genuine `EvaluationOutput`s through the comparator — one confirming no false regressions on identical repeated runs, one confirming a genuinely perturbed candidate is correctly flagged.
 
-## Current gating status: pilot execution is blocked
+## Current gating status: one TRL pilot executed and accepted; no further pilot authorised; MiniMind pilot still blocked
 
-A real bounded training pilot — actually running `TRLTrainerAdapter.train()` on a real model and scoring the result through the real evaluator — is drafted but **not authorised to execute**:
+One real bounded training pilot — actually running `TRLTrainerAdapter.train()` on a real model and scoring the result through the real evaluator — has executed and was accepted. Per `docs/decisions/0006-bounded-real-trl-pilot-plan.md`'s "Pilot execution result" section (run `adr0006-pilot-20260917`, PR #22, 2026-09-17):
 
-- The exact bounded configuration (model, dataset shape, resource limits, kill criteria) is written down in `docs/decisions/0006-bounded-real-trl-pilot-plan.md`, status `proposed`, not `accepted`.
-- Before it can run, three things are required and none are complete yet:
-  1. A real evaluator adapter and a real held-out set for the pilot's specific task (the evaluator adapter itself now exists — see above — but the pilot-specific held-out set does not yet).
-  2. **Maya's pilot-specific security review** of the *live* TRL process (sandbox, egress, secrets, artifact hashes, supply-chain identity, safe-stop) — a distinct, broader scope than her PR #15 code review of the adapter, which explicitly did not evaluate live execution behaviour because none occurred.
-  3. Owner authorisation to schedule the pilot itself.
-- Separately, findings from an initial live-execution security pass are being addressed in an in-flight fix before Maya's re-review can happen; the pilot stays blocked until that work lands and is re-reviewed.
+- Gating cleared before execution: the exact bounded configuration (model, dataset shape, resource limits, kill criteria) was locked in ADR-0006; Maya's pilot-specific live-execution security review (issue #7 step 5, PR #18 review) returned clear to execute after its findings were fixed and merged (PR #21); the owner authorised execution of this specific bounded run.
+- `TrainingOutput.status=ACCEPTED` (wall time 15.7s of a 1800s budget, all five resource dimensions well inside budget, no kill criterion triggered), and `EvaluationOutput.status=SCORED` (`aggregate_score=0.7`, 7/10, against a real held-out set with zero contamination).
+- **This does not authorise anything further.** Per ADR-0006's own "What this result does and does not establish": this is exploratory pilot evidence, not a capability claim, not a promotion decision, and it does not authorise any further pilot, larger run, or production use for TRL. A repeat or expanded TRL pilot would require its own separate gating (fresh security review scope and owner authorisation), the same as this one did.
+- **MiniMind is unaffected by this result and remains fully unpiloted.** `MiniMindTrainerAdapter.train()` has never been exercised by any run in this repository, no MiniMind pilot has been drafted or gated, and no MiniMind pilot is authorised. ADR-0006 and its executed pilot are TRL-specific and say nothing about MiniMind.
 
-This applies to both real trainer adapters — TRL and MiniMind alike. No training engine has been invoked, no pilot has been scheduled, and no resource has been reserved by anything merged to date. Do not read the existence of these adapters as evidence that training capability is production-ready — it explicitly is not.
+Do not read the existence of these adapters, or this one accepted TRL pilot, as evidence that training capability is production-ready — it explicitly is not.
