@@ -63,3 +63,5 @@ One real bounded training pilot — actually running `TRLTrainerAdapter.train()`
 - **MiniMind is unaffected by this result and remains fully unpiloted.** `MiniMindTrainerAdapter.train()` has never been exercised by any run in this repository, no MiniMind pilot has been drafted or gated, and no MiniMind pilot is authorised. ADR-0006 and its executed pilot are TRL-specific and say nothing about MiniMind.
 
 Do not read the existence of these adapters, or this one accepted TRL pilot, as evidence that training capability is production-ready — it explicitly is not.
+
+A MiniMind-specific bounded pilot configuration is separately drafted (not authorised) at `docs/decisions/0011-minimind-bounded-pilot-plan.md` (status `proposed`, issue #46), alongside a companion design for how an authorized later round would consume an earlier round's evidence via `regression_check.py` at `docs/CONTINUAL_IMPROVEMENT_LOOP_DESIGN.md`. Same gating sequence applies: ADR drafted, Maya's pilot-specific live-execution security review, owner authorisation, in that order — none of which has happened for this ADR.

@@ -51,6 +51,8 @@ The honest caveat: MiniMind is a small-model (64M–198M parameter), educational
 
 **The actual decision axis:** pick MiniMind if the next milestone's goal is proving the adapter contract truly generalizes across engine philosophy *and* unblocking the cheapest possible first live pilot; pick Axolotl if the goal is matching practitioner expectations on method/parallelism breadth and community familiarity. Both are legitimate; this document does not resolve which axis matters more right now, because that is an owner call, not a research conclusion.
 
+**Update (2026-09-18):** this decision was made — MiniMind was chosen (ADR-0010, issue #36; `MiniMindTrainerAdapter`, contract-tested, not yet exercised by a live run). The next queued decision in this lineage is a bounded MiniMind pilot configuration, drafted (status `proposed`, not authorized) at [docs/decisions/0011-minimind-bounded-pilot-plan.md](decisions/0011-minimind-bounded-pilot-plan.md), with a companion iterative-feedback-loop design at [docs/CONTINUAL_IMPROVEMENT_LOOP_DESIGN.md](CONTINUAL_IMPROVEMENT_LOOP_DESIGN.md) (issue #46). This section is left in its original form above as the historical reasoning behind the MiniMind-vs-Axolotl choice, not as a claim about current status — see [docs/REAL_ADAPTERS.md](REAL_ADAPTERS.md) and the roadmap for what's actually true now.
+
 ## 4. Cheap interoperability wins (not priority investments)
 
 Two items below are worth doing because they are low-cost and remove a specific objection, not because they advance the core evaluation-trust mission. They should not compete for effort against §1.
