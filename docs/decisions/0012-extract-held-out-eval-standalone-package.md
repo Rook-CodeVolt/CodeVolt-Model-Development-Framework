@@ -92,6 +92,13 @@ trainer adapter, or the `codevolt-mdf` CLI changed.
   the framework. `HeldOutExclusionRegistry`'s contamination-check
   semantics are unchanged — this ADR is a packaging and distribution
   decision, not a capability or authority decision.
+- Any change to what the registry detects. It still checks **exact id
+  collisions only**, in either direction; it does not detect
+  near-duplicate or paraphrased contamination (a held-out example
+  reworded and registered under a different train id is invisible to
+  it). See the package's own README "Limitations" section for the
+  full statement of this gap and what to pair it with if you need
+  broader coverage.
 
 ## Consequences
 
