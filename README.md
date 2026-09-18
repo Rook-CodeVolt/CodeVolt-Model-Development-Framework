@@ -66,7 +66,7 @@ For a concrete, link-by-link worked example of this project's evidence-over-theo
 
 Ordinary customization belongs in experiment manifests. New training engines, evaluators, data sources, and learning strategies belong in adapters. Organisations needing different governance can fork the project while retaining the same evidence contract.
 
-CodeVolt MDF is a CodeVolt project led by Rook and developed with transparent AI-assisted engineering. Decisions and evidence remain reviewable by people.
+CodeVolt MDF is a CodeVolt project led by Rook. Decisions and evidence remain reviewable by people.
 
 ## License
 
