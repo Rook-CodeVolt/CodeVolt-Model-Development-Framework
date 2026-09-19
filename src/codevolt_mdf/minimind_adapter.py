@@ -58,8 +58,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -97,6 +99,8 @@ from .trainer_contract import (
 MINIMIND_REPO_URL = "https://github.com/jingyaogong/minimind"
 MINIMIND_PINNED_COMMIT = "cc312c1cc614bc371cd85dcbcbc1d3ba1590f364"
 MINIMIND_PINNED_BRANCH = "master"
+
+_logger = logging.getLogger(__name__)
 
 _HASH_MANIFEST_EXCLUDE_NAMES = {".DS_Store", "__pycache__"}
 
@@ -175,6 +179,57 @@ def _detect_minimind_checkout_commit(minimind_repo_path: Path) -> str:
     if result.returncode != 0:
         return ""
     return result.stdout.strip()
+
+
+def _rmtree_onerror_restore_write_and_retry(func, path, exc_info) -> None:
+    """``shutil.rmtree(..., onerror=...)`` callback: restore write perms, retry once.
+
+    ``shutil.copytree``'s default ``copy2`` copy function preserves the
+    source's permission bits onto the shadow copy (see the ``mm_shadow``
+    construction in ``MiniMindTrainerAdapter.train()``). When the real
+    checkout this adapter reads from is itself read-only (a deliberate
+    containment posture -- see the ``train()`` docstring), every file
+    and directory inside ``mm_shadow/trainer``, ``mm_shadow/model`` and
+    ``mm_shadow/dataset`` inherits that same read-only mode, and POSIX
+    ``unlink``/``rmdir`` refuse to remove an entry unless its *containing
+    directory* is writable -- the target entry's own permission bits are
+    not what gates removal. ``shutil.rmtree`` cannot delete such a tree
+    on its own; this is the standard library's documented workaround
+    pattern for exactly that case: on any per-entry removal failure,
+    restore write permission on both the failing path's parent directory
+    (so the entry can actually be unlinked/rmdir'd out of it) and on the
+    path itself (needed when the path is a directory about to be
+    ``rmdir``'d, so its own now-restored parent linkage succeeds), then
+    re-invoke the failed operation (``func``) once. If the retry also
+    fails (e.g. a permission problem unrelated to the read-only bit, or
+    an unrelated OS error), the exception is re-raised so the caller can
+    decide whether to log-and-continue or propagate -- this function
+    never silently swallows a failure it could not actually resolve.
+    """
+    target = Path(path)
+    for candidate in (target.parent, target):
+        try:
+            os.chmod(candidate, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        except OSError:
+            pass
+    func(path)
+
+
+def _rmtree_best_effort(path: Path) -> bool:
+    """Remove ``path`` recursively, restoring write permissions as needed.
+
+    Returns ``True`` if ``path`` no longer exists afterwards (including
+    the idempotent case where it never existed), ``False`` if removal
+    was attempted and still failed -- the caller is responsible for
+    surfacing that as a visible warning rather than swallowing it.
+    """
+    if not path.exists():
+        return True
+    try:
+        shutil.rmtree(path, onerror=_rmtree_onerror_restore_write_and_retry)
+    except OSError:
+        return not path.exists()
+    return not path.exists()
 
 
 @dataclass
@@ -539,8 +594,20 @@ class MiniMindTrainerAdapter:
 
     def cleanup(self, run_id: str) -> None:
         run_dir = self.work_dir / run_id
-        if run_dir.exists():
-            shutil.rmtree(run_dir, ignore_errors=True)
+        if not run_dir.exists():
+            return
+        if not _rmtree_best_effort(run_dir):
+            _logger.warning(
+                "cleanup(run_id=%s): failed to fully remove run directory %s "
+                "even after restoring write permissions on read-only entries "
+                "(e.g. shadow copies under mm_shadow/ inherit the real "
+                "checkout's read-only bits via shutil.copytree's default "
+                "copy2); this path has leaked on disk and will not be "
+                "discounted by the next run's storage budget check -- "
+                "manual removal or investigation is required",
+                run_id,
+                run_dir,
+            )
 
     # -- helpers ---------------------------------------------------------
 

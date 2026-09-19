@@ -17,6 +17,8 @@ access happens anywhere in this file.
 from __future__ import annotations
 
 import json
+import shutil
+import stat
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -823,6 +825,100 @@ def test_cleanup_removes_run_directory(tmp_path):
 
     assert not run_dir.exists()
     adapter.cleanup("run-to-clean")  # idempotent
+
+
+def test_cleanup_removes_shadow_dir_with_read_only_copies(tmp_path, caplog):
+    """Regression guard for the shadow-dir permission leak.
+
+    ``shutil.copytree``'s default ``copy2`` copy function preserves the
+    real checkout's read-only permission bits onto the ``mm_shadow/``
+    copies made in ``train()`` (see the module docstring there). This
+    reproduces that exact filesystem state directly -- a real read-only
+    file inside a real ``mm_shadow/`` tree, no mocking of ``shutil`` or
+    ``os`` -- for an INTERRUPTED-style run outcome (the caller always
+    calls ``adapter.cleanup(run_id)`` regardless of the run's terminal
+    status; see ``trainer_contract.run_trainer_contract``), and asserts
+    the directory is actually gone from disk afterwards, not merely that
+    some ``rmtree`` call was made.
+    """
+    adapter = make_adapter(tmp_path)
+    run_dir = adapter._run_dir("run-interrupted")
+    shadow_dir = run_dir / "mm_shadow"
+    shadow_trainer_dir = shadow_dir / "trainer"
+    shadow_trainer_dir.mkdir(parents=True)
+
+    ro_file = shadow_trainer_dir / "dataset.md"
+    ro_file.write_text("read-only shadow copy content")
+    # Mirror shutil.copytree(..., copy2=True)'s effect on a shadow copy of
+    # a read-only real checkout: strip owner/group/other write bits.
+    ro_file.chmod(stat.S_IREAD)
+    shadow_trainer_dir.chmod(stat.S_IREAD | stat.S_IEXEC)
+
+    # Directly confirm the failure mode this test guards against: a plain
+    # shutil.rmtree with no special handling really does raise
+    # PermissionError against this exact fixture, matching Maya's live
+    # confirmation in the review.
+    with pytest.raises(PermissionError):
+        shutil.rmtree(run_dir)
+    # Restore so the fixture is in a known state for the real assertion
+    # below (the failed rmtree above may have partially removed entries
+    # it *could* delete before hitting the read-only one).
+    shadow_trainer_dir.chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+    ro_file.chmod(stat.S_IWRITE | stat.S_IREAD)
+    ro_file.write_text("read-only shadow copy content")
+    ro_file.chmod(stat.S_IREAD)
+    shadow_trainer_dir.chmod(stat.S_IREAD | stat.S_IEXEC)
+
+    with caplog.at_level("WARNING"):
+        adapter.cleanup("run-interrupted")
+
+    assert not run_dir.exists(), "cleanup() must remove read-only shadow copies, not leak them"
+    assert not any(
+        "failed to fully remove run directory" in record.message for record in caplog.records
+    ), "cleanup() succeeded and must not also log a leak warning"
+
+
+def test_cleanup_logs_warning_when_removal_genuinely_cannot_succeed(tmp_path, monkeypatch, caplog):
+    """If removal still fails after the restore-and-retry pass, cleanup() must
+    warn with the leaked path rather than silently swallowing the failure
+    (the defect: ``ignore_errors=True`` gave zero operator visibility).
+    """
+    adapter = make_adapter(tmp_path)
+    run_dir = adapter._run_dir("run-unremovable")
+    (run_dir / "marker.txt").write_text("evidence")
+
+    monkeypatch.setattr(
+        "codevolt_mdf.minimind_adapter._rmtree_best_effort", lambda path: False
+    )
+
+    with caplog.at_level("WARNING"):
+        adapter.cleanup("run-unremovable")
+
+    assert any(
+        "failed to fully remove run directory" in record.message
+        and "run-unremovable" in record.message
+        for record in caplog.records
+    )
+
+
+def test_cleanup_idempotent_on_double_call_after_read_only_removal(tmp_path):
+    """No regression to the existing idempotent-double-cleanup behaviour
+    once a previously read-only shadow tree has actually been removed.
+    """
+    adapter = make_adapter(tmp_path)
+    run_dir = adapter._run_dir("run-double-clean")
+    shadow_trainer_dir = run_dir / "mm_shadow" / "trainer"
+    shadow_trainer_dir.mkdir(parents=True)
+    ro_file = shadow_trainer_dir / "readonly.py"
+    ro_file.write_text("x = 1\n")
+    ro_file.chmod(stat.S_IREAD)
+    shadow_trainer_dir.chmod(stat.S_IREAD | stat.S_IEXEC)
+
+    adapter.cleanup("run-double-clean")
+    assert not run_dir.exists()
+
+    adapter.cleanup("run-double-clean")  # second call on an already-gone path must not raise
+    assert not run_dir.exists()
 
 
 # 13. TrainingInputs.validate() precondition still applies (adapter-independent) --
