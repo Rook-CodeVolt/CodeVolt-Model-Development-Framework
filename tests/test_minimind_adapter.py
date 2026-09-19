@@ -26,6 +26,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from codevolt_mdf.minimind_adapter import (
+    MINIMIND_DEFAULT_HIDDEN_SIZE,
+    MINIMIND_DEFAULT_USE_MOE,
+    MINIMIND_FROM_WEIGHT_STAGED_NAME,
     MINIMIND_PINNED_COMMIT,
     MiniMindTrainerAdapter,
     _detect_minimind_checkout_commit,
@@ -639,6 +642,15 @@ def test_train_builds_expected_subprocess_args(tmp_path, monkeypatch):
     assert "--epochs" in argv
     assert "--save_dir" in argv
     assert "--from_weight" in argv
+    # Regression guard for escalated from Maya's PR #62 re-review: --from_weight must be the fixed staged NAME, never the
+    # literal model_path -- MiniMind's own --from_weight resolution treats
+    # it as a name/prefix resolved against init_model()'s own hardcoded
+    # save_dir, not a literal path. See test_train_stages_from_weight_checkpoint_at_expected_path
+    # below for the real-filesystem proof the staged file actually lands
+    # where MiniMind's own resolution formula looks for it.
+    from_weight_index = argv.index("--from_weight")
+    assert argv[from_weight_index + 1] == MINIMIND_FROM_WEIGHT_STAGED_NAME
+    assert inputs.params["model_path"] not in argv
     # Regression guard for issue #47: these flags do not exist in the
     # real pinned train_full_sft.py and must never be constructed.
     assert "--out_dir" not in argv
@@ -718,6 +730,139 @@ def test_train_creates_isolated_shadow_directory_layout(tmp_path, monkeypatch):
     assert not (shadow_dir / "trainer").is_symlink()
     assert not (shadow_dir / "model").is_symlink()
     assert not (shadow_dir / "dataset").is_symlink()
+
+
+def test_train_stages_from_weight_checkpoint_at_expected_path(tmp_path, monkeypatch):
+    """Real-filesystem proof (no mocking of shutil) that train() stages the
+
+    model_path checkpoint at the EXACT path MiniMind's own
+    trainer/trainer_utils.py:init_model() resolution formula
+    (f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth', with
+    init_model()'s own hardcoded save_dir='../out' default -- never this
+    adapter's --save_dir flag) will look for it, relative to the real
+    subprocess cwd (the shadow trainer dir). This is the direct regression
+    guard for Maya's PR #62 re-review escalation: the
+    pre-fix adapter passed model_path literally as --from_weight, which
+    MiniMind's own script cannot resolve to any real file at all.
+    """
+    repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
+    monkeypatch.setattr("codevolt_mdf.minimind_adapter.MINIMIND_PINNED_COMMIT", head)
+
+    model_path, model_hash = make_local_model(tmp_path, content=b"real-checkpoint-bytes")
+    adapter = make_adapter(tmp_path)
+    inputs = make_inputs(
+        tmp_path,
+        minimind_repo_path=repo_path,
+        model_path=model_path,
+        model_hash=model_hash,
+        extra_params={"epochs": 1},
+    )
+    budget = make_budget()
+    token = CancellationToken()
+
+    mock_process = MagicMock()
+    mock_process.wait.return_value = 0
+    mock_process.returncode = 0
+    mock_process.stdout.read.return_value = "fake minimind training log\n"
+
+    with patch("subprocess.Popen", return_value=mock_process) as mock_popen:
+        output = adapter.train(inputs, budget, token)
+
+    assert output.status == TrainingStatus.ACCEPTED
+    shadow_trainer_dir = Path(mock_popen.call_args[1]["cwd"])
+    shadow_dir = shadow_trainer_dir.parent
+
+    # This is exactly what init_model(lm_config, 'codevolt-staged-from-weight',
+    # device=...)'s own weight_path formula computes, relative to a cwd of
+    # shadow_trainer_dir: f'../out/{from_weight}_{hidden_size}{moe_suffix}.pth'.
+    moe_suffix = "_moe" if MINIMIND_DEFAULT_USE_MOE else ""
+    expected_staged_path = (
+        shadow_dir / "out" / f"{MINIMIND_FROM_WEIGHT_STAGED_NAME}_{MINIMIND_DEFAULT_HIDDEN_SIZE}{moe_suffix}.pth"
+    )
+    assert expected_staged_path.is_file()
+    assert expected_staged_path.read_bytes() == b"real-checkpoint-bytes"
+
+    # Not a symlink, for the same containment reason as the trainer/model/
+    # dataset shadow copies (see test_train_creates_isolated_shadow_directory_layout).
+    assert not expected_staged_path.is_symlink()
+
+
+def test_train_omits_from_weight_staging_when_model_path_unset(tmp_path, monkeypatch):
+    """No staged file and no --from_weight flag when model_path is absent.
+
+    ``model_path`` is currently required by ``prepare()``, but
+    ``_build_subprocess_args``/``train()`` both branch on
+    ``params.get("model_path")`` independently of that -- this proves the
+    "unset" branch does not, e.g., stage a stray empty file or crash.
+    """
+    repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
+    monkeypatch.setattr("codevolt_mdf.minimind_adapter.MINIMIND_PINNED_COMMIT", head)
+
+    adapter = make_adapter(tmp_path)
+    inputs = make_inputs(tmp_path, minimind_repo_path=repo_path, extra_params={"epochs": 1})
+    # Directly rebuild training_params without model_path, bypassing
+    # make_inputs' default (which always sets one) -- exercises the
+    # params.get("model_path") falsy branch in both _build_subprocess_args
+    # and train()'s staging call.
+    params = dict(inputs.training_params)
+    del params["model_path"]
+    inputs = TrainingInputs.create(
+        model_revision=inputs.model_revision,
+        model_hash=inputs.model_hash,
+        dataset_version=inputs.dataset_version,
+        dataset_hash=inputs.dataset_hash,
+        seed=inputs.seed,
+        training_params=params,
+        dataset_licence=inputs.dataset_licence,
+        contamination_checked=inputs.contamination_checked,
+        run_id=inputs.run_id,
+    )
+    budget = make_budget()
+    token = CancellationToken()
+
+    mock_process = MagicMock()
+    mock_process.wait.return_value = 0
+    mock_process.returncode = 0
+    mock_process.stdout.read.return_value = "fake minimind training log\n"
+
+    with patch("subprocess.Popen", return_value=mock_process) as mock_popen:
+        output = adapter.train(inputs, budget, token)
+
+    assert output.status == TrainingStatus.ACCEPTED
+    argv = mock_popen.call_args[0][0]
+    assert "--from_weight" not in argv
+    shadow_trainer_dir = Path(mock_popen.call_args[1]["cwd"])
+    shadow_dir = shadow_trainer_dir.parent
+    assert not (shadow_dir / "out").exists()
+
+
+def test_prepare_rejects_directory_model_path(tmp_path, monkeypatch):
+    """MiniMind's --from_weight resolution has no directory-loading path.
+
+    A directory model_path can never be staged into the single-file shape
+    MiniMind's init_model() resolution expects, so this is rejected in
+    prepare() (cheapest correct layer) rather than failing opaquely deep
+    inside a real subprocess invocation.
+    """
+    repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
+    monkeypatch.setattr("codevolt_mdf.minimind_adapter.MINIMIND_PINNED_COMMIT", head)
+
+    model_dir = tmp_path / "model-as-directory"
+    model_dir.mkdir()
+    (model_dir / "weights.bin").write_bytes(b"fake-weights")
+    model_hash = _hash_path_identity(model_dir)
+
+    adapter = make_adapter(tmp_path)
+    inputs = make_inputs(
+        tmp_path,
+        minimind_repo_path=repo_path,
+        model_path=str(model_dir),
+        model_hash=model_hash,
+    )
+    budget = make_budget()
+
+    with pytest.raises(RejectedInputError, match="is a directory"):
+        adapter.prepare(inputs, budget)
 
 
 def test_train_never_invoked_through_prepare_only_path(tmp_path, monkeypatch):

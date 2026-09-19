@@ -102,6 +102,58 @@ MINIMIND_PINNED_BRANCH = "master"
 
 _logger = logging.getLogger(__name__)
 
+# --------------------------------------------------------------------------
+# --from_weight staging (issue escalated from Maya's live-execution
+# re-review of PR #62).
+#
+# MiniMind's real trainer/train_full_sft.py treats --from_weight as a
+# NAME/PREFIX, never a literal path. The actual resolution -- verified by
+# direct inspection of the pinned commit's own trainer/trainer_utils.py --
+# is even narrower than "resolved against --save_dir": train_full_sft.py's
+# own call site (line 136 at the pinned commit) is
+# ``init_model(lm_config, args.from_weight, device=args.device)`` -- it
+# never forwards ``args.save_dir`` into ``init_model`` at all, so
+# ``init_model``'s *own* hardcoded default ``save_dir='../out'`` (a path
+# relative to the script's cwd, i.e. this adapter's shadow trainer dir) is
+# what actually gets used to build
+# ``weight_path = f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'``
+# -- completely independent of whatever this adapter passes as
+# ``--save_dir`` (which only affects where MiniMind's own *output*
+# checkpoints land, via the separate ``ckp = f'{args.save_dir}/...'`` write
+# in train_epoch()). Passing model_path (a literal filesystem path) as
+# --from_weight therefore always fails with FileNotFoundError inside
+# MiniMind's own weight-loading code, for every real subprocess invocation
+# that supplies model_path -- confirmed live via direct reproduction
+# (fresh checkout/venv): the resulting error was
+# "FileNotFoundError: [Errno 2] No such file or directory:
+# '../out//<model_path>_768.pth'", i.e. literally save_dir='../out', not
+# --save_dir's value.
+#
+# Fix: stage the caller-verified model_path checkpoint file into
+# ``<shadow_dir>/out/<MINIMIND_FROM_WEIGHT_STAGED_NAME>_<hidden_size><moe_suffix>.pth``
+# (``<shadow_dir>/out`` is exactly what init_model's own '../out' default
+# resolves to relative to the shadow trainer dir cwd this adapter already
+# uses) before invoking the subprocess, and pass
+# --from_weight MINIMIND_FROM_WEIGHT_STAGED_NAME (a name, not a path) so
+# MiniMind's own resolution formula finds it. A deliberately distinctive
+# name (not "pretrain" or "full_sft", MiniMind's own script defaults) is
+# used so a caller-forgotten stray file at the real default name can never
+# be silently picked up instead of the adapter-staged one.
+# --------------------------------------------------------------------------
+MINIMIND_FROM_WEIGHT_STAGED_NAME = "codevolt-staged-from-weight"
+
+# MiniMind's train_full_sft.py argparse defaults for the two config values
+# that feed the --from_weight resolution formula
+# (f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'). This adapter
+# does not currently expose training_params overrides for either -- both
+# always resolve to the pinned script's own defaults -- but they are named
+# as explicit constants (rather than inlined magic numbers in two separate
+# places) so the staging helper and _build_subprocess_args can never
+# silently drift apart on what "the hidden_size"/"the moe suffix" means for
+# a given run.
+MINIMIND_DEFAULT_HIDDEN_SIZE = 768
+MINIMIND_DEFAULT_USE_MOE = False
+
 _HASH_MANIFEST_EXCLUDE_NAMES = {".DS_Store", "__pycache__"}
 
 
@@ -181,6 +233,39 @@ def _detect_minimind_checkout_commit(minimind_repo_path: Path) -> str:
     return result.stdout.strip()
 
 
+def _stage_from_weight_checkpoint(
+    model_path: Path,
+    *,
+    staging_out_dir: Path,
+    hidden_size: int,
+    use_moe: bool,
+) -> None:
+    """Copy ``model_path`` into the exact filename MiniMind's own resolution expects.
+
+    See the ``MINIMIND_FROM_WEIGHT_STAGED_NAME`` module comment above for
+    the full defect/fix rationale. This reproduces MiniMind's own
+    ``trainer/trainer_utils.py:init_model`` naming formula exactly:
+    ``f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'`` with
+    ``save_dir`` fixed to ``init_model``'s own hardcoded default
+    (``'../out'`` relative to the script's cwd -- never this adapter's
+    ``--save_dir`` value, which only controls where *output* checkpoints
+    are written, a separate and unrelated path). ``staging_out_dir`` must
+    therefore be exactly ``<shadow_trainer_dir>/../out`` (i.e.
+    ``<shadow_dir>/out``) for the subprocess, invoked with
+    ``cwd=shadow_trainer_dir``, to find it.
+
+    Uses ``shutil.copy2`` (a real copy, not a symlink) for the same
+    containment reason the shadow-directory construction in ``train()``
+    uses real copies rather than symlinks: MiniMind's own subprocess would
+    otherwise be able to resolve a symlink back out of the shadow
+    directory depending on how ``torch.load`` opens the path.
+    """
+    staging_out_dir.mkdir(parents=True, exist_ok=True)
+    moe_suffix = "_moe" if use_moe else ""
+    staged_path = staging_out_dir / f"{MINIMIND_FROM_WEIGHT_STAGED_NAME}_{hidden_size}{moe_suffix}.pth"
+    shutil.copy2(model_path, staged_path)
+
+
 def _rmtree_onerror_restore_write_and_retry(func, path, exc_info) -> None:
     """``shutil.rmtree(..., onerror=...)`` callback: restore write perms, retry once.
 
@@ -248,7 +333,14 @@ class MiniMindTrainerAdapter:
       Never a URL -- this adapter does not clone or download MiniMind
       itself.
     - ``model_path`` (str): local filesystem path to a pre-verified model
-      checkpoint (file or directory) MiniMind's SFT script can load.
+      checkpoint FILE MiniMind's SFT script can load (a single
+      ``torch.save()``'d state-dict ``.pth`` file -- see the
+      ``MINIMIND_FROM_WEIGHT_STAGED_NAME`` module comment; a directory is
+      rejected in ``prepare()`` since MiniMind's own ``--from_weight``
+      resolution has no directory-loading path). Required (validated
+      non-empty in ``prepare()``), so ``train()`` always stages and
+      passes ``--from_weight``; MiniMind's own script default
+      (``'pretrain'``) is never reached through this adapter.
     - ``dataset_path`` (str): local filesystem path to a pre-verified,
       already-admitted SFT dataset in MiniMind's expected JSONL
       conversation format.
@@ -373,6 +465,25 @@ class MiniMindTrainerAdapter:
         dataset_path = Path(dataset_path_raw)
         if not model_path.exists():
             raise RejectedInputError(f"model_path {model_path} does not exist locally")
+        if model_path.is_dir():
+            # MiniMind's own --from_weight resolution (see
+            # trainer/trainer_utils.py:init_model, and the staging fix in
+            # train()/_build_subprocess_args below) always loads a single
+            # torch.save()'d .pth state-dict FILE at
+            # f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth' --
+            # there is no directory-based loading path in the real script
+            # at all. A directory model_path can never be staged into that
+            # shape, so this is rejected here (prepare()) rather than
+            # discovered as an opaque failure deep inside train()'s
+            # subprocess, per this repository's "diagnose at the cheapest
+            # correct layer" convention.
+            raise RejectedInputError(
+                f"model_path {model_path} is a directory; MiniMind's "
+                "train_full_sft.py --from_weight resolution only supports a "
+                "single .pth checkpoint file (torch.save'd state_dict), not "
+                "a directory -- this adapter cannot stage a directory into "
+                "that shape"
+            )
         if not dataset_path.exists():
             raise RejectedInputError(f"dataset_path {dataset_path} does not exist locally")
 
@@ -522,6 +633,23 @@ class MiniMindTrainerAdapter:
         if not shadow_dataset_dir.exists() and (minimind_repo_path / "dataset").exists():
             shutil.copytree(minimind_repo_path / "dataset", shadow_dataset_dir)
 
+        # --from_weight staging (issue escalated from Maya's live-execution
+        # re-review of PR #62,; see the
+        # MINIMIND_FROM_WEIGHT_STAGED_NAME module comment and
+        # _stage_from_weight_checkpoint for the full rationale). Must run
+        # AFTER shadow_trainer_dir exists (the subprocess's cwd) and BEFORE
+        # Popen -- MiniMind's own init_model() reads this file synchronously
+        # at startup, before any training compute happens. shadow_dir/"out"
+        # is exactly init_model()'s own hardcoded save_dir='../out' default,
+        # resolved relative to shadow_trainer_dir.
+        if params.get("model_path"):
+            _stage_from_weight_checkpoint(
+                Path(params["model_path"]),
+                staging_out_dir=shadow_dir / "out",
+                hidden_size=MINIMIND_DEFAULT_HIDDEN_SIZE,
+                use_moe=MINIMIND_DEFAULT_USE_MOE,
+            )
+
         process = subprocess.Popen(
             args,
             cwd=str(shadow_trainer_dir),
@@ -635,15 +763,8 @@ class MiniMindTrainerAdapter:
         ``--out_dir``, ``--model_path``, and ``--max_steps`` were
         previously constructed despite not existing in the real script.
 
-        Two of this adapter's own concepts have no exact 1:1 real flag:
+        One of this adapter's own concepts has no exact 1:1 real flag:
 
-        - ``model_path`` (a caller-verified local file path) is passed as
-          ``--from_weight``, MiniMind's own "which weight to start
-          training from" flag. Note this is a *name/prefix* MiniMind
-          resolves against ``--save_dir`` internally
-          (``{save_dir}/{from_weight}_{hidden_size}.pth``), not a literal
-          path passed through verbatim -- a known adapter limitation
-          tracked separately from this flag-name fix.
         - ``max_steps`` has no real MiniMind CLI equivalent (the script
           only supports ``--epochs``). It remains a valid adapter-level
           stopping-bound input (validated in ``prepare()``) but is not
@@ -651,13 +772,27 @@ class MiniMindTrainerAdapter:
           supplied (no ``epochs``), the adapter-enforced bound is
           upheld by the contract runner's wall-clock/cancellation
           machinery rather than a MiniMind subprocess flag.
+
+        ``model_path`` (a caller-verified local file path) is passed as
+        ``--from_weight MINIMIND_FROM_WEIGHT_STAGED_NAME`` -- a fixed NAME,
+        never the literal path -- because MiniMind's own ``--from_weight``
+        is a name/prefix its ``init_model()`` resolves internally to
+        ``f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'`` with
+        its OWN hardcoded ``save_dir='../out'`` default (independent of
+        this adapter's ``--save_dir`` flag, which only controls *output*
+        checkpoint location). ``train()`` stages the actual checkpoint
+        content at that exact resolved path (see
+        ``_stage_from_weight_checkpoint``) before this subprocess is
+        invoked -- this method only emits the flag name, it does not
+        perform the staging itself (no filesystem access happens here,
+        keeping this method a pure, easily-testable arg-list builder).
         """
         args = [python_executable, str(script_path)]
         args += ["--save_dir", str(checkpoint_dir)]
         args += ["--data_path", str(params["dataset_path"])]
         args += ["--seed", str(seed)]
         if params.get("model_path"):
-            args += ["--from_weight", str(params["model_path"])]
+            args += ["--from_weight", MINIMIND_FROM_WEIGHT_STAGED_NAME]
         if isinstance(params.get("epochs"), int):
             args += ["--epochs", str(params["epochs"])]
         args += ["--learning_rate", str(params.get("learning_rate", 5e-4))]
