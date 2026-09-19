@@ -144,14 +144,26 @@ MINIMIND_FROM_WEIGHT_STAGED_NAME = "codevolt-staged-from-weight"
 
 # MiniMind's train_full_sft.py argparse defaults for the two config values
 # that feed the --from_weight resolution formula
-# (f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'). This adapter
-# does not currently expose training_params overrides for either -- both
-# always resolve to the pinned script's own defaults -- but they are named
-# as explicit constants (rather than inlined magic numbers in two separate
-# places) so the staging helper and _build_subprocess_args can never
-# silently drift apart on what "the hidden_size"/"the moe suffix" means for
-# a given run.
+# (f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'). These are
+# used as the fallback whenever a caller's ``training_params`` does not
+# specify ``hidden_size``/``num_hidden_layers``/``use_moe`` -- both
+# ``_build_subprocess_args`` (which now forwards
+# ``--hidden_size``/``--num_hidden_layers``/``--use_moe`` when the caller
+# supplies them, per issue #67 Finding 1) and ``_stage_from_weight_checkpoint``
+# (which must reproduce the exact resolved filename for whatever
+# hidden_size/use_moe a given run actually trains with) key off the same
+# caller-supplied-or-default values, so the two can never silently drift
+# apart on what "the hidden_size"/"the moe suffix" means for a given run.
+#
+# Before issue #67 Finding 1's fix, these constants were the ONLY values
+# ever used (training_params had no override at all), which meant every
+# real run trained at the script's own 768-hidden-size default and
+# ADR-0011's proposed minimind2-small config (hidden_size=512,
+# num_hidden_layers=8, ~26M params) -- the config its "Resource limits"
+# table was sized against -- could never actually be reached through this
+# adapter. They remain the adapter's documented default/fallback.
 MINIMIND_DEFAULT_HIDDEN_SIZE = 768
+MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS = 8
 MINIMIND_DEFAULT_USE_MOE = False
 
 _HASH_MANIFEST_EXCLUDE_NAMES = {".DS_Store", "__pycache__"}
@@ -358,7 +370,18 @@ class MiniMindTrainerAdapter:
     passed through as ``--save_interval``), ``python_executable``
     (str, default ``"python3"`` -- the interpreter used to invoke the
     subprocess, so a caller can point at a specific venv without this
-    adapter needing to manage one itself).
+    adapter needing to manage one itself), ``hidden_size`` (int,
+    default ``MINIMIND_DEFAULT_HIDDEN_SIZE`` = 768, the real script's own
+    CLI default -- forwarded as ``--hidden_size``), ``num_hidden_layers``
+    (int, default ``MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS`` = 8 -- forwarded
+    as ``--num_hidden_layers``), and ``use_moe`` (bool, default
+    ``MINIMIND_DEFAULT_USE_MOE`` = ``False`` -- forwarded as
+    ``--use_moe 1``/``--use_moe 0``). These three (issue #67 Finding 1)
+    are what make ADR-0011's proposed minimind2-small pilot config
+    (``hidden_size=512, num_hidden_layers=8``) actually reachable through
+    this adapter -- before this fix there was no training_params key for
+    either at all, so every real run silently trained at the script's own
+    768-hidden-size default regardless of caller intent.
     """
 
     work_dir: Path
@@ -646,8 +669,8 @@ class MiniMindTrainerAdapter:
             _stage_from_weight_checkpoint(
                 Path(params["model_path"]),
                 staging_out_dir=shadow_dir / "out",
-                hidden_size=MINIMIND_DEFAULT_HIDDEN_SIZE,
-                use_moe=MINIMIND_DEFAULT_USE_MOE,
+                hidden_size=params.get("hidden_size", MINIMIND_DEFAULT_HIDDEN_SIZE),
+                use_moe=params.get("use_moe", MINIMIND_DEFAULT_USE_MOE),
             )
 
         process = subprocess.Popen(
@@ -786,6 +809,22 @@ class MiniMindTrainerAdapter:
         invoked -- this method only emits the flag name, it does not
         perform the staging itself (no filesystem access happens here,
         keeping this method a pure, easily-testable arg-list builder).
+
+        ``hidden_size``/``num_hidden_layers``/``use_moe`` (issue #67
+        Finding 1): forwarded as ``--hidden_size``/``--num_hidden_layers``/
+        ``--use_moe`` whenever a caller supplies them in
+        ``training_params``, falling back to
+        ``MINIMIND_DEFAULT_HIDDEN_SIZE``/``MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS``/
+        ``MINIMIND_DEFAULT_USE_MOE`` (the real script's own CLI defaults)
+        when unset, so existing callers that never set these keys keep
+        training at the same 768-hidden-size default as before. This is
+        what makes ADR-0011's proposed minimind2-small config
+        (``hidden_size=512, num_hidden_layers=8``) actually reachable
+        through this adapter -- previously there was no training_params
+        key for it at all, so every real run silently used the script's
+        own 768-hidden-size default regardless of what a caller intended,
+        which is exactly what invalidated ADR-0011's resource-limits table
+        (see Maya's pass-2 review comment on issue #67).
         """
         args = [python_executable, str(script_path)]
         args += ["--save_dir", str(checkpoint_dir)]
@@ -798,6 +837,12 @@ class MiniMindTrainerAdapter:
         args += ["--learning_rate", str(params.get("learning_rate", 5e-4))]
         args += ["--batch_size", str(params.get("batch_size", 1))]
         args += ["--save_interval", str(params.get("save_interval", 100))]
+        args += ["--hidden_size", str(params.get("hidden_size", MINIMIND_DEFAULT_HIDDEN_SIZE))]
+        args += [
+            "--num_hidden_layers",
+            str(params.get("num_hidden_layers", MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS)),
+        ]
+        args += ["--use_moe", "1" if params.get("use_moe", MINIMIND_DEFAULT_USE_MOE) else "0"]
         return args
 
     def _gpu_count_used(self) -> int:

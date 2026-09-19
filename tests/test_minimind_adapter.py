@@ -27,6 +27,7 @@ import pytest
 
 from codevolt_mdf.minimind_adapter import (
     MINIMIND_DEFAULT_HIDDEN_SIZE,
+    MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS,
     MINIMIND_DEFAULT_USE_MOE,
     MINIMIND_FROM_WEIGHT_STAGED_NAME,
     MINIMIND_PINNED_COMMIT,
@@ -730,6 +731,129 @@ def test_train_creates_isolated_shadow_directory_layout(tmp_path, monkeypatch):
     assert not (shadow_dir / "trainer").is_symlink()
     assert not (shadow_dir / "model").is_symlink()
     assert not (shadow_dir / "dataset").is_symlink()
+
+
+def test_build_subprocess_args_uses_default_hidden_size_when_unset() -> None:
+    """Existing default behaviour (768-hidden-size) is preserved.
+
+    When ``training_params`` does not specify
+    ``hidden_size``/``num_hidden_layers``/``use_moe``, the constructed
+    args must still use the adapter's ``MINIMIND_DEFAULT_*`` fallback
+    constants -- callers that predate issue #67 Finding 1's fix keep
+    training at exactly the same configuration as before.
+    """
+    adapter = MiniMindTrainerAdapter(work_dir=Path("/tmp/does-not-need-to-exist-for-this-check"))
+    args = adapter._build_subprocess_args(
+        python_executable="python3",
+        script_path=Path("/tmp/does-not-need-to-exist-for-this-check/train_full_sft.py"),
+        params={"dataset_path": "irrelevant.jsonl", "max_steps": 4},
+        checkpoint_dir=Path("/tmp/does-not-need-to-exist-for-this-check/checkpoints"),
+        seed=42,
+    )
+    assert "--hidden_size" in args
+    assert args[args.index("--hidden_size") + 1] == str(MINIMIND_DEFAULT_HIDDEN_SIZE)
+    assert "--num_hidden_layers" in args
+    assert args[args.index("--num_hidden_layers") + 1] == str(MINIMIND_DEFAULT_NUM_HIDDEN_LAYERS)
+    assert "--use_moe" in args
+    assert args[args.index("--use_moe") + 1] == ("1" if MINIMIND_DEFAULT_USE_MOE else "0")
+
+
+def test_build_subprocess_args_forwards_caller_hidden_size_num_layers_and_moe() -> None:
+    """Issue #67 Finding 1's direct regression guard.
+
+    A caller supplying non-default ``hidden_size``/``num_hidden_layers``/
+    ``use_moe`` in ``training_params`` must see those exact values
+    forwarded as ``--hidden_size``/``--num_hidden_layers``/``--use_moe``
+    -- previously these keys were silently ignored and every real run
+    trained at the script's own 768-hidden-size default regardless of
+    what the caller asked for.
+    """
+    adapter = MiniMindTrainerAdapter(work_dir=Path("/tmp/does-not-need-to-exist-for-this-check"))
+    args = adapter._build_subprocess_args(
+        python_executable="python3",
+        script_path=Path("/tmp/does-not-need-to-exist-for-this-check/train_full_sft.py"),
+        params={
+            "dataset_path": "irrelevant.jsonl",
+            "max_steps": 4,
+            "hidden_size": 512,
+            "num_hidden_layers": 8,
+            "use_moe": True,
+        },
+        checkpoint_dir=Path("/tmp/does-not-need-to-exist-for-this-check/checkpoints"),
+        seed=42,
+    )
+    assert args[args.index("--hidden_size") + 1] == "512"
+    assert args[args.index("--num_hidden_layers") + 1] == "8"
+    assert args[args.index("--use_moe") + 1] == "1"
+
+
+def test_train_reaches_adr0011_minimind2_small_config_end_to_end(tmp_path, monkeypatch):
+    """Proves ADR-0011's proposed minimind2-small config is now reachable.
+
+    End-to-end (through the real, non-mocked ``_build_subprocess_args``
+    and ``_stage_from_weight_checkpoint`` call sites inside ``train()``,
+    only ``subprocess.Popen`` itself mocked) proof that a caller
+    requesting ADR-0011's proposed minimind2-small pilot config
+    (``hidden_size=512, num_hidden_layers=8, use_moe=False``, ~26M
+    params) actually gets that config threaded all the way through to
+    the constructed CLI invocation AND to the --from_weight staging path
+    (which must resolve using the SAME hidden_size, per MiniMind's own
+    ``f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'``
+    formula) -- not silently downgraded to the script's 768-hidden-size
+    default. This is the exact gap Maya's issue #67 Finding 1 review
+    comment identified as invalidating ADR-0011's resource-limits table.
+    """
+    repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
+    monkeypatch.setattr("codevolt_mdf.minimind_adapter.MINIMIND_PINNED_COMMIT", head)
+
+    model_path, model_hash = make_local_model(tmp_path, content=b"minimind2-small-checkpoint")
+    adapter = make_adapter(tmp_path)
+    inputs = make_inputs(
+        tmp_path,
+        minimind_repo_path=repo_path,
+        model_path=model_path,
+        model_hash=model_hash,
+        extra_params={
+            "epochs": 1,
+            "hidden_size": 512,
+            "num_hidden_layers": 8,
+            "use_moe": False,
+        },
+    )
+    budget = make_budget()
+    token = CancellationToken()
+
+    mock_process = MagicMock()
+    mock_process.wait.return_value = 0
+    mock_process.returncode = 0
+    mock_process.stdout.read.return_value = "fake minimind training log\n"
+
+    with patch("subprocess.Popen", return_value=mock_process) as mock_popen:
+        output = adapter.train(inputs, budget, token)
+
+    assert output.status == TrainingStatus.ACCEPTED
+    constructed_args = mock_popen.call_args[0][0]
+    assert constructed_args[constructed_args.index("--hidden_size") + 1] == "512"
+    assert constructed_args[constructed_args.index("--num_hidden_layers") + 1] == "8"
+    assert constructed_args[constructed_args.index("--use_moe") + 1] == "0"
+
+    # The --from_weight staged file must be resolvable using hidden_size=512
+    # (ADR-0011's proposed config), not the MINIMIND_DEFAULT_HIDDEN_SIZE=768
+    # fallback -- MiniMind's own init_model() would otherwise fail to find
+    # the checkpoint at the filename it actually looks for.
+    shadow_trainer_dir = Path(mock_popen.call_args[1]["cwd"])
+    shadow_dir = shadow_trainer_dir.parent
+    expected_staged_path = (
+        shadow_dir / "out" / f"{MINIMIND_FROM_WEIGHT_STAGED_NAME}_512.pth"
+    )
+    assert expected_staged_path.is_file()
+    assert expected_staged_path.read_bytes() == b"minimind2-small-checkpoint"
+    # And the 768-hidden-size default filename must NOT exist -- proving
+    # this run genuinely used the caller's 512 override, not the fallback.
+    default_staged_path = (
+        shadow_dir / "out" / f"{MINIMIND_FROM_WEIGHT_STAGED_NAME}_{MINIMIND_DEFAULT_HIDDEN_SIZE}.pth"
+    )
+    assert not default_staged_path.exists()
 
 
 def test_train_stages_from_weight_checkpoint_at_expected_path(tmp_path, monkeypatch):
