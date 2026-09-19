@@ -130,9 +130,29 @@ being folded into ADR-0005 as "another engine, same pattern":
   own ADR to add any of them, matching ADR-0005's equivalent scope
   limit for TRL's RL trainers.
 - **Subprocess, not in-process**: `train()` builds an argv list
-  (`_build_subprocess_args`) and runs it via `subprocess.Popen` with the
-  MiniMind checkout as `cwd`, polling `cancel_token` on a short interval
-  and escalating `terminate()` → `kill()` on cooperative cancellation.
+  (`_build_subprocess_args`) and runs it via `subprocess.Popen`, polling
+  `cancel_token` on a short interval and escalating `terminate()` →
+  `kill()` on cooperative cancellation. **The subprocess's `cwd` is not
+  the real MiniMind checkout.** `train()` first materialises a per-run
+  "shadow trainer directory" at `<run_dir>/mm_shadow/` by real
+  `shutil.copytree` (never symlinks) of the checkout's `trainer/`,
+  `model/`, and `dataset/` subdirectories, then invokes the subprocess
+  with `cwd=str(shadow_trainer_dir)` (i.e. `<run_dir>/mm_shadow/trainer`)
+  — never the checkout root and never `<checkout>/trainer` directly.
+  This closes a real containment gap found during ADR-0011's
+  live-execution review (issue #65): `trainer/train_full_sft.py`'s
+  `init_model()` resolves its tokenizer via the relative default
+  `tokenizer_path='../model'`, and `train_epoch()` separately calls
+  `lm_checkpoint(..., save_dir='../checkpoints')` unconditionally, once
+  per epoch, independent of any CLI flag. Both paths are relative to
+  `cwd`, so running with `cwd=<checkout>/trainer` directly would let
+  MiniMind's own code write a second, adapter-uncontrolled checkpoint
+  straight into the real checkout's parent directory — outside
+  `process_isolation._pin_filesystem_root`'s write guard, since that
+  guard only patches builtins inside the immediate process-isolation
+  child interpreter, not a separately spawned OS subprocess. Running
+  from the shadow directory instead makes both of those `../`-relative
+  paths resolve to locations this adapter owns and can safely discard.
   This is the adapter's other significant structural difference from
   TRL: there is no in-process `TrainerCallback` hook to attach to
   (MiniMind's script has none), so cancellation cooperation happens at
@@ -140,6 +160,17 @@ being folded into ADR-0005 as "another engine, same pattern":
   contract runner's own OS-level process-isolation SIGKILL backstop
   (ADR-0003) remains the primary enforcement mechanism for both
   adapters, unchanged by this difference.
+
+  > **Landed refinements:** PR #63 and PR #64 have merged and add
+  > further shadow-directory behaviour on top of the above: PR #63 fixes a
+  > cleanup permission leak so orphaned `mm_shadow/` trees left by
+  > non-`ACCEPTED` runs (timeout/cancellation/resource-overrun) are
+  > actually removed instead of silently failing; PR #64 fixes
+  > `--from_weight` handling by staging the caller's verified
+  > `model_path` checkpoint into `<shadow_dir>/out/` (matching
+  > MiniMind's own name/prefix resolution for that flag) rather than
+  > passing a literal path. Both are reflected in current `main`
+  > behaviour as of this writing.
 - **Fully offline, enforced twice**: `prepare()` raises
   `RejectedInputError` unless `budget.network_policy == "offline"`,
   identical to the TRL adapter's posture. `train()` additionally sets
