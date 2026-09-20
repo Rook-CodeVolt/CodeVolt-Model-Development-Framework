@@ -1,0 +1,126 @@
+[
+  {
+    "semantic_family": "zero_score_diagnostic_ladder",
+    "split": "train",
+    "source_scope": "Seed-rich A, SS4.2",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-train-0001",
+      "mtr-v2-train-0002",
+      "mtr-v2-train-0003",
+      "mtr-v2-train-0004",
+      "mtr-v2-train-0005",
+      "mtr-v2-train-0006",
+      "mtr-v2-train-0007",
+      "mtr-v2-train-0008"
+    ]
+  },
+  {
+    "semantic_family": "sft_objective_masking_format",
+    "split": "train",
+    "source_scope": "Seed-rich A, SS1.1",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-train-0009",
+      "mtr-v2-train-0010",
+      "mtr-v2-train-0011",
+      "mtr-v2-train-0012",
+      "mtr-v2-train-0013",
+      "mtr-v2-train-0014",
+      "mtr-v2-train-0015",
+      "mtr-v2-train-0016"
+    ]
+  },
+  {
+    "semantic_family": "qualified_hyperparameter_sweeps",
+    "split": "train",
+    "source_scope": "Seed-rich A, SS1.2; Seed-rich B, SS5",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-train-0017",
+      "mtr-v2-train-0018",
+      "mtr-v2-train-0019",
+      "mtr-v2-train-0020",
+      "mtr-v2-train-0021",
+      "mtr-v2-train-0022",
+      "mtr-v2-train-0023",
+      "mtr-v2-train-0024"
+    ]
+  },
+  {
+    "semantic_family": "peft_lora_qlora_decisions",
+    "split": "held_out",
+    "source_scope": "Seed-rich A, SS2",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-heldout-0001",
+      "mtr-v2-heldout-0002",
+      "mtr-v2-heldout-0003",
+      "mtr-v2-heldout-0004",
+      "mtr-v2-heldout-0005",
+      "mtr-v2-heldout-0006",
+      "mtr-v2-heldout-0007",
+      "mtr-v2-heldout-0008"
+    ]
+  },
+  {
+    "semantic_family": "contamination_split_controls",
+    "split": "train",
+    "source_scope": "Seed-rich A, SS3.2",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-train-0025",
+      "mtr-v2-train-0026",
+      "mtr-v2-train-0027",
+      "mtr-v2-train-0028",
+      "mtr-v2-train-0029",
+      "mtr-v2-train-0030",
+      "mtr-v2-train-0031",
+      "mtr-v2-train-0032"
+    ]
+  },
+  {
+    "semantic_family": "limited_data_evaluation",
+    "split": "train",
+    "source_scope": "Seed-rich B, SS4.1",
+    "count": 8,
+    "example_ids": [
+      "mtr-v2-train-0033",
+      "mtr-v2-train-0034",
+      "mtr-v2-train-0035",
+      "mtr-v2-train-0036",
+      "mtr-v2-train-0037",
+      "mtr-v2-train-0038",
+      "mtr-v2-train-0039",
+      "mtr-v2-train-0040"
+    ]
+  },
+  {
+    "semantic_family": "synthetic_data_tradeoffs",
+    "split": "held_out",
+    "source_scope": "Seed-rich B, SS3.3",
+    "count": 6,
+    "example_ids": [
+      "mtr-v2-heldout-0009",
+      "mtr-v2-heldout-0010",
+      "mtr-v2-heldout-0011",
+      "mtr-v2-heldout-0012",
+      "mtr-v2-heldout-0013",
+      "mtr-v2-heldout-0014"
+    ]
+  },
+  {
+    "semantic_family": "catastrophic_forgetting_retention",
+    "split": "held_out",
+    "source_scope": "Seed-rich A, SS1.3",
+    "count": 6,
+    "example_ids": [
+      "mtr-v2-heldout-0015",
+      "mtr-v2-heldout-0016",
+      "mtr-v2-heldout-0017",
+      "mtr-v2-heldout-0018",
+      "mtr-v2-heldout-0019",
+      "mtr-v2-heldout-0020"
+    ]
+  }
+]

@@ -1,0 +1,132 @@
+{
+  "status": "PASS",
+  "validated_at": "2026-09-20",
+  "counts": {
+    "total": 60,
+    "train": 40,
+    "held_out": 20
+  },
+  "checks": [
+    {
+      "check": "count_total",
+      "status": "PASS",
+      "detail": "60"
+    },
+    {
+      "check": "count_train",
+      "status": "PASS",
+      "detail": "40"
+    },
+    {
+      "check": "count_held_out",
+      "status": "PASS",
+      "detail": "20"
+    },
+    {
+      "check": "unique_ids",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "required_fields",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "per_example_citations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "citation_locator_format",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "authorized_sections_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "family_source_allowlist",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "semantic_family_disjoint",
+      "status": "PASS",
+      "detail": "set()"
+    },
+    {
+      "check": "manifest_exact_ids",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "manifest_family_single_split",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "registry_heldout_ids",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "representatives_exact_match",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "forbidden_content_absent",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "message_schema",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "train_families": [
+    "contamination_split_controls",
+    "limited_data_evaluation",
+    "qualified_hyperparameter_sweeps",
+    "sft_objective_masking_format",
+    "zero_score_diagnostic_ladder"
+  ],
+  "held_out_families": [
+    "catastrophic_forgetting_retention",
+    "peft_lora_qlora_decisions",
+    "synthetic_data_tradeoffs"
+  ],
+  "direct_source_usage": {
+    "1": 13,
+    "2": 7,
+    "3": 3,
+    "4": 4,
+    "5": 1,
+    "6": 6,
+    "7": 3,
+    "11": 3,
+    "16": 4,
+    "17": 1,
+    "18": 1,
+    "19": 2,
+    "20": 2,
+    "21": 1,
+    "22": 1,
+    "23": 1
+  },
+  "sha256": {
+    "train.jsonl": "d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3",
+    "held_out.json": "6d96170aa13704bda37a9863ed1688e0e90ffaae7b65e201ad5d3b07796441d0",
+    "held_out_exclusion_registry.json": "39e966df25dad4000a91beb2f093921b9454eaac35fa4b5959afb92ddb8e6e6c",
+    "semantic_family_manifest.json": "a97a1038d6874c12de16ca1da4383837fa82684911c5290a709224a5a8363dba",
+    "REPRESENTATIVE_EXAMPLES.json": "85616ba5ae95f56bad7244603dea8e8465f4d86ae485c29d0ba1abf2636866e8"
+  },
+  "limitations": [
+    "This validator proves exact family-key disjointness and structural citation presence; it does not replace an independent claim-support audit.",
+    "Subtle semantic adjacency across differently named families still requires human review."
+  ]
+}

@@ -1,0 +1,395 @@
+[
+  {
+    "example_id": "mtr-v2-heldout-0001",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — frozen pretrained weights and low-rank adaptation",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What does PEFT mean in this evidence pack?"
+      },
+      {
+        "role": "assistant",
+        "content": "PEFT is a family of methods that adapts a pretrained model by training a small subset of parameters or added parameters rather than updating every base weight."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0002",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — abstract and Section 4.1"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Describe the core LoRA update without importing large-model memory ratios."
+      },
+      {
+        "role": "assistant",
+        "content": "LoRA freezes a pretrained weight matrix and learns a low-rank update, commonly written BA, whose rank is much smaller than the original dimensions. The update can be merged into the base for inference."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0003",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — GPT-3 175B experimental setting",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can the LoRA paper's 10,000x trainable-parameter and roughly 3x memory figures be promised for a 30M model?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Those figures come from the paper's GPT-3 175B setting and must not be projected onto a tiny model. Measure the actual implementation instead."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0004",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[7] QLoRA paper — abstract and Sections 1-3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is QLoRA's core training arrangement?"
+      },
+      {
+        "role": "assistant",
+        "content": "QLoRA keeps the pretrained base frozen and quantized to 4-bit while backpropagating into LoRA adapters. Its named mechanisms include NF4, double quantization, and paged optimizers."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0005",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[7] QLoRA paper — 65B model on one 48GB GPU",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does fitting a 65B model on one 48GB GPU prove a memory ratio for a 26M model?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. The result is bounded to the QLoRA paper's tested setting. It demonstrates a large-model memory technique, not a ratio that can be extrapolated to MiniMind-scale models."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0006",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When is full SFT reasonable to benchmark?"
+      },
+      {
+        "role": "assistant",
+        "content": "Benchmark it when the model fits comfortably, the desired shift is broad, and adapters may lack capacity. This is Clara's qualified decision guidance, not a direct claim that full SFT always wins on small models."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0007",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2",
+      "[6] LoRA paper — frozen base and low-rank adapters"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When is LoRA a reasonable default candidate?"
+      },
+      {
+        "role": "assistant",
+        "content": "Use it for narrow or evolving domains, reversible experiments, several domain adapters, or when retaining an untouched base matters. For tiny models, also benchmark full SFT rather than assuming PEFT wins."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0008",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2",
+      "[7] QLoRA paper — quantized frozen base with LoRA adapters"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When should QLoRA be chosen according to Clara's guidance?"
+      },
+      {
+        "role": "assistant",
+        "content": "Choose it when the base does not fit at 16-bit. It addresses a memory constraint and is not inherently a quality upgrade; if a 26M-135M model already fits, quantization complexity may be unnecessary."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0009",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "[18] Self-Instruct paper — Sections 1-2",
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What positive result does Self-Instruct demonstrate without implying a tiny-model sample threshold?"
+      },
+      {
+        "role": "assistant",
+        "content": "Self-Instruct expanded 175 human-written seed tasks into about 52K instructions and 82K instances while filtering invalid, repeated, and overly similar generations. It demonstrates controlled synthetic expansion, not that any count is sufficient for a small model."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0010",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "[19] Nature model-collapse paper — abstract and Definition 2.1",
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does the model-collapse paper show that every synthetic dataset is harmful?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. It studies indiscriminate recursive training on model-generated data and finds progressive loss of distribution tails. It does not establish that a curated one-generation mixture necessarily collapses."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0011",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A synthetic explanation is fluent but adds factual details absent from its retrieved source. What should the reviewer do?"
+      },
+      {
+        "role": "assistant",
+        "content": "Reject or revise the unsupported details. Synthetic items must preserve their source claims and receive claim-level verification against retrieved sources; fluent wording is not evidence that a new factual claim is grounded."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0012",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A generated example passes factual review. May its synthetic-origin label now be removed?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Factual verification does not change the item's origin. Keep every synthetic item labeled so generated material remains distinguishable from human-authored or primary-source anchors throughout corpus review and use."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0013",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can a synthetic answer invent a learning-rate recipe if it sounds plausible?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Numeric recipes must be supported by cited evidence and retain their qualifications. Plausibility is not a substitute for a source-backed anchor."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0014",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3",
+      "[19] Nature model-collapse paper — recursive-training risk"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Name the main synthetic-data risks Clara identifies."
+      },
+      {
+        "role": "assistant",
+        "content": "They are generator bias, factual errors, reduced diversity, hidden benchmark leakage, and recursive self-training effects. Their presence and severity should be measured rather than assumed."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0015",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What pattern indicates catastrophic forgetting or capability regression?"
+      },
+      {
+        "role": "assistant",
+        "content": "The target task improves while pre-existing general or instruction-following behavior declines. Evaluate both the new capability and retained base behavior rather than treating target-task gain as sufficient."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0016",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "[6] LoRA paper — frozen base weights and low-rank updates",
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS2 — reversible experiments"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why does full SFT carry a different regression risk from LoRA?"
+      },
+      {
+        "role": "assistant",
+        "content": "Full SFT changes all model weights, while LoRA freezes the base and learns low-rank updates. Freezing can reduce risk and make the adapter reversible, but it does not guarantee served behavior cannot regress."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0017",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "[6] LoRA paper — frozen base and learned adapters",
+      "Clara synthesis, SS1.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does using LoRA eliminate the need for retention testing?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. LoRA confines parameter changes to adapters, but the combined model can still change outputs. Keep a frozen base-regression suite and compare base versus adapted behavior."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0018",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS4.1 — capability-retention suite composition"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the purpose of a frozen base-regression suite?"
+      },
+      {
+        "role": "assistant",
+        "content": "It supplies a stable reference for pre-existing instruction following, basic language behavior, safety boundaries, and prior capabilities. Clara recommends it as a control; its exact composition should match deployment scope."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0019",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS5"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Target-task accuracy rose, but basic instruction following worsened. Should the checkpoint be promoted?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not on target-task gain alone. Treat the retention failure as material evidence against promotion until the trade-off is evaluated against predeclared criteria."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0020",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich B, SS5",
+    "citations": [
+      "Clara synthesis, SS5"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is an evidence-qualified promotion rule for a tuned checkpoint?"
+      },
+      {
+        "role": "assistant",
+        "content": "Require a predeclared target-task gain, no material base-regression failure, and a paired improvement larger than observed run or evaluation variability. This is Clara's recommended gate, not a universal external standard."
+      }
+    ]
+  }
+]

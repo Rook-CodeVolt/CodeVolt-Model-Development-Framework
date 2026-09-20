@@ -1,0 +1,100 @@
+[
+  {
+    "example_id": "mtr-v2-train-0001",
+    "split": "train",
+    "semantic_family": "zero_score_diagnostic_ladder",
+    "source_scope": "Seed-rich A, SS4.2",
+    "citations": [
+      "Clara synthesis, SS4.2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A 40-example, one-epoch run reports aggregate_score=0.0. What conclusion is justified before inspecting anything else?"
+      },
+      {
+        "role": "assistant",
+        "content": "Treat the run as a pipeline smoke test, not an efficacy verdict. A literal zero can be plausible after limited exposure, but it can also reflect missing targets, no meaningful updates, malformed generations, or evaluator failure. The result is inconclusive until the training and evaluation path is checked."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-train-0012",
+    "split": "train",
+    "semantic_family": "sft_objective_masking_format",
+    "source_scope": "Seed-rich A, SS1.1",
+    "citations": [
+      "[1] TRL v0.21 SFT Trainer — chat templates and EOS alignment",
+      "Clara synthesis, SS1.1"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why must training and inference use the same tokenizer and chat template?"
+      },
+      {
+        "role": "assistant",
+        "content": "A mismatch changes the serialized conversation. Keep tokenizer, chat template, role tokens, and EOS policy aligned so the learned response boundary is the one used at inference."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-train-0026",
+    "split": "train",
+    "semantic_family": "contamination_split_controls",
+    "source_scope": "Seed-rich A, SS3.2",
+    "citations": [
+      "Clara synthesis, SS3.2",
+      "[16] Google ML Crash Course — separate train/validation/test data and avoid duplicates"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why split by source document or topic family instead of by row?"
+      },
+      {
+        "role": "assistant",
+        "content": "Group-wise splitting keeps chunks, paraphrases, and adjacent scenarios from one source or concept family on one side. Row-level random splitting can place near-duplicates into training and evaluation."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0002",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — abstract and Section 4.1"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Describe the core LoRA update without importing large-model memory ratios."
+      },
+      {
+        "role": "assistant",
+        "content": "LoRA freezes a pretrained weight matrix and learns a low-rank update, commonly written BA, whose rank is much smaller than the original dimensions. The update can be merged into the base for inference."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0017",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "[6] LoRA paper — frozen base and learned adapters",
+      "Clara synthesis, SS1.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does using LoRA eliminate the need for retention testing?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. LoRA confines parameter changes to adapters, but the combined model can still change outputs. Keep a frozen base-regression suite and compare base versus adapted behavior."
+      }
+    ]
+  }
+]
