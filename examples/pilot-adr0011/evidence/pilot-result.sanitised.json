@@ -1,0 +1,90 @@
+{
+  "evaluation_output": {
+    "aggregate_score": 0.0,
+    "artifact_id": "artifact-adr0011-pilot-20260920",
+    "contaminated_ids": [],
+    "error_class": null,
+    "evidence_hash": "dd4dab1a594a253b1300b8f117670c0a8209d657a20aa1b9cdbcea622ac53271",
+    "evidence_locator": "<REPO_ROOT>/examples/pilot-adr0011/scratch/adr0011-pilot-eval-20260920/evaluation_work/evaluation-artifact-adr0011-pilot-20260920-adr0011-pilot-heldout-v1.json",
+    "package_id": "adr0011-pilot-heldout-v1",
+    "reason": "scored 10 held-out example(s)",
+    "results": [
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0001",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0002",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0003",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0004",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0005",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0006",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0007",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0008",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0009",
+        "raw_output": "",
+        "score": 0.0
+      },
+      {
+        "correct": false,
+        "example_id": "adr0011-heldout-0010",
+        "raw_output": "",
+        "score": 0.0
+      }
+    ],
+    "status": "scored"
+  },
+  "training_output": {
+    "artifact_id": "artifact-adr0011-pilot-20260920",
+    "error_class": null,
+    "evidence_hash": "92b79f31bcf1b4d91e68fae2230fd1b48085b3f610f66d131a2d25070505c78b",
+    "evidence_locator": "<REPO_ROOT>/examples/pilot-adr0011/scratch/adr0011-pilot-eval-20260920/trainer_work/artifact-adr0011-pilot-20260920/evidence.json",
+    "reason": "minimind train_full_sft.py subprocess completed",
+    "resource_usage": {
+      "cpu_seconds": 75.59,
+      "gpu_count_used": 0,
+      "memory_mb_peak": 1456.6,
+      "storage_mb_used": 483.98,
+      "wall_seconds": 65.29
+    },
+    "status": "accepted"
+  }
+}

@@ -12,3 +12,5 @@ models/
 datasets/
 .DS_Store
 examples/pilot-adr0006/scratch/
+examples/pilot-adr0011/scratch/
+examples/pilot-adr0011/converted_model/

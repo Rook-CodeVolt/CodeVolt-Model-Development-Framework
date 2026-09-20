@@ -389,3 +389,104 @@ left it.
   would consume this pilot's evidence, drafted alongside this ADR per
   issue #46's Part 2 scope. That design doc does not authorise any
   round, including this one.
+
+## Pilot execution result (2026-09-20, REAL, EXECUTED)
+
+### Run identity
+
+- `run_id` / `artifact_id`: `artifact-adr0011-pilot-20260920`.
+- Date: 2026-09-20.
+- MiniMind pinned commit: `cc312c1cc614bc371cd85dcbcbc1d3ba1590f364`.
+- Reproduction entrypoint: `examples/pilot-adr0011/run_pilot.py`.
+
+### TrainingOutput (real `MiniMindTrainerAdapter.train()` call)
+
+| Field | Value |
+|---|---|
+| `status` | `accepted` |
+| `reason` | `minimind train_full_sft.py subprocess completed` |
+| `artifact_id` | `artifact-adr0011-pilot-20260920` |
+| `resource_usage.wall_seconds` | `65.29` (budget: `900`) |
+| `resource_usage.cpu_seconds` | `75.59` (budget: `1800`) |
+| `resource_usage.memory_mb_peak` | `1456.6` (budget: `4096`) |
+| `resource_usage.storage_mb_used` | `483.98` (budget: `512`) |
+| `resource_usage.gpu_count_used` | `0` |
+| Final training loss | `2.0751` (1 epoch, 40 examples) |
+
+All five resource dimensions inside budget; no kill criterion
+triggered. Sanitised evidence:
+`examples/pilot-adr0011/evidence/pilot-result.sanitised.json`.
+
+### Conversion caveat (evaluation-only, does not change what was trained)
+
+MiniMind's `train_full_sft.py` produces a native MiniMind checkpoint
+with no native Hugging Face format. To score it through the existing
+`HFLocalCausalLMEvaluatorAdapter`, it was converted to a
+shape-compatible HF `Qwen3ForCausalLM` checkpoint for evaluation only —
+this conversion step happens after training completes and does not
+alter what was actually trained or how it was trained. A real bug was
+found and fixed during this conversion: the `Qwen3Config` used for the
+converted checkpoint needs `num_key_value_heads=4`, not `2` as
+initially assumed, confirmed by inspecting the raw trained tensor
+shapes directly (`(256, 512)` = `4 x 64`, not `2 x 128`).
+
+### EvaluationOutput (real `HFLocalCausalLMEvaluatorAdapter`, real held-out set)
+
+Scored via `run_evaluator_contract` against `HeldOutSet` package
+`adr0011-pilot-heldout-v1` (10 held-out examples), with
+`HeldOutExclusionRegistry.check_held_out_not_trained` confirming zero
+contamination before scoring.
+
+| Field | Value |
+|---|---|
+| `status` | `scored` |
+| `aggregate_score` | `0.0` (0/10 correct) |
+| `evidence_hash` (independently re-verified with `shasum -a 256`) | `dd4dab1a594a253b1300b8f117670c0a8209d657a20aa1b9cdbcea622ac53271` |
+
+All 10/10 held-out examples (`adr0011-pilot-heldout-v1`) scored
+`correct=False` / `score=0.0`. Sanitised evidence:
+`examples/pilot-adr0011/evidence/pilot-result.sanitised.json`.
+
+### Root cause of the 0.0 score (confirmed via a real experiment)
+
+The trained model emits the end-of-sequence token as the literal first
+generated token for held-out unit-conversion prompts, regardless of
+`max_new_tokens` (tested at both `8` and `30`) — this reproduces
+identically via the evaluator's own generation path and via a
+standalone script, ruling out an evaluator-harness bug. This was
+further confirmed to be prompt-dependent, not a blanket generation
+failure: a different sanity-check prompt against the exact same
+model/parameters produced non-empty (though still visibly degenerate)
+output. This is consistent with a legitimate artifact of severe
+undertraining (40 examples, 1 epoch) rather than an adapter defect.
+
+### What this result does and does not establish
+
+This is a single bounded exploratory pilot demonstrating that the
+propose -> train -> evaluate pipeline runs end-to-end for the MiniMind
+adapter, from a real subprocess training run through a real,
+contamination-checked evaluation against a real held-out set. 40
+examples and 1 epoch are not enough to produce a usable model, so
+`aggregate_score=0.0` is an expected, informative, and honestly
+reported outcome of severe undertraining — not a pipeline failure, not
+an adapter bug, and not evidence the wiring is broken (training
+accepted within all five resource budgets; evaluation scored all 10
+examples with zero contamination). It is not a capability claim, not a
+production readiness claim, and not a promotion decision for the
+trained artifact. It does not authorise any further MiniMind pilot,
+larger run, or production use — a repeat or expanded pilot requires
+repeating the full three-gate process (ADR, Maya's pilot-specific
+live-execution security review, owner authorisation) from scratch, the
+same as this one did.
+
+### Review follow-up
+
+Training evidence hash and the checkpoint conversion script were added
+to the committed record following independent review. Specifically:
+`examples/pilot-adr0011/evidence/training-evidence.sanitised.json`
+(sanitised evidence for the `TrainingOutput` above, including the
+`evidence_hash` computed by `minimind_adapter.py`'s `_write_evidence`)
+and `examples/pilot-adr0011/convert_checkpoint.py` (the conversion
+script referenced in "Conversion caveat" above, including the
+`num_key_value_heads=4` fix) were both added to this pull request in
+response to Maya-CodeVolt's review feedback.
