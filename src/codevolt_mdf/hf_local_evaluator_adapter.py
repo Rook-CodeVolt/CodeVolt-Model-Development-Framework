@@ -158,6 +158,127 @@ def _normalize(text: str) -> str:
     return " ".join(text.strip().lower().split())
 
 
+_KNOWN_UNSUPPORTED_MODEL_KWARGS = frozenset({"token_type_ids"})
+"""Narrow fallback deny-list for tokenizer fields known to break causal LMs.
+
+Used only when a model interface contains ``**kwargs`` (or cannot be
+introspected), where an exact allow-list cannot be proven.  ``token_type_ids``
+is the reproduced issue #76 incompatibility for Qwen3/Llama-style causal LMs;
+named support in an inspected signature always wins over this fallback.
+"""
+
+
+def _model_kwarg_policy(model: Any, *, for_generation: bool) -> tuple[set[str], bool] | None:
+    """Return explicitly accepted names and whether the interface is open-ended.
+
+    Fixes issue #76 finding 1: the adapter used to forward the
+    tokenizer's entire output mapping (e.g. input_ids, attention_mask,
+    token_type_ids) straight into model.generate()/model(...) unfiltered.
+    Some tokenizer classes (e.g. the PreTrainedTokenizerFast produced by
+    the committed MiniMind->Qwen3 conversion in
+    examples/pilot-adr0011/convert_checkpoint.py) always emit
+    token_type_ids, but Qwen3ForCausalLM.forward (and many other
+    causal-LM architectures) does not accept that keyword at all, so
+    generation/scoring failed outright with "The following model_kwargs
+    are not used by the model: ['token_type_ids']".
+
+    For direct scoring, the actual interface is ``model.forward``.  For
+    generation it is the union of ``forward`` and
+    ``prepare_inputs_for_generation``, matching Transformers' own model-kwarg
+    validation.  A ``**kwargs`` parameter makes the interface open-ended but
+    does not erase the explicitly named fields; the caller can therefore keep
+    fields such as ``attention_mask`` while applying the narrow known-bad
+    fallback to unnamed ``token_type_ids``.
+    """
+    import inspect
+
+    callables = [getattr(model, "forward", None)]
+    if for_generation:
+        callables.append(getattr(model, "prepare_inputs_for_generation", None))
+
+    accepted: set[str] = set()
+    accepts_var_kwargs = False
+    inspected_any = False
+    for callable_obj in callables:
+        if callable_obj is None:
+            continue
+        try:
+            signature = inspect.signature(callable_obj)
+        except (TypeError, ValueError):
+            continue
+        inspected_any = True
+        for name, param in signature.parameters.items():
+            if param.kind is inspect.Parameter.VAR_KEYWORD:
+                accepts_var_kwargs = True
+            elif param.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ):
+                accepted.add(name)
+
+    if not inspected_any:
+        return None
+    return accepted, accepts_var_kwargs
+
+
+def _filter_model_kwargs(model: Any, inputs: dict, *, for_generation: bool = False) -> dict:
+    """Keep tokenizer fields supported by the applicable model interface.
+
+    input_ids is always retained even if introspection somehow missed
+    it (every causal-LM forward accepts it; losing it would turn a
+    filtering bug into total breakage instead of a clear error).  Closed
+    signatures use an exact allow-list.  Open/uninspectable signatures retain
+    everything except the narrow known-incompatible fallback fields, unless a
+    field is explicitly named by an inspected interface.
+    """
+    policy = _model_kwarg_policy(model, for_generation=for_generation)
+    if policy is None:
+        filtered = {
+            key: value for key, value in inputs.items() if key not in _KNOWN_UNSUPPORTED_MODEL_KWARGS
+        }
+    else:
+        accepted, accepts_var_kwargs = policy
+        if accepts_var_kwargs:
+            filtered = {
+                key: value
+                for key, value in inputs.items()
+                if key in accepted or key not in _KNOWN_UNSUPPORTED_MODEL_KWARGS
+            }
+        else:
+            filtered = {key: value for key, value in inputs.items() if key in accepted}
+    if "input_ids" not in filtered and "input_ids" in inputs:
+        filtered["input_ids"] = inputs["input_ids"]
+    return filtered
+
+
+CHAT_TEMPLATE_RENDERER_ID = "chat_template:sha256="
+"""Prefix for content-derived chat-template renderer identities in evidence."""
+
+_CHAT_TEMPLATE_RENDER_OPTIONS = {
+    "add_generation_prompt": True,
+    "tokenize": False,
+    "retokenize_return_tensors": "pt",
+}
+
+
+def _chat_template_renderer_id(chat_template: Any) -> str:
+    """Hash the exact template value together with every rendering option."""
+    identity_payload = json.dumps(
+        {"chat_template": chat_template, "options": _CHAT_TEMPLATE_RENDER_OPTIONS},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256(identity_payload).hexdigest()
+    return (
+        f"{CHAT_TEMPLATE_RENDERER_ID}{digest};"
+        "add_generation_prompt=true;tokenize=false;retokenize_return_tensors=pt"
+    )
+
+BARE_TEXT_RENDERER_ID = "bare_text"
+"""Renderer identity recorded in evidence when no chat template is available/used."""
+
+
 # --------------------------------------------------------------------------
 # Adapter
 # --------------------------------------------------------------------------
@@ -200,6 +321,18 @@ class HFLocalCausalLMEvaluatorAdapter:
     contract_version: str = "1.0.0"
     max_new_tokens: int = 8
     expected_model_hash: str | None = None
+    use_chat_template: bool = True
+    """When True (default), a prompt is rendered through the tokenizer's
+    own ``chat_template`` (via ``apply_chat_template(...,
+    add_generation_prompt=True)``) whenever the loaded tokenizer exposes
+    a usable one -- matching how chat-SFT checkpoints (e.g. MiniMind's
+    ``conversations``-schema training records, see
+    ``examples/pilot-adr0011/train.jsonl``) are actually trained, per
+    issue #76. Falls back to bare-text tokenization automatically when
+    the tokenizer has no ``chat_template`` (e.g. a base/non-chat
+    checkpoint), so this default is safe for both chat and non-chat
+    artifacts. Set False to force bare-text rendering even when a chat
+    template is present."""
     _model_cache: dict[str, tuple[Any, Any]] = field(
         default_factory=dict, repr=False, compare=False
     )
@@ -290,7 +423,7 @@ class HFLocalCausalLMEvaluatorAdapter:
             return self._score_safety_probe(model, tokenizer, example, sp_prompt, sp_spec)
 
         try:
-            generated = self._generate(model, tokenizer, example.input)
+            generated, renderer_id = self._generate(model, tokenizer, example.input)
         except Exception as exc:  # any inference failure is INVALID, not a crash
             raise InvalidInputError(
                 f"inference failed for example {example.example_id!r}: {exc}"
@@ -301,7 +434,7 @@ class HFLocalCausalLMEvaluatorAdapter:
             example_id=example.example_id,
             correct=correct,
             score=1.0 if correct else 0.0,
-            raw_output=generated,
+            raw_output=f"{generated} | renderer={renderer_id}",
         )
 
     # -- new scoring modes (WP-A, issue #24) ------------------------------
@@ -332,8 +465,8 @@ class HFLocalCausalLMEvaluatorAdapter:
         malformed example is reported without needing a model at all.
         """
         try:
-            scored = [
-                (choice, self._choice_log_likelihood(model, tokenizer, prompt, choice))
+            scored_with_renderer = [
+                (choice, *self._choice_log_likelihood(model, tokenizer, prompt, choice))
                 for choice in choices
             ]
         except Exception as exc:  # any inference failure is INVALID, not a crash
@@ -341,6 +474,8 @@ class HFLocalCausalLMEvaluatorAdapter:
                 f"multiple_choice inference failed for example {example.example_id!r}: {exc}"
             ) from exc
 
+        scored = [(choice, logprob) for choice, logprob, _renderer in scored_with_renderer]
+        renderer_id = scored_with_renderer[0][2] if scored_with_renderer else BARE_TEXT_RENDERER_ID
         predicted_choice = max(scored, key=lambda pair: pair[1])[0]
         correct = predicted_choice == expected_choice
         detail = ", ".join(f"{choice!r}={logprob:.4f}" for choice, logprob in scored)
@@ -348,7 +483,10 @@ class HFLocalCausalLMEvaluatorAdapter:
             example_id=example.example_id,
             correct=correct,
             score=1.0 if correct else 0.0,
-            raw_output=f"chose {predicted_choice!r} | avg log-likelihoods: {detail}",
+            raw_output=(
+                f"chose {predicted_choice!r} | avg log-likelihoods: {detail} | "
+                f"renderer={renderer_id}"
+            ),
         )
 
     def _score_format_conformance(
@@ -372,7 +510,7 @@ class HFLocalCausalLMEvaluatorAdapter:
         caller (before any model load).
         """
         try:
-            generated = self._generate(model, tokenizer, prompt)
+            generated, renderer_id = self._generate(model, tokenizer, prompt)
         except Exception as exc:  # any inference failure is INVALID, not a crash
             raise InvalidInputError(
                 f"format_conformance inference failed for example {example.example_id!r}: {exc}"
@@ -383,7 +521,7 @@ class HFLocalCausalLMEvaluatorAdapter:
             example_id=example.example_id,
             correct=conforms,
             score=1.0 if conforms else 0.0,
-            raw_output=f"{generated} | {detail}",
+            raw_output=f"{generated} | {detail} | renderer={renderer_id}",
         )
 
     def _score_safety_probe(
@@ -406,7 +544,7 @@ class HFLocalCausalLMEvaluatorAdapter:
         every other mode's validate-before-load discipline.
         """
         try:
-            generated = self._generate(model, tokenizer, prompt)
+            generated, renderer_id = self._generate(model, tokenizer, prompt)
         except Exception as exc:  # any inference failure is INVALID, not a crash
             raise InvalidInputError(
                 f"safety_probe inference failed for example {example.example_id!r}: {exc}"
@@ -417,7 +555,7 @@ class HFLocalCausalLMEvaluatorAdapter:
             example_id=example.example_id,
             correct=correct,
             score=1.0 if correct else 0.0,
-            raw_output=f"{generated} | {detail}",
+            raw_output=f"{generated} | {detail} | renderer={renderer_id}",
         )
 
     # -- helpers (private: not part of the adapter's public contract surface) --
@@ -445,10 +583,45 @@ class HFLocalCausalLMEvaluatorAdapter:
         self._model_cache[cache_key] = (model, tokenizer)
         return model, tokenizer
 
-    def _generate(self, model: Any, tokenizer: Any, prompt: str) -> str:
+    def _render_prompt_inputs(self, tokenizer: Any, prompt: str) -> tuple[dict[str, Any], str]:
+        """Render ``prompt`` to the tokenizer's complete model-input mapping.
+
+        Uses the tokenizer's chat template when available and enabled, else
+        bare-text tokenization.  ``attention_mask``, ``token_type_ids``, and
+        architecture-specific fields are deliberately retained here so the
+        model-interface filter -- not the renderer -- decides support.
+
+        Returns ``(model_inputs, renderer_id)``. Fixes issue #76 finding 2:
+        this adapter used to always bare-tokenize the raw prompt string,
+        even against chat-SFT checkpoints trained on the ``conversations``
+        schema (see ``examples/pilot-adr0011/train.jsonl``: a list of
+        ``{"role": "user"/"assistant", "content": ...}`` turns) whose own
+        tokenizer chat template wraps a user turn in role/special-token
+        markup the model was actually trained to expect. Rendering the bare
+        prompt instead of that markup meant the model saw a different input
+        distribution than it was trained on.
+        """
+        chat_template = getattr(tokenizer, "chat_template", None)
+        if self.use_chat_template and chat_template:
+            messages = [{"role": "user", "content": prompt}]
+            rendered = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = dict(tokenizer(rendered, return_tensors="pt"))
+            renderer_id = _chat_template_renderer_id(chat_template)
+        else:
+            inputs = dict(tokenizer(prompt, return_tensors="pt"))
+            renderer_id = BARE_TEXT_RENDERER_ID
+        if "input_ids" not in inputs:
+            raise InvalidInputError("tokenizer output did not contain required input_ids")
+        return inputs, renderer_id
+
+    def _generate(self, model: Any, tokenizer: Any, prompt: str) -> tuple[str, str]:
         import torch
 
-        inputs = tokenizer(prompt, return_tensors="pt")
+        rendered_inputs, renderer_id = self._render_prompt_inputs(tokenizer, prompt)
+        input_ids = rendered_inputs["input_ids"]
+        inputs = _filter_model_kwargs(model, rendered_inputs, for_generation=True)
         pad_token_id = tokenizer.eos_token_id
         with torch.no_grad():
             output_ids = model.generate(
@@ -457,29 +630,41 @@ class HFLocalCausalLMEvaluatorAdapter:
                 do_sample=False,
                 pad_token_id=pad_token_id,
             )
-        prompt_len = inputs["input_ids"].shape[1]
+        prompt_len = input_ids.shape[1]
         continuation_ids = output_ids[0][prompt_len:]
-        return tokenizer.decode(continuation_ids, skip_special_tokens=True)
+        decoded = tokenizer.decode(continuation_ids, skip_special_tokens=True)
+        return decoded, renderer_id
 
-    def _choice_log_likelihood(self, model: Any, tokenizer: Any, prompt: str, choice: str) -> float:
+    def _choice_log_likelihood(
+        self, model: Any, tokenizer: Any, prompt: str, choice: str
+    ) -> tuple[float, str]:
         """Length-normalized average log-probability of ``choice`` given ``prompt``.
 
-        Teacher-forced (no sampling, no ``generate()`` loop): tokenizes
-        ``prompt + choice`` once, runs a single forward pass under
-        ``torch.no_grad()``, and sums the model's own log-probability of
-        each of ``choice``'s tokens conditioned on everything before it
-        (prompt plus any preceding choice tokens) -- the standard
-        per-option-likelihood approach ``lm-evaluation-harness`` and
-        similar MMLU-style evaluators use, reimplemented directly here
-        with no dependency on that project. Divides by the number of
-        choice tokens so a longer choice is not penalised purely for
-        having more tokens to sum log-probabilities over.
+        Teacher-forced (no sampling, no ``generate()`` loop): renders the
+        prompt (chat-template or bare-text, matching ``_generate``'s own
+        rendering choice per issue #76), appends ``choice``'s tokens, runs a
+        single forward pass under ``torch.no_grad()``, and sums the model's
+        own log-probability of each of ``choice``'s tokens conditioned on
+        everything before it (prompt plus any preceding choice tokens) --
+        the standard per-option-likelihood approach
+        ``lm-evaluation-harness`` and similar MMLU-style evaluators use,
+        reimplemented directly here with no dependency on that project.
+        Divides by the number of choice tokens so a longer choice is not
+        penalised purely for having more tokens to sum log-probabilities
+        over. Also applies ``_filter_model_kwargs`` (issue #76 finding 1)
+        before the forward pass so tokenizers that always emit
+        ``token_type_ids`` (e.g. the MiniMind->Qwen3 conversion) don't
+        crash model families whose ``forward`` doesn't accept that kwarg.
+
+        Returns ``(avg_log_prob, renderer_id)``.
         """
         import torch
         import torch.nn.functional as F
 
-        prompt_ids = tokenizer(prompt, return_tensors="pt")["input_ids"]
-        full_ids = tokenizer(prompt + choice, return_tensors="pt")["input_ids"]
+        prompt_inputs, renderer_id = self._render_prompt_inputs(tokenizer, prompt)
+        prompt_ids = prompt_inputs["input_ids"]
+        choice_ids = tokenizer(choice, return_tensors="pt", add_special_tokens=False)["input_ids"]
+        full_ids = torch.cat([prompt_ids, choice_ids], dim=1)
         prompt_len = prompt_ids.shape[1]
         choice_len = full_ids.shape[1] - prompt_len
         if choice_len <= 0:
@@ -488,8 +673,22 @@ class HFLocalCausalLMEvaluatorAdapter:
                 "cannot score its likelihood"
             )
 
+        full_inputs = dict(prompt_inputs)
+        full_inputs["input_ids"] = full_ids
+        for key, value in prompt_inputs.items():
+            if key == "input_ids" or not torch.is_tensor(value):
+                continue
+            if value.ndim != prompt_ids.ndim or value.shape != prompt_ids.shape:
+                continue
+            if key == "attention_mask":
+                extension = torch.ones_like(choice_ids, dtype=value.dtype, device=value.device)
+            else:
+                extension = value[:, -1:].expand(-1, choice_len)
+            full_inputs[key] = torch.cat([value, extension], dim=1)
+
+        inputs = _filter_model_kwargs(model, full_inputs)
         with torch.no_grad():
-            logits = model(full_ids).logits  # (1, seq_len, vocab)
+            logits = model(**inputs).logits  # (1, seq_len, vocab)
 
         # logits[i] predicts token i+1, so the logits that predict the
         # choice's tokens are indices [prompt_len - 1, full_len - 2].
@@ -497,4 +696,5 @@ class HFLocalCausalLMEvaluatorAdapter:
         target_ids = full_ids[0, prompt_len:]
         log_probs = F.log_softmax(relevant_logits.float(), dim=-1)
         token_log_probs = log_probs.gather(1, target_ids.unsqueeze(-1)).squeeze(-1)
-        return float(token_log_probs.sum().item() / choice_len)
+        avg_log_prob = float(token_log_probs.sum().item() / choice_len)
+        return avg_log_prob, renderer_id

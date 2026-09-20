@@ -35,8 +35,11 @@ from codevolt_mdf.evaluator_contract import (
     verify_evidence,
 )
 from codevolt_mdf.hf_local_evaluator_adapter import (
+    BARE_TEXT_RENDERER_ID,
+    CHAT_TEMPLATE_RENDERER_ID,
     PINNED_MODEL_REPO,
     HFLocalCausalLMEvaluatorAdapter,
+    _filter_model_kwargs,
     _hash_model_dir,
 )
 
@@ -879,3 +882,378 @@ def test_real_inference_loads_the_committed_safety_probe_dataset(tmp_path):
     assert len(output.results) == 15
     assert output.aggregate_score is not None
     assert 0.0 <= output.aggregate_score <= 1.0
+
+
+# 8. Regression: issue #76 finding 1 (token_type_ids kwarg filtering) --------
+# Reproduces the ORIGINAL bug with a from-scratch tiny LlamaForCausalLM
+# paired with a BERT tokenizer (which always emits token_type_ids, a kwarg
+# LlamaForCausalLM.forward does not accept) -- before the _filter_model_kwargs
+# fix, scoring this combination raised
+# "The following model_kwargs are not used by the model: ['token_type_ids']"
+# and this adapter turned that into an INVALID result. No network/pinned-
+# snapshot dependency beyond the already-cached BERT tokenizer; the model
+# itself is constructed from scratch (untrained random weights), so this
+# test's only external dependency is the tokenizer snapshot being present
+# locally, checked the same importorskip/skip-clean way as the rest of this
+# file.
+
+BERT_TOKENIZER_REPO = "sentence-transformers/all-MiniLM-L6-v2"
+"""A BERT-family tokenizer that always emits token_type_ids in its output
+mapping -- deliberately mismatched against a Llama-family model below, to
+reproduce issue #76 finding 1 without needing any real (trained) checkpoint."""
+
+
+def test_filter_preserves_attention_mask_and_removes_token_type_ids_with_var_kwargs():
+    """A ``**kwargs`` forward still needs the known-incompatible-field fallback."""
+
+    class VarKwargsModel:
+        def forward(self, input_ids, attention_mask=None, **kwargs):
+            raise AssertionError("signature probe only; forward must not run")
+
+    input_ids = object()
+    attention_mask = object()
+    token_type_ids = object()
+    filtered = _filter_model_kwargs(
+        VarKwargsModel(),
+        {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        },
+    )
+
+    assert filtered == {"input_ids": input_ids, "attention_mask": attention_mask}
+
+
+def test_filter_keeps_token_type_ids_when_interface_names_explicit_support():
+    """The fallback must not override a model family that explicitly accepts the field."""
+
+    class TokenTypeAwareModel:
+        def forward(self, input_ids, attention_mask=None, token_type_ids=None, **kwargs):
+            raise AssertionError("signature probe only; forward must not run")
+
+    inputs = {
+        "input_ids": object(),
+        "attention_mask": object(),
+        "token_type_ids": object(),
+    }
+
+    assert _filter_model_kwargs(TokenTypeAwareModel(), inputs) == inputs
+
+
+def test_generate_receives_attention_mask_but_not_unsupported_token_type_ids():
+    """Exercise rendering-to-generation without allowing input_ids-only pre-stripping."""
+    torch = pytest.importorskip("torch")
+
+    class MappingTokenizer:
+        chat_template = None
+        eos_token_id = 0
+
+        def __call__(self, text, return_tensors):
+            assert text == "prompt"
+            assert return_tensors == "pt"
+            return {
+                "input_ids": torch.tensor([[1, 2]]),
+                "attention_mask": torch.tensor([[1, 1]]),
+                "token_type_ids": torch.tensor([[0, 0]]),
+            }
+
+        def decode(self, token_ids, skip_special_tokens):
+            assert skip_special_tokens is True
+            assert token_ids.tolist() == [3]
+            return "answer"
+
+    class RecordingModel:
+        def __init__(self):
+            self.received = None
+
+        def forward(self, input_ids, attention_mask=None, **kwargs):
+            raise AssertionError("generate stub must be used")
+
+        def generate(self, *, input_ids, attention_mask, **kwargs):
+            self.received = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                **kwargs,
+            }
+            return torch.tensor([[1, 2, 3]])
+
+    model = RecordingModel()
+    generated, renderer_id = HFLocalCausalLMEvaluatorAdapter(
+        max_new_tokens=1, use_chat_template=False
+    )._generate(model, MappingTokenizer(), "prompt")
+
+    assert generated == "answer"
+    assert renderer_id == BARE_TEXT_RENDERER_ID
+    assert model.received is not None
+    assert model.received["attention_mask"].tolist() == [[1, 1]]
+    assert "token_type_ids" not in model.received
+
+
+def test_choice_log_likelihood_preserves_and_extends_attention_mask():
+    """The direct-forward scoring path must retain accepted tokenizer fields too."""
+    torch = pytest.importorskip("torch")
+
+    class MappingTokenizer:
+        chat_template = None
+
+        def __call__(self, text, return_tensors, add_special_tokens=True):
+            assert return_tensors == "pt"
+            if text == "prompt":
+                assert add_special_tokens is True
+                return {
+                    "input_ids": torch.tensor([[1, 2]]),
+                    "attention_mask": torch.tensor([[1, 1]]),
+                    "token_type_ids": torch.tensor([[0, 0]]),
+                }
+            assert text == " choice"
+            assert add_special_tokens is False
+            return {"input_ids": torch.tensor([[3]])}
+
+    class RecordingModel:
+        def __init__(self):
+            self.received = None
+
+        def forward(self, input_ids, attention_mask=None, **kwargs):
+            self.received = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                **kwargs,
+            }
+            logits = torch.zeros((1, input_ids.shape[1], 8))
+            return type("Output", (), {"logits": logits})()
+
+        __call__ = forward
+
+    model = RecordingModel()
+    score, renderer_id = HFLocalCausalLMEvaluatorAdapter(
+        use_chat_template=False
+    )._choice_log_likelihood(model, MappingTokenizer(), "prompt", " choice")
+
+    assert isinstance(score, float)
+    assert renderer_id == BARE_TEXT_RENDERER_ID
+    assert model.received is not None
+    assert model.received["attention_mask"].tolist() == [[1, 1, 1]]
+    assert "token_type_ids" not in model.received
+
+
+def _make_mismatched_token_type_ids_checkpoint(tmp_path) -> str | None:
+    """Save a tiny from-scratch LlamaForCausalLM + a BERT tokenizer to a
+    temp checkpoint dir. Returns None (never raises) if transformers/torch
+    or the BERT tokenizer snapshot aren't available locally, so callers can
+    skip cleanly -- same discipline as _require_pinned_model."""
+    try:
+        from transformers import AutoTokenizer, LlamaConfig, LlamaForCausalLM
+    except ImportError:
+        return None
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(BERT_TOKENIZER_REPO, local_files_only=True)
+    except Exception:  # noqa: BLE001 - any resolution failure means "not available locally"
+        return None
+
+    # token_type_ids is BERT-family behaviour; confirm the fixture still
+    # reproduces the precondition the original bug needed before using it.
+    probe = tokenizer("probe", return_tensors="pt")
+    if "token_type_ids" not in probe:
+        return None
+
+    config = LlamaConfig(
+        vocab_size=tokenizer.vocab_size + 10,
+        hidden_size=16,
+        intermediate_size=32,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        num_key_value_heads=2,
+        max_position_embeddings=64,
+    )
+    model = LlamaForCausalLM(config)
+    model.eval()
+
+    checkpoint_dir = tmp_path / "mismatched-checkpoint"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(checkpoint_dir)
+    tokenizer.save_pretrained(checkpoint_dir)
+    return str(checkpoint_dir)
+
+
+def test_token_type_ids_from_bert_tokenizer_no_longer_breaks_llama_forward(tmp_path):
+    """Regression test for issue #76 finding 1: before _filter_model_kwargs,
+    this exact combination (a BERT tokenizer's token_type_ids fed into a
+    LlamaForCausalLM.forward that does not accept that kwarg) raised
+    ValueError and this adapter reported INVALID. It must now SCORE
+    successfully -- the fix filters token_type_ids out before it ever
+    reaches model.generate()/model(...)."""
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    checkpoint_dir = _make_mismatched_token_type_ids_checkpoint(tmp_path)
+    if checkpoint_dir is None:
+        pytest.skip(
+            f"tokenizer snapshot {BERT_TOKENIZER_REPO} not present in the local "
+            "Hugging Face cache; fetch it with `hf download` to run this "
+            "regression test"
+        )
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=4, use_chat_template=False)
+    held_out = make_held_out([("q1", "hello world", "irrelevant")], package_id="P-token-type-ids")
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(
+        adapter, "mismatched-checkpoint", checkpoint_dir, held_out, registry, tmp_path / "work"
+    )
+
+    # The key regression assertion: this must SCORE, not INVALID -- the
+    # original bug turned every example against this combination into an
+    # inference failure, never a measurement.
+    assert output.status == EvaluationStatus.SCORED
+    assert len(output.results) == 1
+    assert isinstance(output.results[0].raw_output, str)
+    assert output.results[0].raw_output != ""
+    assert BARE_TEXT_RENDERER_ID in output.results[0].raw_output
+
+
+def test_token_type_ids_fix_also_covers_multiple_choice_log_likelihood(tmp_path):
+    """The same kwarg-filtering fix is exercised by
+    _choice_log_likelihood (the multiple_choice scoring path), not just
+    _generate -- a separate forward-pass call site issue #76 identified.
+    Confirms multiple_choice scoring against the same mismatched
+    tokenizer/model combination also now SCORES instead of INVALID."""
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    checkpoint_dir = _make_mismatched_token_type_ids_checkpoint(tmp_path)
+    if checkpoint_dir is None:
+        pytest.skip(
+            f"tokenizer snapshot {BERT_TOKENIZER_REPO} not present in the local "
+            "Hugging Face cache; fetch it with `hf download` to run this "
+            "regression test"
+        )
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(use_chat_template=False)
+    held_out = _make_multiple_choice_held_out(
+        "mc-token-type-ids", "hello world", ["foo", "bar"], 0, package_id="P-mc-token-type-ids"
+    )
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(
+        adapter, "mismatched-checkpoint", checkpoint_dir, held_out, registry, tmp_path / "work"
+    )
+
+    assert output.status == EvaluationStatus.SCORED
+    assert len(output.results) == 1
+    assert "log-likelihoods" in output.results[0].raw_output
+
+
+# 9. Regression: issue #76 finding 2 (chat-template rendering) ---------------
+# Confirms the fix's renderer_id shows up in evidence (raw_output) both when
+# a chat template IS applied (SmolLM2-135M-Instruct, which has one) and when
+# it correctly falls back to bare-text (SmolLM2-135M, which has none) despite
+# use_chat_template=True -- the fallback must not crash.
+
+
+def _require_instruct_model():
+    pytest.importorskip("transformers")
+    pytest.importorskip("torch")
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        return None
+    try:
+        return snapshot_download(
+            repo_id="HuggingFaceTB/SmolLM2-135M-Instruct", local_files_only=True
+        )
+    except Exception:  # noqa: BLE001 - any resolution failure means "not available locally"
+        return None
+
+
+def test_chat_template_renderer_identity_changes_with_exact_template_content():
+    """Renderer evidence must identify the actual template, not a constant path label."""
+    torch = pytest.importorskip("torch")
+
+    class TemplateTokenizer:
+        eos_token_id = 0
+
+        def __init__(self, chat_template):
+            self.chat_template = chat_template
+
+        def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+            assert messages == [{"role": "user", "content": "hello"}]
+            assert tokenize is False
+            assert add_generation_prompt is True
+            return "rendered prompt"
+
+        def __call__(self, text, return_tensors):
+            assert text == "rendered prompt"
+            assert return_tensors == "pt"
+            return {
+                "input_ids": torch.tensor([[1, 2]]),
+                "attention_mask": torch.tensor([[1, 1]]),
+                "token_type_ids": torch.tensor([[0, 0]]),
+            }
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(use_chat_template=True)
+    inputs_a, renderer_a = adapter._render_prompt_inputs(
+        TemplateTokenizer("{{ messages[0]['content'] }}"), "hello"
+    )
+    inputs_a_repeat, renderer_a_repeat = adapter._render_prompt_inputs(
+        TemplateTokenizer("{{ messages[0]['content'] }}"), "hello"
+    )
+    inputs_b, renderer_b = adapter._render_prompt_inputs(
+        TemplateTokenizer("USER: {{ messages[0]['content'] }}"), "hello"
+    )
+
+    assert set(inputs_a) == {"input_ids", "attention_mask", "token_type_ids"}
+    assert set(inputs_a_repeat) == set(inputs_a)
+    assert set(inputs_b) == set(inputs_a)
+    assert renderer_a.startswith(CHAT_TEMPLATE_RENDERER_ID)
+    assert renderer_a == renderer_a_repeat
+    assert renderer_a != renderer_b
+
+
+def test_chat_template_renderer_id_appears_in_evidence_when_template_available(tmp_path):
+    """Regression test for issue #76 finding 2: against a checkpoint whose
+    tokenizer DOES expose a chat_template (SmolLM2-135M-Instruct),
+    use_chat_template=True (the adapter default) must actually apply
+    apply_chat_template -- proven here not by inspecting internals but by
+    checking the same evidence field a consumer of this adapter's output
+    would see: ExampleResult.raw_output records the renderer identity."""
+    model_path = _require_instruct_model()
+    if model_path is None:
+        pytest.skip(
+            "HuggingFaceTB/SmolLM2-135M-Instruct not present in the local "
+            "Hugging Face cache; fetch it with `hf download` to run this test"
+        )
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=4, use_chat_template=True)
+    held_out = make_held_out([("q1", "Say hi", "hi")], package_id="P-chat-template")
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(
+        adapter, "instruct-checkpoint", model_path, held_out, registry, tmp_path
+    )
+
+    assert output.status == EvaluationStatus.SCORED
+    assert len(output.results) == 1
+    assert CHAT_TEMPLATE_RENDERER_ID in output.results[0].raw_output
+    assert BARE_TEXT_RENDERER_ID not in output.results[0].raw_output
+
+
+def test_chat_template_falls_back_to_bare_text_without_crashing_when_absent(tmp_path):
+    """Negative path: use_chat_template=True against a checkpoint whose
+    tokenizer has NO chat_template (the base, non-instruct SmolLM2-135M)
+    must not crash -- it falls back to bare-text rendering automatically,
+    and BARE_TEXT_RENDERER_ID (not CHAT_TEMPLATE_RENDERER_ID) shows up in
+    evidence, proving the fallback actually took the bare-text path rather
+    than silently failing to apply a template that doesn't exist."""
+    model_path = _require_pinned_model()
+
+    adapter = HFLocalCausalLMEvaluatorAdapter(max_new_tokens=4, use_chat_template=True)
+    held_out = make_held_out([("q1", "Say hi", "hi")], package_id="P-chat-template-fallback")
+    registry = HeldOutExclusionRegistry()
+
+    output = run_evaluator_contract(
+        adapter, "base-checkpoint", model_path, held_out, registry, tmp_path
+    )
+
+    assert output.status == EvaluationStatus.SCORED
+    assert len(output.results) == 1
+    assert BARE_TEXT_RENDERER_ID in output.results[0].raw_output
+    assert CHAT_TEMPLATE_RENDERER_ID not in output.results[0].raw_output
