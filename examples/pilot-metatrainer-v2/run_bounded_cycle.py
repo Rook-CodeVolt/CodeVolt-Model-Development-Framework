@@ -503,7 +503,7 @@ def _budget(scratch_root: Path) -> ResourceBudget:
     return ResourceBudget(
         max_wall_seconds=1800,
         max_cpu_seconds=3600,
-        max_memory_mb=4096,
+        max_memory_mb=8192,
         max_gpu_count=0,
         max_storage_mb=1024,
         network_policy="offline",
