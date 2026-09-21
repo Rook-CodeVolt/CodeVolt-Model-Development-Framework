@@ -1,0 +1,2 @@
+# ADR-0013 execution is fail-closed until independently reviewed role keys are added.
+# Format: <role-principal> <ssh-ed25519 public key>

@@ -201,7 +201,10 @@ from outside using kernel-level facilities:
 - **Process-GROUP-level cancellation** — the child calls `os.setsid()`
   on startup, becoming the leader of a new OS process group; the parent
   kills that whole group with `os.killpg(..., SIGKILL)` (`_kill_group`
-  in `process_isolation.py`), not just the direct child pid. Any
+  in `process_isolation.py`) after confirming the child's process-group
+  id equals its pid, not just the direct child pid. This confirmation
+  prevents an early resource-limit check from signalling the parent's
+  still-shared process group before the child reaches `os.setsid()`. Any
   subprocess the adapter itself spawns (e.g. via `subprocess.Popen`)
   inherits the group and is terminated along with it, closing what was
   previously an orphaned-grandchild-process leak.

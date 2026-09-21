@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+RUNNER_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "examples/pilot-metatrainer-v2/run_bounded_cycle.py"
+)
+
+
+@pytest.fixture
+def runner():
+    spec = importlib.util.spec_from_file_location("adr0013_runner_test", RUNNER_PATH)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _head(runner) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=runner.REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def test_fabricated_legacy_approval_strings_are_rejected(runner, tmp_path):
+    gate = {
+        "approved": True,
+        "implementation_sha": _head(runner),
+        "maya_review_ref": "approved",
+        "owner_authorization_ref": "yes",
+        "dataset_admission_ref": "placeholder",
+        "dataset_licence": "whatever",
+    }
+    path = tmp_path / "gate.json"
+    path.write_text(json.dumps(gate), encoding="utf-8")
+    with pytest.raises(SystemExit, match="schema mismatch"):
+        runner._load_gate(path)
+
+
+def test_execution_gate_requires_all_three_exact_approval_roles(runner, tmp_path):
+    gate = {
+        "schema_version": 1,
+        "implementation_sha": _head(runner),
+        "dataset_hash": runner.EXPECTED_FILE_HASHES["train.jsonl"],
+        "dataset_licence": "internal-use-only",
+        "approvals": {"security": {}},
+    }
+    path = tmp_path / "gate.json"
+    path.write_text(json.dumps(gate), encoding="utf-8")
+    with pytest.raises(SystemExit, match="requires exact security, owner, and dataset"):
+        runner._load_gate(path)
+
+
+def test_placeholder_approval_bundle_cannot_pass_without_trusted_signers(runner, tmp_path):
+    approval = {"document": "placeholder", "signature": "placeholder", "document_sha256": "0" * 64}
+    gate = {
+        "schema_version": 1,
+        "implementation_sha": _head(runner),
+        "dataset_hash": runner.EXPECTED_FILE_HASHES["train.jsonl"],
+        "dataset_licence": "internal-use-only",
+        "approvals": {role: dict(approval) for role in runner.APPROVAL_ROLES},
+    }
+    path = tmp_path / "gate.json"
+    path.write_text(json.dumps(gate), encoding="utf-8")
+    with pytest.raises(SystemExit, match="trust root has no admitted signer keys"):
+        runner._load_gate(path)
+
+
+def test_missing_or_hash_invalid_retention_suite_fails_closed(runner, monkeypatch):
+    specs = {name: dict(value) for name, value in runner.EVALUATION_SUITES.items()}
+    specs["capability_retention"]["file_hash"] = "0" * 64
+    monkeypatch.setattr(runner, "EVALUATION_SUITES", specs)
+    with pytest.raises(SystemExit, match="capability_retention suite hash mismatch"):
+        runner._load_suite("capability_retention")
+
+
+def test_locked_suites_include_meta_capability_and_safety_with_registries(runner):
+    suites, registry = runner._evaluation_suites(runner._load_train_records())
+    assert set(suites) == {"meta_trainer", "capability_retention", "safety"}
+    assert {name: len(suite.examples) for name, suite in suites.items()} == {
+        "meta_trainer": 20,
+        "capability_retention": 10,
+        "safety": 15,
+    }
+    for suite in suites.values():
+        assert not registry.check_held_out_not_trained(suite.example_ids)

@@ -436,6 +436,37 @@ def test_setsid_escaping_grandchild_is_still_killed(tmp_path):
     )
 
 
+def test_kill_group_never_signals_the_parent_group_before_child_setsid(monkeypatch):
+    """A just-spawned child may still share pytest's process group.
+
+    Resource enforcement can fire before ``_child_worker`` reaches ``os.setsid()``.
+    In that race, ``killpg(getpgid(child_pid))`` would signal pytest, the Actions
+    shell, and multiprocessing's resource tracker rather than an isolated child
+    group.  The pid-tree kill remains safe and sufficient until the child becomes
+    the leader of its own group.
+    """
+
+    class FakeProcess:
+        pid = 4321
+
+    killpg_calls = []
+    monkeypatch.setattr(
+        process_isolation,
+        "_kill_pid_tree",
+        lambda _pid: process_isolation.PidTreeWalkOutcome(False, False),
+    )
+    monkeypatch.setattr(process_isolation.os, "getpgid", lambda _pid: 1234)
+    monkeypatch.setattr(
+        process_isolation.os,
+        "killpg",
+        lambda pgid, sig: killpg_calls.append((pgid, sig)),
+    )
+
+    process_isolation._kill_group(FakeProcess())
+
+    assert killpg_calls == []
+
+
 def test_pickle_exploit_via_real_isolation_path_does_not_execute(tmp_path):
     """A crafted exception's malicious __reduce__ must not run in the parent.
 

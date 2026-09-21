@@ -1,0 +1,22 @@
+{
+  "package_held_out_ids": {
+    "wpb-safety-probes-v1": [
+      "safety-refusal-0001",
+      "safety-refusal-0002",
+      "safety-refusal-0003",
+      "safety-refusal-0004",
+      "safety-refusal-0005",
+      "safety-harmful-0001",
+      "safety-harmful-0002",
+      "safety-harmful-0003",
+      "safety-harmful-0004",
+      "safety-harmful-0005",
+      "safety-pii-0001",
+      "safety-pii-0002",
+      "safety-pii-0003",
+      "safety-pii-0004",
+      "safety-pii-0005"
+    ]
+  },
+  "package_train_ids": {}
+}

@@ -341,6 +341,22 @@ def _sanitize_training_output(output: Any) -> Any:
     )
 
 
+def _sanitize_evaluation_output(output: Any) -> Any:
+    """Validate and rebuild an ``EvaluationOutput`` for safe IPC."""
+    from .evaluator_contract import EvaluationOutput, EvaluationStatus, ExampleResult
+
+    if type(output) is not EvaluationOutput:
+        raise TypeError(
+            f"evaluator contract must return an EvaluationOutput, got {type(output).__module__}."
+            f"{type(output).__qualname__}"
+        )
+    return _sanitize_ipc_value(
+        output,
+        allowed_dataclasses=(EvaluationOutput, ExampleResult),
+        allowed_enums=(EvaluationStatus,),
+    )
+
+
 def _safe_exception_tuple(exc: BaseException) -> tuple[str, str, str]:
     """Reduce an (untrusted, child-raised) exception to three plain strings.
 
@@ -601,6 +617,42 @@ def _child_worker(
         safe_output = _sanitize_training_output(output)
         result_queue.put(("output", safe_output))
     except BaseException as exc:  # noqa: BLE001 - surfaced to parent, not swallowed
+        result_queue.put(("exception", _safe_exception_tuple(exc)))
+
+
+def _evaluator_child_worker(
+    adapter: Any,
+    artifact_id: str,
+    artifact_locator: str,
+    held_out: Any,
+    registry: Any,
+    work_dir: Path,
+    budget: Any,
+    result_queue: Any,
+) -> None:
+    """Run one evaluator contract inside the same containment used for training."""
+    from .evaluator_contract import run_evaluator_contract
+
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            pass
+    try:
+        _sanitize_environment()
+        if budget.filesystem_root:
+            _pin_filesystem_root(budget.filesystem_root)
+        _apply_network_policy(budget.network_policy, budget.allowed_hosts)
+        output = run_evaluator_contract(
+            adapter=adapter,
+            artifact_id=artifact_id,
+            artifact_locator=artifact_locator,
+            held_out=held_out,
+            registry=registry,
+            work_dir=work_dir,
+        )
+        result_queue.put(("output", _sanitize_evaluation_output(output)))
+    except BaseException as exc:  # noqa: BLE001 - surfaced safely to parent
         result_queue.put(("exception", _safe_exception_tuple(exc)))
 
 
@@ -867,7 +919,12 @@ def _kill_group(process: Any) -> PidTreeWalkOutcome | None:
       inherits that group), runs SECOND as a redundant safety net for
       anything the walk's pid snapshot happened to miss (e.g. a process
       forked in the narrow window between the walk's last ``ps`` call
-      and its kill).
+      and its kill). A resource limit can fire before the spawned child
+      reaches ``os.setsid()``; in that race the child still shares the
+      parent's process group. We therefore call ``killpg`` only when the
+      child's process-group id equals its pid, proving it became the
+      isolated group leader. The pid-tree kill above remains the safe
+      fallback before that point.
 
     Falls back to ``process.kill()`` only when ``process.pid`` is
     unknown (should not happen once ``process.start()`` has returned).
@@ -911,7 +968,9 @@ def _kill_group(process: Any) -> PidTreeWalkOutcome | None:
 
     if hasattr(os, "killpg") and hasattr(os, "getpgid"):
         try:
-            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            process_group_id = os.getpgid(pid)
+            if process_group_id == pid:
+                os.killpg(process_group_id, signal.SIGKILL)
         except ProcessLookupError:
             pass
         except OSError:
@@ -1055,6 +1114,94 @@ def run_in_isolated_process(
     except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
         return None, RuntimeError("child process exited without reporting a result"), measured
 
+    if kind == "output":
+        return payload, None, measured
+    return None, _reconstruct_exception(payload), measured
+
+
+def run_evaluator_in_isolated_process(
+    adapter: Any,
+    artifact_id: str,
+    artifact_locator: str,
+    held_out: Any,
+    registry: Any,
+    work_dir: Path,
+    budget: Any,
+    poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
+) -> tuple[Any | None, BaseException | None, MeasuredUsage]:
+    """Run one evaluator contract with wall/CPU/memory/storage and policy enforcement."""
+    ctx = multiprocessing.get_context("spawn")
+    result_queue: multiprocessing.Queue = ctx.Queue()
+    process = ctx.Process(
+        target=_evaluator_child_worker,
+        args=(
+            adapter,
+            artifact_id,
+            artifact_locator,
+            held_out,
+            registry,
+            Path(work_dir),
+            budget,
+            result_queue,
+        ),
+        daemon=True,
+    )
+    rusage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    start = time.monotonic()
+    process.start()
+    peak_memory_mb = 0.0
+    live_cpu_seconds = 0.0
+    killed_for_overrun = False
+    killed_for_timeout = False
+    pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
+
+    while process.is_alive():
+        elapsed = time.monotonic() - start
+        live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
+        if live is not None:
+            memory_mb, cpu_seconds = live
+            peak_memory_mb = max(peak_memory_mb, memory_mb)
+            live_cpu_seconds = max(live_cpu_seconds, cpu_seconds)
+            if memory_mb > budget.max_memory_mb or cpu_seconds > budget.max_cpu_seconds:
+                killed_for_overrun = True
+                pid_tree_walk_outcome = _kill_group(process)
+                process.join(timeout=5)
+                break
+        if elapsed > budget.max_wall_seconds:
+            killed_for_timeout = True
+            pid_tree_walk_outcome = _kill_group(process)
+            process.join(timeout=5)
+            break
+        time.sleep(poll_interval)
+
+    process.join(timeout=5)
+    wall_seconds = round(time.monotonic() - start, 6)
+    rusage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    measured_cpu_seconds = max(
+        live_cpu_seconds,
+        (rusage_after.ru_utime + rusage_after.ru_stime)
+        - (rusage_before.ru_utime + rusage_before.ru_stime),
+    )
+    maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
+    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
+    measured = MeasuredUsage(
+        wall_seconds=wall_seconds,
+        cpu_seconds=round(measured_cpu_seconds, 6),
+        memory_mb_peak=round(max(peak_memory_mb, ru_maxrss_mb), 6),
+        storage_mb_used=storage_mb_used,
+        killed_for_overrun=killed_for_overrun,
+        killed_for_timeout=killed_for_timeout,
+        pid_tree_walk_outcome=pid_tree_walk_outcome,
+    )
+    if killed_for_overrun or killed_for_timeout:
+        return None, None, measured
+    if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
+        return None, RuntimeError("evaluator exceeded max_storage_mb"), measured
+    try:
+        kind, payload = result_queue.get_nowait()
+    except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
+        return None, RuntimeError("evaluator process exited without reporting a result"), measured
     if kind == "output":
         return payload, None, measured
     return None, _reconstruct_exception(payload), measured

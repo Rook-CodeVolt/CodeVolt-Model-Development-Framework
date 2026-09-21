@@ -39,6 +39,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from .evaluator_contract import ExampleResult, HeldOutExample
 from .trainer_contract import (
     CancellationToken,
     CheckpointHandle,
@@ -56,6 +57,23 @@ _TEST_ONLY_UPSTREAM = UpstreamRequirement(
     max_version="1.99.99",
     installed_version="1.0.0",
 )
+
+
+@dataclass
+class RunawayEvaluatorAdapter:
+    """TEST-ONLY evaluator that never returns, for containment tests."""
+
+    name: str = "test-only-runaway-evaluator"
+    contract_version: str = "1.0.0"
+
+    def score_example(
+        self, artifact_id: str, artifact_locator: str, example: HeldOutExample
+    ) -> ExampleResult:
+        deadline = time.monotonic() + 300
+        total = 0
+        while time.monotonic() < deadline:
+            total += 1
+        return ExampleResult(example.example_id, False, 0.0, str(total))
 
 
 @dataclass

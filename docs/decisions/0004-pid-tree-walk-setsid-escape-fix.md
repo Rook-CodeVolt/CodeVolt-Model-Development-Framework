@@ -2,6 +2,8 @@
 
 - Status: accepted
 - Date: 2026-09-15
+- Amended: 2026-09-21 — guard the process-group sweep against the
+  pre-`setsid()` startup race described below
 
 ## Context
 
@@ -59,6 +61,19 @@ from `_kill_group` **before** the existing `os.killpg` sweep:
    is still alive and still shows its real parentage in `ps`, avoids
    that race. `os.killpg` afterwards is now a strictly redundant
    second sweep for the common (non-escaping) case.
+
+The group sweep has one additional invariant: `_kill_group()` calls
+`os.killpg` only when `os.getpgid(child_pid) == child_pid`. A resource
+limit can be observed immediately after `multiprocessing` starts the child,
+before `_child_worker` has run `os.setsid()`. During that startup race the
+child still shares the trusted parent's process group; signalling that
+group could kill the test runner, Actions shell, or multiprocessing resource
+tracker. The ppid-lineage sweep remains safe in that window and already
+targets the child and its descendants individually. Once the child is its
+own group leader, the redundant group sweep proceeds as designed. The
+regression test
+`test_kill_group_never_signals_the_parent_group_before_child_setsid`
+locks this invariant.
 
 A new TEST-ONLY adapter, `SetsidEscapingAdapter`
 (`src/codevolt_mdf/testing_adapters.py`), spawns a grandchild that calls

@@ -32,6 +32,9 @@ from codevolt_mdf.evaluator_contract import (
     verify_evidence,
 )
 from codevolt_mdf.fake_evaluator_adapter import FakeEvaluatorAdapter
+from codevolt_mdf.process_isolation import run_evaluator_in_isolated_process
+from codevolt_mdf.testing_adapters import RunawayEvaluatorAdapter
+from codevolt_mdf.trainer_contract import ResourceBudget
 
 
 def make_held_out(package_id: str = "P1", n: int = 4) -> HeldOutSet:
@@ -694,3 +697,52 @@ def test_evaluation_output_still_has_no_accept_reject_field_after_wp_b():
     assert "accepted" not in field_names
     assert "promoted" not in field_names
     assert "passed" not in field_names
+
+
+def _evaluator_budget(tmp_path, **overrides):
+    values = {
+        "max_wall_seconds": 5.0,
+        "max_cpu_seconds": 5.0,
+        "max_memory_mb": 512.0,
+        "max_gpu_count": 0,
+        "max_storage_mb": 64.0,
+        "network_policy": "offline",
+        "filesystem_root": str(tmp_path),
+    }
+    values.update(overrides)
+    return ResourceBudget(**values)
+
+
+def test_evaluator_timeout_is_sigkilled_before_evidence_is_accepted(tmp_path):
+    output, error, measured = run_evaluator_in_isolated_process(
+        RunawayEvaluatorAdapter(),
+        "timeout-artifact",
+        str(tmp_path / "artifact"),
+        make_held_out(n=1),
+        HeldOutExclusionRegistry(),
+        tmp_path / "evidence",
+        _evaluator_budget(tmp_path, max_wall_seconds=0.2, max_cpu_seconds=100.0),
+    )
+    assert output is None
+    assert error is None
+    assert measured.killed_for_timeout is True
+
+
+def test_evaluator_memory_budget_breach_is_sigkilled(tmp_path):
+    output, error, measured = run_evaluator_in_isolated_process(
+        RunawayEvaluatorAdapter(),
+        "memory-artifact",
+        str(tmp_path / "artifact"),
+        make_held_out(n=1),
+        HeldOutExclusionRegistry(),
+        tmp_path / "evidence",
+        _evaluator_budget(
+            tmp_path,
+            max_wall_seconds=5.0,
+            max_cpu_seconds=100.0,
+            max_memory_mb=1.0,
+        ),
+    )
+    assert output is None
+    assert error is None
+    assert measured.killed_for_overrun is True

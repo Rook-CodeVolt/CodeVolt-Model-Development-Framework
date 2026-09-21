@@ -67,3 +67,5 @@ The corpus is admitted as one independently reviewed, incremental component of a
 - `generate_corpus.py`: deterministic generator.
 - `validate_dataset.py`: structural and policy validator.
 - `VALIDATION_REPORT.json`: validator output, written after validation.
+- `BOUNDED_RUN_PLAN.md`: proposed ADR-0013 baseline/train/evaluate plan; it does not authorize training.
+- `run_bounded_cycle.py`: defaults to hash/config validation only and requires an exact-SHA review gate before its live path can run.
