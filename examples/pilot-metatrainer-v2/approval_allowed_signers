@@ -13,3 +13,5 @@
 # reviewed code change; replacing or adding a key changes the trust root and
 # requires a fresh exact-head review. No signer keys are admitted in this revision.
 rook-owner ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINS+HYmrc0CvqCIQmnWwEYSp9PIfxhjmxubxna7Xgnwc rook-owner
+maya-security ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDCvEYKtwPc55olohMn5YhInjNl7aynjpvGfQAZbYsnL maya-security
+maya-dataset-rights ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMUcUYP5D5CHroKYNaArG92HK7+gnB/0Yt4sftDLt/k3 maya-dataset-rights
