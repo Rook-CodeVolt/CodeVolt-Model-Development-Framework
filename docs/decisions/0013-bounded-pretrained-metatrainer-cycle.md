@@ -339,13 +339,15 @@ of this run.
 | CUDA GPUs | `0` | adapter/contract metric; MPS limitation disclosed above |
 | Apple MPS devices | exactly `1` selected by dry-validated pinned config | dry preflight equality check; changed result stops |
 | Storage | `1024 MB` | trainer contract plus checkpoint limit/accepted-run pruning |
-| Network during baseline/train/post | `offline` | Python socket/DNS policy in every isolated child plus HF offline environment |
-| Filesystem | one dedicated scratch root | Python-level writes confined for every isolated child; model/cache reads remain allowed |
+| Network during baseline/train/post | `offline` | macOS Seatbelt `deny network*` for the runner and every descendant; Python socket/DNS guards and HF offline environment remain defence in depth |
+| Filesystem | one exact dedicated scratch root | macOS Seatbelt denies `file-write*` outside the run root except `/dev/null`; Python write guards remain defence in depth; reads are intentionally not jailed |
 
-These are per-phase ceilings, not an aggregate complete-cycle meter. Execution also
-requires Maya's signed approval scope to include a separately reviewed complete-cycle
-host containment profile. Until that external prerequisite exists and its trusted
-signer key is admitted in `approval_allowed_signers`, execution remains fail-closed.
+These are per-phase ceilings, not an aggregate complete-cycle meter. The entire live
+runner now re-executes under the reviewed macOS Seatbelt profile before gate loading,
+and the security approval must include both
+`evaluator-process-containment-v1` and
+`complete-cycle-host-containment-v1`. Execution remains fail-closed until the
+holder-supplied public signing keys are admitted in `approval_allowed_signers`.
 
 The prior 135M full-SFT pilot at 50 steps measured about 15.7 seconds wall,
 14.1 CPU seconds, 1.62 GB peak memory, and 518 MB retained storage. That is evidence
@@ -364,6 +366,49 @@ execution boundary, is hash-verified, and is not part of training.
 
 No network destination is permitted during baseline, training, or post-evaluation.
 A cache miss during those phases is a stop, not permission to enable egress.
+
+### Complete-cycle host-containment profile
+
+On this reviewed macOS host, `--execute` re-executes the complete runner through
+`/usr/bin/sandbox-exec` with a generated Seatbelt profile. The profile denies all
+`network*` operations and all `file-write*` operations except writes below
+`./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920`
+and writes to `/dev/null`. Seatbelt applies to the runner and is inherited by the
+training/evaluator subprocess tree and native extensions; it closes the subprocess
+and native-syscall bypasses left open by the Python-only guards.
+
+Before the review gate is loaded, the contained runner tests the active boundary with
+four fail-closed probes: a direct native write outside the run root, an external
+`/usr/bin/touch`, a nested allow-all `sandbox-exec` intended to relax the parent
+policy, and an IPv4 TCP operation. Every probe must fail with the OS policy still
+active. Python socket/DNS and `open()` wrappers remain layered controls rather than
+the claimed host boundary.
+
+The profile permits reads and process execution. That is required for the Python
+runtime, installed packages, repository inputs, immutable model cache, macOS
+frameworks, and MPS. It does not claim to be a read jail, executable allow-list, VM,
+container, kernel boundary, or protection against code already running with greater
+privilege. It also does not allow pinned-cache endpoints during the live cycle:
+package/model acquisition occurs before containment, and live execution is fully
+offline.
+
+### Reviewed host paths
+
+The reviewed root is `./local-evidence/adr0013`, with mode `0700`,
+ownership by the invoking uid, no symlink components, and at least 2 GiB free. The
+runner checks those conditions and rejects any alternative live gate or scratch path.
+The exact paths are:
+
+- validation scratch:
+  `./local-evidence/adr0013/scratch/adr0013-check`;
+- non-secret gate and retained manifest:
+  `./local-evidence/adr0013/evidence/adr0013-review-gate.json`;
+- live output:
+  `./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920`.
+
+After independent review, the gate and evidence manifest remain under `evidence`.
+The live-output directory is retained, quarantined, or deleted according to the
+candidate disposition below. Cleanup never mutates the pinned base-model cache.
 
 ## Safe stop, checkpoints, evidence, rollback, and cleanup
 
@@ -402,11 +447,16 @@ A cache miss during those phases is a stop, not permission to enable egress.
 prints `training_called=false`. `--execute` additionally requires a review-gate JSON
 whose implementation and dataset hashes are exact and whose three approval documents
 have detached SSH signatures verified against the versioned role-specific trust root.
-Arbitrary references, local booleans, placeholders, missing roles, stale signatures,
-or untrusted keys fail closed. The signed documents record:
+The allowed-signers principals are exactly `maya-security`, `maya-dataset-rights`, and
+`rook-owner`; each holder retains their private key and proposes only their public key
+for independent review. No keys are admitted in this revision, so execution remains
+blocked until holder-supplied public keys are reviewed and merged. Arbitrary
+references, local booleans, placeholders, missing roles, stale signatures, or
+untrusted keys fail closed. The signed documents record:
 
-- Maya's exact-candidate decision, including evaluator containment and the external
-  complete-cycle host-containment prerequisite;
+- Maya's exact-candidate decision, including both
+  `evaluator-process-containment-v1` and
+  `complete-cycle-host-containment-v1`;
 - the owner's confirmation for this exact implementation, dataset decision and run id;
 - the independent dataset rights/privacy admission and exact licence/use string.
 
@@ -442,7 +492,7 @@ python3 -m venv .venv-adr0013
 
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/validate_dataset.py
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/run_bounded_cycle.py \
-  --scratch-root /absolute/reviewed/scratch/adr0013-check
+  --scratch-root./local-evidence/adr0013/scratch/adr0013-check
 ```
 
 The second command block is validation-only and was executed for this proposal. It
@@ -455,8 +505,8 @@ path and run exactly:
 ```bash
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/run_bounded_cycle.py \
   --execute \
-  --review-gate /absolute/reviewed/evidence/adr0013-review-gate.json \
-  --scratch-root /absolute/reviewed/scratch/adr0013-metatrainer-sft-20260920
+  --review-gate./local-evidence/adr0013/evidence/adr0013-review-gate.json \
+  --scratch-root./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920
 ```
 
 The runner performs baseline, then at most one training run, then post-evaluation. It

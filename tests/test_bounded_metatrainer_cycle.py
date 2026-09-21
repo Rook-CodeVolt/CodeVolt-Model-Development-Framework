@@ -96,3 +96,77 @@ def test_locked_suites_include_meta_capability_and_safety_with_registries(runner
     }
     for suite in suites.values():
         assert not registry.check_held_out_not_trained(suite.example_ids)
+
+
+def _security_approval(runner, tmp_path, scope):
+    document = {
+        "schema_version": 1,
+        "role": "security",
+        "approver_id": "maya-security",
+        "decision": "approved",
+        "implementation_sha": _head(runner),
+        "dataset_hash": runner.EXPECTED_FILE_HASHES["train.jsonl"],
+        "dataset_licence": "internal-use-only",
+        "run_id": runner.RUN_ID,
+        "scope": scope,
+    }
+    document_path = tmp_path / "security.json"
+    document_path.write_text(json.dumps(document), encoding="utf-8")
+    signature_path = tmp_path / "security.json.sig"
+    signature_path.write_text("test-signature", encoding="utf-8")
+    return document, {
+        "document": str(document_path),
+        "signature": str(signature_path),
+        "document_sha256": runner._sha256(document_path),
+    }
+
+
+def test_security_approval_requires_complete_cycle_host_containment_scope(runner, tmp_path):
+    _, approval = _security_approval(
+        runner, tmp_path, ["evaluator-process-containment-v1"]
+    )
+    with pytest.raises(SystemExit, match="complete-cycle-host-containment-v1"):
+        runner._verify_signed_approval(
+            "security",
+            approval,
+            head=_head(runner),
+            dataset_licence="internal-use-only",
+        )
+
+
+def test_security_approval_accepts_both_containment_scopes(
+    runner, tmp_path, monkeypatch
+):
+    document, approval = _security_approval(
+        runner,
+        tmp_path,
+        [
+            "evaluator-process-containment-v1",
+            "complete-cycle-host-containment-v1",
+        ],
+    )
+    head = _head(runner)
+    monkeypatch.setattr(
+        runner.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b""),
+    )
+    assert (
+        runner._verify_signed_approval(
+            "security",
+            approval,
+            head=head,
+            dataset_licence="internal-use-only",
+        )
+        == document
+    )
+
+
+def test_host_containment_profile_denies_network_and_out_of_root_writes(
+    runner, tmp_path
+):
+    profile = runner._host_containment_profile(tmp_path / "run")
+    assert "(deny network*)" in profile
+    assert "(deny file-write*)" in profile
+    assert f'(subpath "{tmp_path / "run"}")' in profile
+    assert '(literal "/dev/null")' in profile

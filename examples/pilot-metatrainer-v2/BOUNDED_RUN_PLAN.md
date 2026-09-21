@@ -36,10 +36,15 @@ and `dataset`. Each role entry contains exactly `document`, `signature`, and
 `evaluator-process-containment-v1` and the separately reviewed complete-cycle host
 containment profile.
 
-The current corpus card says no licensing determination was made, and the versioned
-`approval_allowed_signers` trust root intentionally contains no admitted keys.
-Therefore no valid gate exists at proposal time. Arbitrary strings, local booleans,
-unsigned JSON, placeholders, missing roles and signatures from untrusted keys fail.
+The versioned `approval_allowed_signers` file is the only trust root. It uses
+OpenSSH allowed-signers entries and requires three role-specific principals:
+`maya-security`, `maya-dataset-rights`, and `rook-owner`. Each holder generates and
+retains their own private key; only the public key is proposed in a reviewed change.
+Private keys, credentials, and signatures are never committed to the trust root or
+embedded in the gate. No public keys are admitted in this revision, so execution
+continues to fail closed until those holder-supplied keys are independently reviewed
+and merged. Arbitrary strings, local booleans, unsigned JSON, placeholders, missing
+roles and signatures from untrusted keys fail.
 
 ## Exact environment
 
@@ -56,12 +61,50 @@ The live runner refuses version drift. The reviewed dry probe observed Apple MPS
 `bf16=True`, `fp16=False`, `use_cpu=False`, and gradient accumulation `1`. Any changed
 runtime result stops the cycle.
 
+## Complete-cycle host containment
+
+Live `--execute` automatically re-executes the whole runner under the macOS Seatbelt
+policy supplied to `/usr/bin/sandbox-exec`; it does not rely on the Python socket or
+`open()` guards alone. The profile denies `network*` and denies `file-write*` except
+beneath the exact live scratch root and `/dev/null`. The policy is inherited by the
+runner's subprocesses and native extensions. Before loading the review gate, the
+contained process proves that a direct native write, `/usr/bin/touch`, a nested
+allow-all `sandbox-exec`, and a native TCP socket cannot escape the policy. Any
+unexpected success or non-permission failure stops execution.
+
+The policy intentionally permits reads and process execution. Python, site-packages,
+the immutable model snapshot, repository inputs, macOS frameworks, and MPS resources
+are outside the scratch root and must remain readable. This is therefore an
+OS-enforced outbound-network and filesystem-write boundary, not a read jail, process
+allow-list, VM, container, or defence against kernel compromise. Dependency and model
+fetches happen before this boundary; the complete live cycle is fully offline.
+
+The security approval document must include both exact scope tokens:
+`evaluator-process-containment-v1` and
+`complete-cycle-host-containment-v1`.
+
+## Reviewed host paths
+
+The only approved host root is `./local-evidence/adr0013`. Its
+`evidence` and `scratch` directories are owned by the invoking uid, mode `0700`, have
+no symlink components, and must have at least 2 GiB free. The runner checks those
+properties immediately before execution and rejects any other live paths.
+
+- validation scratch: `./local-evidence/adr0013/scratch/adr0013-check`;
+- review gate: `./local-evidence/adr0013/evidence/adr0013-review-gate.json`;
+- live output: `./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920`.
+
+The operator creates no symlinks below this root. After independent evidence review,
+retain the gate and manifest in `evidence`; remove or quarantine the live-output
+subdirectory according to the disposition rules below. The pinned model cache is
+read-only to the sandbox and is never part of this cleanup.
+
 ## Validation-only command
 
 ```bash
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/validate_dataset.py
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/run_bounded_cycle.py \
-  --scratch-root /absolute/reviewed/scratch/adr0013-check
+  --scratch-root./local-evidence/adr0013/scratch/adr0013-check
 ```
 
 Expected properties:
@@ -85,8 +128,8 @@ evaluator.
 ```bash
 .venv-adr0013/bin/python examples/pilot-metatrainer-v2/run_bounded_cycle.py \
   --execute \
-  --review-gate /absolute/reviewed/evidence/adr0013-review-gate.json \
-  --scratch-root /absolute/reviewed/scratch/adr0013-metatrainer-sft-20260920
+  --review-gate./local-evidence/adr0013/evidence/adr0013-review-gate.json \
+  --scratch-root./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920
 ```
 
 Run once only. Do not append flags, change paths after review, run in the background,

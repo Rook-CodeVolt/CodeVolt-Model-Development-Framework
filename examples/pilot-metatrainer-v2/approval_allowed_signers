@@ -1,2 +1,14 @@
-# ADR-0013 execution is fail-closed until independently reviewed role keys are added.
-# Format: <role-principal> <ssh-ed25519 public key>
+# ADR-0013 execution remains fail-closed until the three public keys below are
+# supplied by their holders and admitted through independent review in this file.
+# OpenSSH allowed-signers format:
+#   <principal> ssh-ed25519 <base64-public-key> <optional-comment>
+#
+# Required role-specific principals (one independently controlled key per role):
+#   maya-security       — Maya's Gate 1 security approval
+#   maya-dataset-rights — Maya's already-admitted single-run dataset decision
+#   rook-owner          — Rook's authorization for the exact single run
+#
+# Private keys must remain solely with each holder and must never be committed,
+# copied into a review gate, or shared with the runner. Public-key admission is a
+# reviewed code change; replacing or adding a key changes the trust root and
+# requires a fresh exact-head review. No signer keys are admitted in this revision.

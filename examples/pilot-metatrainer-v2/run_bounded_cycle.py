@@ -12,8 +12,12 @@ starts another cycle.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
+import os
+import socket
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -121,9 +125,9 @@ EVALUATION_SUITES = {
 }
 APPROVAL_NAMESPACE = "codevolt-adr0013"
 APPROVAL_ROLES = {
-    "security": ("maya", "approved"),
-    "owner": ("owner", "authorized"),
-    "dataset": ("dataset-reviewer", "admitted"),
+    "security": ("maya-security", "approved"),
+    "owner": ("rook-owner", "authorized"),
+    "dataset": ("maya-dataset-rights", "admitted"),
 }
 SEED = 20260920
 MAX_STEPS = 120
@@ -133,6 +137,178 @@ SAVE_STEPS = 40
 SAVE_TOTAL_LIMIT = 2
 MAX_NEW_TOKENS = 160
 RUN_ID = "adr0013-metatrainer-sft-20260920"
+HOST_CONTAINMENT_SCOPE = "complete-cycle-host-containment-v1"
+HOST_CONTAINMENT_ENV = "CODEVOLT_ADR0013_HOST_CONTAINMENT"
+APPROVED_ROOT = Path("./local-evidence/adr0013")
+APPROVED_EVIDENCE_ROOT = APPROVED_ROOT / "evidence"
+APPROVED_REVIEW_GATE_PATH = APPROVED_EVIDENCE_ROOT / "adr0013-review-gate.json"
+APPROVED_SCRATCH_ROOT = APPROVED_ROOT / "scratch"
+APPROVED_VALIDATION_SCRATCH = APPROVED_SCRATCH_ROOT / "adr0013-check"
+APPROVED_EXECUTION_SCRATCH = APPROVED_SCRATCH_ROOT / RUN_ID
+MINIMUM_FREE_BYTES = 2 * 1024 * 1024 * 1024
+
+
+def _seatbelt_literal(value: str) -> str:
+    """Return a quoted Seatbelt profile string literal."""
+    return json.dumps(value)
+
+
+def _host_containment_profile(scratch_root: Path) -> str:
+    """Build the macOS Seatbelt profile for the complete ADR-0013 cycle.
+
+    The profile allows ordinary reads and process execution because Python, MPS, the
+    pinned model cache, and installed packages live outside the run directory. It
+    denies all network operations and all filesystem writes except beneath the exact
+    reviewed scratch root plus writes to the kernel-discarded ``/dev/null`` device.
+    Seatbelt restrictions are inherited by subprocesses and native extensions.
+    """
+    root = str(scratch_root.resolve())
+    return "\n".join(
+        [
+            "(version 1)",
+            "(allow default)",
+            "(deny network*)",
+            "(deny file-write*)",
+            f"(allow file-write* (subpath {_seatbelt_literal(root)}))",
+            '(allow file-write* (literal "/dev/null"))',
+        ]
+    )
+
+
+def _assert_no_symlink_components(path: Path) -> None:
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        if current.exists() and stat.S_ISLNK(current.lstat().st_mode):
+            raise SystemExit(f"reviewed path contains a symlink component: {current}")
+
+
+def _prepare_reviewed_directory(path: Path) -> Path:
+    if not path.is_absolute():
+        raise SystemExit(f"reviewed path must be absolute: {path}")
+    _assert_no_symlink_components(path)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=False, mode=0o700)
+    _assert_no_symlink_components(path)
+    resolved = path.resolve(strict=True)
+    if resolved != path:
+        raise SystemExit(f"reviewed path does not resolve exactly: {path} -> {resolved}")
+    info = path.stat()
+    if info.st_uid != os.getuid():
+        raise SystemExit(f"reviewed path is not owned by uid {os.getuid()}: {path}")
+    if stat.S_IMODE(info.st_mode) & 0o077:
+        raise SystemExit(f"reviewed path permits group/world access: {path}")
+    free_bytes = os.statvfs(path).f_bavail * os.statvfs(path).f_frsize
+    if free_bytes < MINIMUM_FREE_BYTES:
+        raise SystemExit(
+            f"reviewed path has {free_bytes} free bytes; {MINIMUM_FREE_BYTES} required"
+        )
+    return resolved
+
+
+def _verify_host_containment(scratch_root: Path) -> dict[str, Any]:
+    """Prove the active process cannot bypass Seatbelt via native/subprocess paths."""
+    marker = os.environ.get(HOST_CONTAINMENT_ENV)
+    expected_marker = hashlib.sha256(
+        _host_containment_profile(scratch_root).encode("utf-8")
+    ).hexdigest()
+    if marker != expected_marker:
+        raise SystemExit("complete-cycle host containment marker is missing or stale")
+
+    canary = scratch_root.parent / ".adr0013-host-containment-canary"
+    if canary.exists():
+        raise SystemExit(f"host-containment canary path already exists: {canary}")
+
+    try:
+        fd = os.open(canary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except OSError as exc:
+        if exc.errno not in {errno.EACCES, errno.EPERM}:
+            raise SystemExit(f"unexpected direct-write containment result: {exc}") from exc
+    else:
+        os.close(fd)
+        canary.unlink(missing_ok=True)
+        raise SystemExit("host containment failed: direct native write escaped scratch root")
+
+    touch = subprocess.run(
+        ["/usr/bin/touch", str(canary)], capture_output=True, check=False, text=True
+    )
+    if touch.returncode == 0 or canary.exists():
+        canary.unlink(missing_ok=True)
+        raise SystemExit("host containment failed: subprocess write escaped scratch root")
+
+    nested = subprocess.run(
+        [
+            "/usr/bin/sandbox-exec",
+            "-p",
+            "(version 1) (allow default)",
+            "/usr/bin/touch",
+            str(canary),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if nested.returncode == 0 or canary.exists():
+        canary.unlink(missing_ok=True)
+        raise SystemExit("host containment failed: nested sandbox attempted to relax policy")
+
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.1)
+            probe.connect(("127.0.0.1", 9))
+        finally:
+            probe.close()
+    except OSError as exc:
+        if exc.errno not in {errno.EACCES, errno.EPERM}:
+            raise SystemExit(f"network containment is not OS-enforced: {exc}") from exc
+    else:
+        raise SystemExit("host containment failed: network connection was permitted")
+
+    return {
+        "scope": HOST_CONTAINMENT_SCOPE,
+        "platform": "macOS Seatbelt via /usr/bin/sandbox-exec",
+        "network": "deny network* (offline for runner and descendants)",
+        "writes": f"only {scratch_root} and /dev/null",
+        "subprocess_escape_probe": "blocked",
+        "nested_sandbox_relaxation_probe": "blocked",
+        "native_network_probe": "blocked",
+    }
+
+
+def _run_under_host_containment(scratch_root: Path) -> int:
+    sandbox_exec = Path("/usr/bin/sandbox-exec")
+    if sys.platform != "darwin" or not sandbox_exec.is_file():
+        raise SystemExit("ADR-0013 execution requires macOS /usr/bin/sandbox-exec")
+    profile = _host_containment_profile(scratch_root)
+    environment = {
+        key: os.environ[key]
+        for key in ("PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL")
+        if key in os.environ
+    }
+    environment.update(
+        {
+            HOST_CONTAINMENT_ENV: hashlib.sha256(profile.encode("utf-8")).hexdigest(),
+            "HF_HUB_OFFLINE": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "TMPDIR": str(scratch_root / "tmp"),
+        }
+    )
+    (scratch_root / "tmp").mkdir(mode=0o700, exist_ok=True)
+    proc = subprocess.run(
+        [
+            str(sandbox_exec),
+            "-p",
+            profile,
+            sys.executable,
+            str(Path(__file__).resolve()),
+            *sys.argv[1:],
+        ],
+        env=environment,
+        check=False,
+    )
+    return proc.returncode
 
 
 def _sha256(path: Path) -> str:
@@ -395,7 +571,7 @@ def validate_plan(scratch_root: Path) -> dict[str, Any]:
         "held_out_count": 20,
         "held_out_contract_hash": held_out.dataset_hash,
         "execution_blockers": [
-            "independent dataset rights/privacy admission",
+            "role-specific public signer keys are not yet admitted in the trust root",
             "Maya exact-candidate live-execution approval",
             "owner confirmation for this one run",
         ],
@@ -451,8 +627,13 @@ def _verify_signed_approval(
         isinstance(item, str) and item.strip() for item in scope
     ):
         raise SystemExit(f"{role} approval scope must be a non-empty string list")
-    if role == "security" and "evaluator-process-containment-v1" not in scope:
-        raise SystemExit("security approval does not cover evaluator process containment")
+    required_security_scopes = {
+        "evaluator-process-containment-v1",
+        HOST_CONTAINMENT_SCOPE,
+    }
+    if role == "security" and not required_security_scopes.issubset(scope):
+        missing = sorted(required_security_scopes - set(scope))
+        raise SystemExit(f"security approval is missing required scope tokens: {missing}")
     proc = subprocess.run(
         [
             "ssh-keygen",
@@ -612,11 +793,15 @@ def _training_dict(output: TrainingOutput) -> dict[str, Any]:
     }
 
 
-def execute_cycle(scratch_root: Path, gate_path: Path) -> int:
+def execute_cycle(
+    scratch_root: Path,
+    gate_path: Path,
+    host_containment: dict[str, Any],
+) -> int:
     from codevolt_mdf.trl_adapter import TRLTrainerAdapter
 
     gate = _load_gate(gate_path)
-    validation = validate_plan(scratch_root)
+    validation = {**validate_plan(scratch_root), "host_containment": host_containment}
     train_records = _load_train_records()
     suites, registry = _evaluation_suites(train_records)
 
@@ -683,13 +868,28 @@ def main() -> int:
         default=HERE / "scratch" / RUN_ID,
     )
     args = parser.parse_args()
-    args.scratch_root.mkdir(parents=True, exist_ok=True)
     if not args.execute:
+        args.scratch_root.mkdir(parents=True, exist_ok=True)
         print(json.dumps(validate_plan(args.scratch_root), indent=2, sort_keys=True))
         return 0
     if args.review_gate is None:
         raise SystemExit("--execute requires --review-gate")
-    return execute_cycle(args.scratch_root, args.review_gate)
+    if args.scratch_root != APPROVED_EXECUTION_SCRATCH:
+        raise SystemExit(
+            f"--execute requires exact reviewed scratch root {APPROVED_EXECUTION_SCRATCH}"
+        )
+    if args.review_gate != APPROVED_REVIEW_GATE_PATH:
+        raise SystemExit(
+            f"--execute requires exact reviewed gate path {APPROVED_REVIEW_GATE_PATH}"
+        )
+    _prepare_reviewed_directory(APPROVED_ROOT)
+    _prepare_reviewed_directory(APPROVED_EVIDENCE_ROOT)
+    _prepare_reviewed_directory(APPROVED_SCRATCH_ROOT)
+    scratch_root = _prepare_reviewed_directory(args.scratch_root)
+    if HOST_CONTAINMENT_ENV not in os.environ:
+        return _run_under_host_containment(scratch_root)
+    host_containment = _verify_host_containment(scratch_root)
+    return execute_cycle(scratch_root, args.review_gate, host_containment)
 
 
 if __name__ == "__main__":
