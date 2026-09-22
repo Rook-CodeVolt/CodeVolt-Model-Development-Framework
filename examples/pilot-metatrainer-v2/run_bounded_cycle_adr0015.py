@@ -572,7 +572,25 @@ def _budget(scratch_root: Path) -> ResourceBudget:
     return ResourceBudget(
         max_wall_seconds=1800,
         max_cpu_seconds=3600,
-        max_memory_mb=8192,
+        # max_memory_mb raised 8192 -> 16384 (16GB): the real ADR-0015
+        # execution measured a 12,119.8MB training-phase peak
+        # (ResourceBudgetExceededError against the prior 8192MB cap).
+        # Diagnosed and reproduced in isolation (see task): this
+        # is legitimate MPS caching-allocator high-water-mark growth under
+        # full-parameter SFT at batch_size=1, driven by per-step sequence
+        # length/variance (v3 corpus max tokens 322 vs v2's 119, stdev ~5x
+        # higher) -- not eager dataset loading (Arrow-mapped, trivial file
+        # sizes, ruled out), not held-out eval artifacts co-resident with
+        # training state (separate isolated OS processes, ruled out), and
+        # not a leak (torch.mps.current_allocated_memory() stayed flat
+        # ~1544MB across all traced steps while driver_allocated_memory()
+        # climbed monotonically to match the overshoot). 16384MB gives ~35%
+        # headroom over the real run's measured peak. Raising the ceiling
+        # (not switching to LoRA/packing) is correct here: full-parameter
+        # SFT is held constant across ADR-0013/0014/0015 to preserve
+        # comparability across that experimental lineage, so changing the
+        # training method to reduce memory footprint would confound it.
+        max_memory_mb=16384,
         max_gpu_count=0,
         max_storage_mb=1024,
         network_policy="offline",
