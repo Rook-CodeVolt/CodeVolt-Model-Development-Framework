@@ -20,12 +20,21 @@
   changes exactly one variable (corpus) relative to ADR-0014's proven-safe
   configuration, so any observed effect can be attributed to the corpus
   change rather than confounded with a simultaneous LR change.
-- Resource budget: `max_memory_mb=8192` (ADR-0013's corrected ceiling, raised
-  from 4096 in commit 13b316e), `max_wall_seconds=1800`, `max_cpu_seconds=3600`,
-  `network_policy=offline`. Unchanged — no evidence motivates a different
-  budget for this corpus size, and the same OS-level Seatbelt sandbox,
-  resource monitor, signature verification, and fail-closed `--execute` gate
-  are reused with no security-logic changes.
+- Resource budget: `max_memory_mb=16384` (originally carried forward
+  unchanged from ADR-0013's corrected ceiling of 8192, raised from 4096 in
+  commit 13b316e; the real ADR-0015 execution then hit
+  `ResourceBudgetExceededError` at a measured peak of 12,119.8MB — a ~48%
+  overshoot the 8192 ceiling did not anticipate, root-caused in to MPS caching-allocator high-water-mark growth under
+  full-parameter SFT driven by corpus v3's larger/higher-variance per-example
+  sequence length, not a leak or eager dataset loading. PR #89, merged as
+  `85c1b0f705cfa222fc49cb8b51130a3268c31c9c`, raised the ceiling to 16384 —
+  ~35% headroom over the measured peak — reviewed and approved by Maya under
+  the same governed pattern), `max_wall_seconds=1800`, `max_cpu_seconds=3600`,
+  `network_policy=offline`. `max_wall_seconds`/`max_cpu_seconds`/
+  `network_policy` remain unchanged from ADR-0013/0014 — no evidence
+  motivates a different value for those — and the same OS-level Seatbelt
+  sandbox, resource monitor, signature verification, and fail-closed
+  `--execute` gate are reused with no security-logic changes.
 - `BATCH_SIZE = 1` (`per_device_train_batch_size`), `gradient_accumulation_steps=1`
   (verified by `_runtime_config()`'s `expected_runtime` check) — unchanged.
   This means each training step consumes exactly one training example; there
