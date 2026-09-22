@@ -1,0 +1,118 @@
+[
+  {
+    "example_id": "mtr-v2-train-0001",
+    "split": "train",
+    "semantic_family": "zero_score_diagnostic_ladder",
+    "source_scope": "Seed-rich A, SS4.2",
+    "citations": [
+      "Clara synthesis, SS4.2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A 40-example, one-epoch run reports aggregate_score=0.0. What conclusion is justified before inspecting anything else?"
+      },
+      {
+        "role": "assistant",
+        "content": "Treat the run as a pipeline smoke test, not an efficacy verdict. A literal zero can be plausible after limited exposure, but it can also reflect missing targets, no meaningful updates, malformed generations, or evaluator failure. The result is inconclusive until the training and evaluation path is checked."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-hist-case-train-0001",
+    "semantic_family": "adr0011_minimind_mechanical_success_vs_task_failure",
+    "messages": [
+      {
+        "role": "user",
+        "content": "A bounded from-scratch pilot trainer reports TrainingOutput.status=accepted, all five resource dimensions inside budget, and a final training loss around 2.1. Does that establish the trained model is usable?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. A status of accepted plus a falling/converged training loss only establishes that the training subprocess ran to completion inside its resource budget and that gradient updates occurred; it says nothing about downstream task capability. In one real bounded pilot (a 26M-parameter MiniMind model trained from random initialization for 1 epoch over 40 examples, final training loss 2.0751, accepted within all five resource ceilings), that exact combination of a clean accepted training status and a converging loss was followed by an aggregate held-out score of 0.0 out of 10. Training completing mechanically and training producing a capable model are two separate claims that must each be checked."
+      }
+    ],
+    "citations": [
+      "docs/decisions/0011-minimind-bounded-pilot-plan.md, \"Pilot execution result\" section, TrainingOutput table, lines 393-419, commit def04c7b12b6120d9b638528c4471377703403e7 (PR #75)",
+      "examples/pilot-adr0011/evidence/training-evidence.sanitised.json, evidence_hash 92b79f31bcf1b4d91e68fae2230fd1b48085b3f610f66d131a2d25070505c78b"
+    ],
+    "split": "train",
+    "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure"
+  },
+  {
+    "example_id": "mtr-v3n-train-0001",
+    "split": "train",
+    "semantic_family": "calibrated_refusal_when_evidence_absent",
+    "source_scope": "Calibration corpus, CC1",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — training/eval procedures reward guessing over acknowledging uncertainty"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Someone asks you for the exact learning-rate schedule that will make a 135M-parameter model succeed at a reasoning task in one bounded run. You have no source that establishes this. What should you say?"
+      },
+      {
+        "role": "assistant",
+        "content": "Say plainly that no cited source establishes a single correct schedule for this combination of model size, task, and data volume, rather than inventing a specific numeric recipe to sound complete. Kalai et al.'s analysis of language-model hallucination argues that training and evaluation procedures which reward a confident guess over an admission of uncertainty are a primary statistical cause of exactly this kind of fabricated-but-plausible answer; naming the missing evidence is the correct response, not a deflection."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-train-0033",
+    "split": "train",
+    "semantic_family": "confabulated_recipe_detection",
+    "source_scope": "Calibration corpus, CC5",
+    "citations": [
+      "Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output beginning \"Sure, I can help with that. Here's a possible synthetic answer:... The learning rate is set to 0.01.\"",
+      "[26] Kalai et al., Why Language Models Hallucinate — confident, precise-looking fabrication is the failure mode this project's training/eval procedure needs to disincentivize"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A held-out prompt asks a model to name a defensible learning-rate range and cite its supporting sources. The model instead invents a specific numeric \"recipe\" (for example, a fixed learning rate of 0.01 with an if-then adjustment rule) with no citation. What does this specific pattern indicate?"
+      },
+      {
+        "role": "assistant",
+        "content": "This is a confabulated numeric recipe: a specific, precise-looking number produced with no supporting source, which is a materially worse failure mode than an admittedly vague or hedged non-answer, because it can be mistaken for a validated recommendation. In a real captured output from this project's own ADR-0014 evaluation run, a candidate model responded to exactly this kind of prompt with a fabricated step-by-step recipe (\"The learning rate is set to 0.01. The model is trained for a certain number of epochs...\") that cited no source and did not correspond to any of the project's own reviewed hyperparameter guidance. This is the exact real finding that motivated adding calibrated-refusal examples to this corpus."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-hist-case-heldout-0001",
+    "semantic_family": "adr0011_minimind_mechanical_success_vs_task_failure_heldout",
+    "messages": [
+      {
+        "role": "user",
+        "content": "A bounded from-scratch pilot's training subprocess completed cleanly, evaluation ran end to end with zero contamination, and both gates were satisfied. Does that clean execution authorize a second, larger run of the same pilot?"
+      },
+      {
+        "role": "assistant",
+        "content": "No, and this is a separate question from whether the pipeline worked. In the real MiniMind pilot, the ADR's own write-up stated explicitly that the result \"does not authorise any further MiniMind pilot, larger run, or production use\" and that \"a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\" A clean mechanical execution is not itself a grant of authority for a follow-on run; the ADR's scope was exactly one bounded pilot, and continuing requires a new proposal to go through the same review gates again, regardless of how cleanly the first run executed."
+      }
+    ],
+    "citations": [
+      "docs/decisions/0011-minimind-bounded-pilot-plan.md, \"What this result does and does not establish\" section, lines 476-480, commit def04c7b12b6120d9b638528c4471377703403e7 (PR #75): \"It does not authorise any further MiniMind pilot, larger run, or production use — a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\""
+    ],
+    "split": "held_out",
+    "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure_heldout"
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0001",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — plausible-sounding fabrication risk increases when surrounded by real, similar facts"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A user asks you to state the exact number of held-out examples a hypothetical future ADR-0016 corpus will need to pass its rubric threshold, before any such ADR has been drafted. How should you respond?"
+      },
+      {
+        "role": "assistant",
+        "content": "State plainly that no such ADR or threshold exists yet to have a specific number, rather than inventing a plausible-sounding figure by analogy to ADR-0013's real 3.0/4.0 rubric-mean threshold. Extrapolating a specific number for a document that does not yet exist would be exactly the kind of confident, unsupported claim this corpus's calibrated-refusal training is meant to discourage, even though the surrounding context (real prior ADRs with real thresholds) makes a plausible-sounding number easy to produce."
+      }
+    ]
+  }
+]

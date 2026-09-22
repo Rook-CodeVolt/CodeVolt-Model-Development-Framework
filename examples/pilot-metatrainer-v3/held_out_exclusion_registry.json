@@ -1,0 +1,434 @@
+{
+  "schema_version": "3.0",
+  "split_rule": "Every semantic_family was assigned wholly to one split before examples were authored or merged.",
+  "train_families": [
+    {
+      "semantic_family": "zero_score_diagnostic_ladder",
+      "split": "train",
+      "source_scope": "Seed-rich A, SS4.2",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-train-0001",
+        "mtr-v2-train-0002",
+        "mtr-v2-train-0003",
+        "mtr-v2-train-0004",
+        "mtr-v2-train-0005",
+        "mtr-v2-train-0006",
+        "mtr-v2-train-0007",
+        "mtr-v2-train-0008"
+      ]
+    },
+    {
+      "semantic_family": "sft_objective_masking_format",
+      "split": "train",
+      "source_scope": "Seed-rich A, SS1.1",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-train-0009",
+        "mtr-v2-train-0010",
+        "mtr-v2-train-0011",
+        "mtr-v2-train-0012",
+        "mtr-v2-train-0013",
+        "mtr-v2-train-0014",
+        "mtr-v2-train-0015",
+        "mtr-v2-train-0016"
+      ]
+    },
+    {
+      "semantic_family": "qualified_hyperparameter_sweeps",
+      "split": "train",
+      "source_scope": "Seed-rich A, SS1.2; Seed-rich B, SS5",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-train-0017",
+        "mtr-v2-train-0018",
+        "mtr-v2-train-0019",
+        "mtr-v2-train-0020",
+        "mtr-v2-train-0021",
+        "mtr-v2-train-0022",
+        "mtr-v2-train-0023",
+        "mtr-v2-train-0024"
+      ]
+    },
+    {
+      "semantic_family": "contamination_split_controls",
+      "split": "train",
+      "source_scope": "Seed-rich A, SS3.2",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-train-0025",
+        "mtr-v2-train-0026",
+        "mtr-v2-train-0027",
+        "mtr-v2-train-0028",
+        "mtr-v2-train-0029",
+        "mtr-v2-train-0030",
+        "mtr-v2-train-0031",
+        "mtr-v2-train-0032"
+      ]
+    },
+    {
+      "semantic_family": "limited_data_evaluation",
+      "split": "train",
+      "source_scope": "Seed-rich B, SS4.1",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-train-0033",
+        "mtr-v2-train-0034",
+        "mtr-v2-train-0035",
+        "mtr-v2-train-0036",
+        "mtr-v2-train-0037",
+        "mtr-v2-train-0038",
+        "mtr-v2-train-0039",
+        "mtr-v2-train-0040"
+      ]
+    },
+    {
+      "semantic_family": "adr0011_minimind_mechanical_success_vs_task_failure",
+      "split": "train",
+      "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure",
+      "count": 2,
+      "example_ids": [
+        "mtr-hist-case-train-0001",
+        "mtr-hist-case-train-0002"
+      ]
+    },
+    {
+      "semantic_family": "corpus_audit_catches_leakage_before_training",
+      "split": "train",
+      "source_scope": "Repository history, corpus_audit_catches_leakage_before_training",
+      "count": 2,
+      "example_ids": [
+        "mtr-hist-case-train-0003",
+        "mtr-hist-case-train-0004"
+      ]
+    },
+    {
+      "semantic_family": "adr0013_full_sft_overfitting_regression",
+      "split": "train",
+      "source_scope": "Repository history, adr0013_full_sft_overfitting_regression",
+      "count": 2,
+      "example_ids": [
+        "mtr-hist-case-train-0005",
+        "mtr-hist-case-train-0006"
+      ]
+    },
+    {
+      "semantic_family": "governance_stop_and_reject_trigger_fires_correctly",
+      "split": "train",
+      "source_scope": "Repository history, governance_stop_and_reject_trigger_fires_correctly",
+      "count": 2,
+      "example_ids": [
+        "mtr-hist-case-train-0007",
+        "mtr-hist-case-train-0008"
+      ]
+    },
+    {
+      "semantic_family": "calibrated_refusal_when_evidence_absent",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC1",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0001",
+        "mtr-v3n-train-0002",
+        "mtr-v3n-train-0003",
+        "mtr-v3n-train-0004",
+        "mtr-v3n-train-0005",
+        "mtr-v3n-train-0006",
+        "mtr-v3n-train-0007",
+        "mtr-v3n-train-0008"
+      ]
+    },
+    {
+      "semantic_family": "accuracy_vs_calibration_tradeoff",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC2",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0009",
+        "mtr-v3n-train-0010",
+        "mtr-v3n-train-0011",
+        "mtr-v3n-train-0012",
+        "mtr-v3n-train-0013",
+        "mtr-v3n-train-0014",
+        "mtr-v3n-train-0015",
+        "mtr-v3n-train-0016"
+      ]
+    },
+    {
+      "semantic_family": "self_consistency_and_sampling_checks",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC3",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0017",
+        "mtr-v3n-train-0018",
+        "mtr-v3n-train-0019",
+        "mtr-v3n-train-0020",
+        "mtr-v3n-train-0021",
+        "mtr-v3n-train-0022",
+        "mtr-v3n-train-0023",
+        "mtr-v3n-train-0024"
+      ]
+    },
+    {
+      "semantic_family": "exact_match_scorer_limits_and_proxies",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC4",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0025",
+        "mtr-v3n-train-0026",
+        "mtr-v3n-train-0027",
+        "mtr-v3n-train-0028",
+        "mtr-v3n-train-0029",
+        "mtr-v3n-train-0030",
+        "mtr-v3n-train-0031",
+        "mtr-v3n-train-0032"
+      ]
+    },
+    {
+      "semantic_family": "confabulated_recipe_detection",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC5",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0033",
+        "mtr-v3n-train-0034",
+        "mtr-v3n-train-0035",
+        "mtr-v3n-train-0036",
+        "mtr-v3n-train-0037",
+        "mtr-v3n-train-0038",
+        "mtr-v3n-train-0039",
+        "mtr-v3n-train-0040"
+      ]
+    },
+    {
+      "semantic_family": "uncertainty_language_calibration",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC6",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0041",
+        "mtr-v3n-train-0042",
+        "mtr-v3n-train-0043",
+        "mtr-v3n-train-0044",
+        "mtr-v3n-train-0045",
+        "mtr-v3n-train-0046",
+        "mtr-v3n-train-0047",
+        "mtr-v3n-train-0048"
+      ]
+    },
+    {
+      "semantic_family": "refusal_vs_overrefusal_balance",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC7",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0049",
+        "mtr-v3n-train-0050",
+        "mtr-v3n-train-0051",
+        "mtr-v3n-train-0052",
+        "mtr-v3n-train-0053",
+        "mtr-v3n-train-0054",
+        "mtr-v3n-train-0055",
+        "mtr-v3n-train-0056"
+      ]
+    },
+    {
+      "semantic_family": "bounded_reasoning_under_missing_citation",
+      "split": "train",
+      "source_scope": "Calibration corpus, CC8",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-train-0057",
+        "mtr-v3n-train-0058",
+        "mtr-v3n-train-0059",
+        "mtr-v3n-train-0060",
+        "mtr-v3n-train-0061",
+        "mtr-v3n-train-0062",
+        "mtr-v3n-train-0063",
+        "mtr-v3n-train-0064"
+      ]
+    }
+  ],
+  "held_out_families": [
+    {
+      "semantic_family": "peft_lora_qlora_decisions",
+      "split": "held_out",
+      "source_scope": "Seed-rich A, SS2",
+      "count": 8,
+      "example_ids": [
+        "mtr-v2-heldout-0001",
+        "mtr-v2-heldout-0002",
+        "mtr-v2-heldout-0003",
+        "mtr-v2-heldout-0004",
+        "mtr-v2-heldout-0005",
+        "mtr-v2-heldout-0006",
+        "mtr-v2-heldout-0007",
+        "mtr-v2-heldout-0008"
+      ]
+    },
+    {
+      "semantic_family": "synthetic_data_tradeoffs",
+      "split": "held_out",
+      "source_scope": "Seed-rich B, SS3.3",
+      "count": 6,
+      "example_ids": [
+        "mtr-v2-heldout-0009",
+        "mtr-v2-heldout-0010",
+        "mtr-v2-heldout-0011",
+        "mtr-v2-heldout-0012",
+        "mtr-v2-heldout-0013",
+        "mtr-v2-heldout-0014"
+      ]
+    },
+    {
+      "semantic_family": "catastrophic_forgetting_retention",
+      "split": "held_out",
+      "source_scope": "Seed-rich A, SS1.3",
+      "count": 6,
+      "example_ids": [
+        "mtr-v2-heldout-0015",
+        "mtr-v2-heldout-0016",
+        "mtr-v2-heldout-0017",
+        "mtr-v2-heldout-0018",
+        "mtr-v2-heldout-0019",
+        "mtr-v2-heldout-0020"
+      ]
+    },
+    {
+      "semantic_family": "adr0011_minimind_mechanical_success_vs_task_failure_heldout",
+      "split": "held_out",
+      "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure_heldout",
+      "count": 1,
+      "example_ids": [
+        "mtr-hist-case-heldout-0001"
+      ]
+    },
+    {
+      "semantic_family": "corpus_audit_catches_leakage_before_training_heldout",
+      "split": "held_out",
+      "source_scope": "Repository history, corpus_audit_catches_leakage_before_training_heldout",
+      "count": 1,
+      "example_ids": [
+        "mtr-hist-case-heldout-0002"
+      ]
+    },
+    {
+      "semantic_family": "adr0013_full_sft_overfitting_regression_heldout",
+      "split": "held_out",
+      "source_scope": "Repository history, adr0013_full_sft_overfitting_regression_heldout",
+      "count": 1,
+      "example_ids": [
+        "mtr-hist-case-heldout-0003"
+      ]
+    },
+    {
+      "semantic_family": "governance_stop_and_reject_trigger_fires_correctly_heldout",
+      "split": "held_out",
+      "source_scope": "Repository history, governance_stop_and_reject_trigger_fires_correctly_heldout",
+      "count": 1,
+      "example_ids": [
+        "mtr-hist-case-heldout-0004"
+      ]
+    },
+    {
+      "semantic_family": "calibrated_refusal_generalization",
+      "split": "held_out",
+      "source_scope": "Calibration corpus, CC9",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-heldout-0001",
+        "mtr-v3n-heldout-0002",
+        "mtr-v3n-heldout-0003",
+        "mtr-v3n-heldout-0004",
+        "mtr-v3n-heldout-0005",
+        "mtr-v3n-heldout-0006",
+        "mtr-v3n-heldout-0007",
+        "mtr-v3n-heldout-0008"
+      ]
+    },
+    {
+      "semantic_family": "hallucination_incentive_diagnosis",
+      "split": "held_out",
+      "source_scope": "Calibration corpus, CC10",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-heldout-0009",
+        "mtr-v3n-heldout-0010",
+        "mtr-v3n-heldout-0011",
+        "mtr-v3n-heldout-0012",
+        "mtr-v3n-heldout-0013",
+        "mtr-v3n-heldout-0014",
+        "mtr-v3n-heldout-0015",
+        "mtr-v3n-heldout-0016"
+      ]
+    },
+    {
+      "semantic_family": "sampling_consistency_application",
+      "split": "held_out",
+      "source_scope": "Calibration corpus, CC11",
+      "count": 8,
+      "example_ids": [
+        "mtr-v3n-heldout-0017",
+        "mtr-v3n-heldout-0018",
+        "mtr-v3n-heldout-0019",
+        "mtr-v3n-heldout-0020",
+        "mtr-v3n-heldout-0021",
+        "mtr-v3n-heldout-0022",
+        "mtr-v3n-heldout-0023",
+        "mtr-v3n-heldout-0024"
+      ]
+    }
+  ],
+  "held_out_example_ids": [
+    "mtr-v2-heldout-0001",
+    "mtr-v2-heldout-0002",
+    "mtr-v2-heldout-0003",
+    "mtr-v2-heldout-0004",
+    "mtr-v2-heldout-0005",
+    "mtr-v2-heldout-0006",
+    "mtr-v2-heldout-0007",
+    "mtr-v2-heldout-0008",
+    "mtr-v2-heldout-0009",
+    "mtr-v2-heldout-0010",
+    "mtr-v2-heldout-0011",
+    "mtr-v2-heldout-0012",
+    "mtr-v2-heldout-0013",
+    "mtr-v2-heldout-0014",
+    "mtr-v2-heldout-0015",
+    "mtr-v2-heldout-0016",
+    "mtr-v2-heldout-0017",
+    "mtr-v2-heldout-0018",
+    "mtr-v2-heldout-0019",
+    "mtr-v2-heldout-0020",
+    "mtr-hist-case-heldout-0001",
+    "mtr-hist-case-heldout-0002",
+    "mtr-hist-case-heldout-0003",
+    "mtr-hist-case-heldout-0004",
+    "mtr-v3n-heldout-0001",
+    "mtr-v3n-heldout-0002",
+    "mtr-v3n-heldout-0003",
+    "mtr-v3n-heldout-0004",
+    "mtr-v3n-heldout-0005",
+    "mtr-v3n-heldout-0006",
+    "mtr-v3n-heldout-0007",
+    "mtr-v3n-heldout-0008",
+    "mtr-v3n-heldout-0009",
+    "mtr-v3n-heldout-0010",
+    "mtr-v3n-heldout-0011",
+    "mtr-v3n-heldout-0012",
+    "mtr-v3n-heldout-0013",
+    "mtr-v3n-heldout-0014",
+    "mtr-v3n-heldout-0015",
+    "mtr-v3n-heldout-0016",
+    "mtr-v3n-heldout-0017",
+    "mtr-v3n-heldout-0018",
+    "mtr-v3n-heldout-0019",
+    "mtr-v3n-heldout-0020",
+    "mtr-v3n-heldout-0021",
+    "mtr-v3n-heldout-0022",
+    "mtr-v3n-heldout-0023",
+    "mtr-v3n-heldout-0024"
+  ]
+}

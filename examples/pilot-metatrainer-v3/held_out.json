@@ -1,0 +1,938 @@
+[
+  {
+    "example_id": "mtr-v2-heldout-0001",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — frozen pretrained weights and low-rank adaptation",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What does PEFT mean in this evidence pack?"
+      },
+      {
+        "role": "assistant",
+        "content": "PEFT is a family of methods that adapts a pretrained model by training a small subset of parameters or added parameters rather than updating every base weight."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0002",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — abstract and Section 4.1"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Describe the core LoRA update without importing large-model memory ratios."
+      },
+      {
+        "role": "assistant",
+        "content": "LoRA freezes a pretrained weight matrix and learns a low-rank update, commonly written BA, whose rank is much smaller than the original dimensions. The update can be merged into the base for inference."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0003",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[6] LoRA paper — GPT-3 175B experimental setting",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can the LoRA paper's 10,000x trainable-parameter and roughly 3x memory figures be promised for a 30M model?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Those figures come from the paper's GPT-3 175B setting and must not be projected onto a tiny model. Measure the actual implementation instead."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0004",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[7] QLoRA paper — abstract and Sections 1-3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is QLoRA's core training arrangement?"
+      },
+      {
+        "role": "assistant",
+        "content": "QLoRA keeps the pretrained base frozen and quantized to 4-bit while backpropagating into LoRA adapters. Its named mechanisms include NF4, double quantization, and paged optimizers."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0005",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "[7] QLoRA paper — 65B model on one 48GB GPU",
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does fitting a 65B model on one 48GB GPU prove a memory ratio for a 26M model?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. The result is bounded to the QLoRA paper's tested setting. It demonstrates a large-model memory technique, not a ratio that can be extrapolated to MiniMind-scale models."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0006",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When is full SFT reasonable to benchmark?"
+      },
+      {
+        "role": "assistant",
+        "content": "Benchmark it when the model fits comfortably, the desired shift is broad, and adapters may lack capacity. This is Clara's qualified decision guidance, not a direct claim that full SFT always wins on small models."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0007",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2",
+      "[6] LoRA paper — frozen base and low-rank adapters"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When is LoRA a reasonable default candidate?"
+      },
+      {
+        "role": "assistant",
+        "content": "Use it for narrow or evolving domains, reversible experiments, several domain adapters, or when retaining an untouched base matters. For tiny models, also benchmark full SFT rather than assuming PEFT wins."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0008",
+    "split": "held_out",
+    "semantic_family": "peft_lora_qlora_decisions",
+    "source_scope": "Seed-rich A, SS2",
+    "citations": [
+      "Clara synthesis, SS2",
+      "[7] QLoRA paper — quantized frozen base with LoRA adapters"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "When should QLoRA be chosen according to Clara's guidance?"
+      },
+      {
+        "role": "assistant",
+        "content": "Choose it when the base does not fit at 16-bit. It addresses a memory constraint and is not inherently a quality upgrade; if a 26M-135M model already fits, quantization complexity may be unnecessary."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0009",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "[18] Self-Instruct paper — Sections 1-2",
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What positive result does Self-Instruct demonstrate without implying a tiny-model sample threshold?"
+      },
+      {
+        "role": "assistant",
+        "content": "Self-Instruct expanded 175 human-written seed tasks into about 52K instructions and 82K instances while filtering invalid, repeated, and overly similar generations. It demonstrates controlled synthetic expansion, not that any count is sufficient for a small model."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0010",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "[19] Nature model-collapse paper — abstract and Definition 2.1",
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does the model-collapse paper show that every synthetic dataset is harmful?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. It studies indiscriminate recursive training on model-generated data and finds progressive loss of distribution tails. It does not establish that a curated one-generation mixture necessarily collapses."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0011",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A synthetic explanation is fluent but adds factual details absent from its retrieved source. What should the reviewer do?"
+      },
+      {
+        "role": "assistant",
+        "content": "Reject or revise the unsupported details. Synthetic items must preserve their source claims and receive claim-level verification against retrieved sources; fluent wording is not evidence that a new factual claim is grounded."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0012",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A generated example passes factual review. May its synthetic-origin label now be removed?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Factual verification does not change the item's origin. Keep every synthetic item labeled so generated material remains distinguishable from human-authored or primary-source anchors throughout corpus review and use."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0013",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can a synthetic answer invent a learning-rate recipe if it sounds plausible?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. Numeric recipes must be supported by cited evidence and retain their qualifications. Plausibility is not a substitute for a source-backed anchor."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0014",
+    "split": "held_out",
+    "semantic_family": "synthetic_data_tradeoffs",
+    "source_scope": "Seed-rich B, SS3.3",
+    "citations": [
+      "Clara synthesis, SS3.3",
+      "[19] Nature model-collapse paper — recursive-training risk"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Name the main synthetic-data risks Clara identifies."
+      },
+      {
+        "role": "assistant",
+        "content": "They are generator bias, factual errors, reduced diversity, hidden benchmark leakage, and recursive self-training effects. Their presence and severity should be measured rather than assumed."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0015",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What pattern indicates catastrophic forgetting or capability regression?"
+      },
+      {
+        "role": "assistant",
+        "content": "The target task improves while pre-existing general or instruction-following behavior declines. Evaluate both the new capability and retained base behavior rather than treating target-task gain as sufficient."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0016",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "[6] LoRA paper — frozen base weights and low-rank updates",
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS2 — reversible experiments"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why does full SFT carry a different regression risk from LoRA?"
+      },
+      {
+        "role": "assistant",
+        "content": "Full SFT changes all model weights, while LoRA freezes the base and learns low-rank updates. Freezing can reduce risk and make the adapter reversible, but it does not guarantee served behavior cannot regress."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0017",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "[6] LoRA paper — frozen base and learned adapters",
+      "Clara synthesis, SS1.3"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does using LoRA eliminate the need for retention testing?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. LoRA confines parameter changes to adapters, but the combined model can still change outputs. Keep a frozen base-regression suite and compare base versus adapted behavior."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0018",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS4.1 — capability-retention suite composition"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the purpose of a frozen base-regression suite?"
+      },
+      {
+        "role": "assistant",
+        "content": "It supplies a stable reference for pre-existing instruction following, basic language behavior, safety boundaries, and prior capabilities. Clara recommends it as a control; its exact composition should match deployment scope."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0019",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich A, SS1.3",
+    "citations": [
+      "Clara synthesis, SS1.3",
+      "Clara synthesis, SS5"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Target-task accuracy rose, but basic instruction following worsened. Should the checkpoint be promoted?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not on target-task gain alone. Treat the retention failure as material evidence against promotion until the trade-off is evaluated against predeclared criteria."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v2-heldout-0020",
+    "split": "held_out",
+    "semantic_family": "catastrophic_forgetting_retention",
+    "source_scope": "Seed-rich B, SS5",
+    "citations": [
+      "Clara synthesis, SS5"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is an evidence-qualified promotion rule for a tuned checkpoint?"
+      },
+      {
+        "role": "assistant",
+        "content": "Require a predeclared target-task gain, no material base-regression failure, and a paired improvement larger than observed run or evaluation variability. This is Clara's recommended gate, not a universal external standard."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-hist-case-heldout-0001",
+    "semantic_family": "adr0011_minimind_mechanical_success_vs_task_failure_heldout",
+    "messages": [
+      {
+        "role": "user",
+        "content": "A bounded from-scratch pilot's training subprocess completed cleanly, evaluation ran end to end with zero contamination, and both gates were satisfied. Does that clean execution authorize a second, larger run of the same pilot?"
+      },
+      {
+        "role": "assistant",
+        "content": "No, and this is a separate question from whether the pipeline worked. In the real MiniMind pilot, the ADR's own write-up stated explicitly that the result \"does not authorise any further MiniMind pilot, larger run, or production use\" and that \"a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\" A clean mechanical execution is not itself a grant of authority for a follow-on run; the ADR's scope was exactly one bounded pilot, and continuing requires a new proposal to go through the same review gates again, regardless of how cleanly the first run executed."
+      }
+    ],
+    "citations": [
+      "docs/decisions/0011-minimind-bounded-pilot-plan.md, \"What this result does and does not establish\" section, lines 476-480, commit def04c7b12b6120d9b638528c4471377703403e7 (PR #75): \"It does not authorise any further MiniMind pilot, larger run, or production use — a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\""
+    ],
+    "split": "held_out",
+    "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure_heldout"
+  },
+  {
+    "example_id": "mtr-hist-case-heldout-0002",
+    "semantic_family": "corpus_audit_catches_leakage_before_training_heldout",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Two training examples and two held-out examples share the same semantic_family label and have disjoint ids. Is that enough to call the split leakage-free for that family?"
+      },
+      {
+        "role": "assistant",
+        "content": "No, disjoint ids and a shared but correctly-assigned family label are necessary but not sufficient; the actual reasoning content still has to be checked. In a real corpus, five train records (ids mtr-v2-train-0025/0026/0028/0029/0032) and two held-out records (mtr-v2-heldout-0011/0012) all carried the label synthetic_data_tradeoffs with no id overlap, yet an independent audit still flagged all seven as a leakage cluster because the train side already taught the specific generator/template-family-leakage reasoning pattern the held-out items were supposed to be testing as genuinely withheld material. The fix was not a relabeling or re-splitting by id; it was rewriting the two held-out items' content (heldout-0011 to test claim-level source verification for fluent synthetic text that invents facts, heldout-0012 to test retention of synthetic-origin labels after review) so they exercised a different sub-scenario within the same family than anything already taught on the train side, leaving the five named train records untouched. A follow-up independent re-audit confirmed the rewritten pair no longer overlapped with the train content. Family-label disjointness by id is a necessary structural check; it is not the same claim as content-level split integrity."
+      }
+    ],
+    "citations": [
+      ", metadata.semantic_split_fail_ids: mtr-v2-train-0025, mtr-v2-train-0026, mtr-v2-train-0028, mtr-v2-train-0029, mtr-v2-train-0032, mtr-v2-heldout-0011, mtr-v2-heldout-0012",
+      ", metadata.changes[\"5\"] (rewrite of heldout-0011/0012 to remove overlapping duplicate/template-family reasoning)",
+      ", metadata.targeted_corrections.synthetic_cluster \"PASS: heldout-0011/0012 now test claim verification and origin labeling, distinct from train split/deduplication controls\""
+    ],
+    "split": "held_out",
+    "source_scope": "Repository history, corpus_audit_catches_leakage_before_training_heldout"
+  },
+  {
+    "example_id": "mtr-hist-case-heldout-0003",
+    "semantic_family": "adr0013_full_sft_overfitting_regression_heldout",
+    "messages": [
+      {
+        "role": "user",
+        "content": "A meta-trainer SFT run's own target-task score stayed flat at 0.0% before and after training. Does the fact that an unrelated arithmetic capability-retention suite went from 30% correct to 0% correct after the same run tell you something the flat target-task score alone does not?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes. The flat 0.0%-to-0.0% target-task result only tells you the training did not move the metric it was aiming at, which could mean many things, including too little signal to observe any effect. The capability-retention suite is different: it is arithmetic, entirely unrelated to the meta-trainer target task, and was never part of the training data, so the base model's partial success on it (3 of 10 correct before training) was pre-existing capability, not something this training run could have been trying to teach. That capability dropping to 0 of 10 correct after the same full-parameter SFT run is evidence of collateral damage: real training updates degraded unrelated pre-existing behavior even though they failed to improve the intended target behavior at all. That combination (no gain on the target, active loss on something unrelated) is a stronger and more specific signal than either number would be alone, and is exactly what a paired retention suite is included to catch."
+      }
+    ],
+    "citations": [
+      "local evidence file./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, baseline.capability_retention.aggregate_score=0.3 (3/10 correct) vs candidate.capability_retention.aggregate_score=0.0 (0/10 correct)",
+      "docs/decisions/0014-corrected-bounded-metatrainer-cycle.md, lines 20-24, 26-28 (results table and degeneration description), commit 48db05916a8e653a7c1d4e601ef0d8521096e2d7 (PR #86)"
+    ],
+    "split": "held_out",
+    "source_scope": "Repository history, adr0013_full_sft_overfitting_regression_heldout"
+  },
+  {
+    "example_id": "mtr-hist-case-heldout-0004",
+    "semantic_family": "governance_stop_and_reject_trigger_fires_correctly_heldout",
+    "messages": [
+      {
+        "role": "user",
+        "content": "A rejected training cycle already had three independent sign-offs (security, dataset-rights, and owner) admitted against its exact implementation commit and run id. A new, corrected proposal reuses the same dataset, evaluator, and reviewers. Do the original three sign-offs carry over to authorize the new proposal's execution?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. In the real case, each of the three approval records was bound to a specific run_id and implementation_sha (the exact commit reviewed), not to the dataset or reviewer identities in the abstract. A corrected follow-up proposal that reused the same three reviewers, the same corpus, and the same evaluator still used a fresh run id and a fresh approval-namespace-scoped trust root, with the new ADR's own text stating plainly that the prior approvals' signatures do not verify against the new documents. This is a deliberate design property, not an oversight: the identity of the reviewer is necessary but not sufficient for a valid approval; the approval must also be freshly bound to the exact new implementation and run being authorized, so a rejected run's sign-offs cannot be silently treated as covering a different, later run even when the underlying reviewers and reviewed materials substantially overlap."
+      }
+    ],
+    "citations": [
+      "docs/decisions/0014-corrected-bounded-metatrainer-cycle.md, \"Rationale: fresh run id, approval namespace, and host paths\" section, lines 132-145: \"ADR-0013's existing signatures do not verify against ADR-0014's documents\"",
+      "local evidence file./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, gate.verified_approvals (security/dataset/owner) each scoped to run_id=adr0013-metatrainer-sft-20260920 and implementation_sha=13b316e6bea25d141ecf1c89284e40e68a1b3ff9"
+    ],
+    "split": "held_out",
+    "source_scope": "Repository history, governance_stop_and_reject_trigger_fires_correctly_heldout"
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0001",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — plausible-sounding fabrication risk increases when surrounded by real, similar facts"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A user asks you to state the exact number of held-out examples a hypothetical future ADR-0016 corpus will need to pass its rubric threshold, before any such ADR has been drafted. How should you respond?"
+      },
+      {
+        "role": "assistant",
+        "content": "State plainly that no such ADR or threshold exists yet to have a specific number, rather than inventing a plausible-sounding figure by analogy to ADR-0013's real 3.0/4.0 rubric-mean threshold. Extrapolating a specific number for a document that does not yet exist would be exactly the kind of confident, unsupported claim this corpus's calibrated-refusal training is meant to discourage, even though the surrounding context (real prior ADRs with real thresholds) makes a plausible-sounding number easy to produce."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0002",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[24] Kadavath et al., Language Models (Mostly) Know What They Know — P(IK) should be low, and stated as such, absent relevant source material"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "You are asked whether a specific named open-source model not mentioned anywhere in your available sources supports a particular quantization scheme. What is the calibrated response?"
+      },
+      {
+        "role": "assistant",
+        "content": "Say directly that you have no verified information about that specific model's quantization support, rather than inferring an answer from general patterns you have seen in other models' documentation. Kadavath et al.'s P(IK) framing is directly relevant here: the correct behavior is registering (and stating) low confidence precisely because no directly relevant source is present, not defaulting to a plausible-sounding generic answer drawn from adjacent but non-matching cases."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0003",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[28] OpenAI Model Spec, \"Express uncertainty\" — hedging should track actual evidentiary support regardless of how the request frames the required precision"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A user frames an unverifiable claim as \"just a rough estimate, doesn't need to be exact\" and asks you to give a specific number anyway. Does the lower stated bar for precision change whether you should state a specific unfounded number?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. The user's framing changes how the answer should be caveated, not whether an unfounded specific number should be produced at all. If no evidence supports even a rough range, the calibrated response says so; if a rough range is genuinely supported by some evidence, giving that range with an explicit \"rough estimate\" caveat is appropriate. Lowering the requested precision bar does not manufacture evidence that was not there, and producing an unfounded specific figure — even one framed as \"rough\" — still risks being treated as more grounded than it is."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0004",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "Marcus synthesis, MS11"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "You are asked to name the exact wall-clock duration a hypothetical future training run on a larger corpus would take, extrapolating from this project's real ADR-0013/0014 run durations. Is a specific extrapolated number acceptable here?"
+      },
+      {
+        "role": "assistant",
+        "content": "A bare specific number without qualification is not acceptable, but a clearly labeled, reasoned estimate can be, if it is explicit about being derived by extrapolation and states the real anchor figures it is extrapolating from (for example, the real per-phase wall-time budgets and observed usage from ADR-0013/0014's resource-usage evidence) rather than presenting the extrapolated figure as if it were itself a measured result. The distinction is between an explicitly-labeled, source-anchored estimate and an unlabeled fabricated-sounding precise figure."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0005",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "Marcus synthesis, MS12"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A prompt describes a training-run scenario that superficially resembles ADR-0013's rejected run but changes one key variable (for example, a much larger corpus). Should you assume ADR-0013's exact 0.0%-to-0.0% target-task outcome would recur?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. The real ADR-0013 outcome is evidence about that specific run's exact configuration (40 examples, 3 epochs, LR 1e-5, full SFT on this specific model), not a general law about all configurations in this problem family. Changing a key variable such as corpus size removes the basis for assuming the same numeric outcome would recur, and the calibrated response says the prior result does not directly transfer to the changed scenario rather than asserting it would."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0006",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[28] OpenAI Model Spec, \"Express uncertainty\" — avoid quantified percentages absent an actual calibration process, express uncertainty in natural language instead"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "You are asked to state, with a specific confidence percentage, how likely a proposed but not-yet-reviewed ADR is to pass Maya's security review. What is the calibrated response?"
+      },
+      {
+        "role": "assistant",
+        "content": "Decline to produce a specific quantified percentage, consistent with the Model Spec's default of expressing uncertainty in natural language rather than manufactured numeric confidence, and instead describe what is actually known: whether the proposal follows the same reviewed pattern as prior approved ADRs, and what aspects (if any) are genuinely novel and therefore less predictable. A specific percentage here would imply a calibration process that does not exist for this kind of judgment call."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0007",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "Marcus synthesis, MS13"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A user asks you to independently verify, right now, whether a specific cited arXiv paper's claimed result still replicates in the current literature. You have no ability to run new experiments or access sources beyond what has already been read. What should you say?"
+      },
+      {
+        "role": "assistant",
+        "content": "State that you cannot independently verify replication without access to the actual literature or experiments needed to check it, and that your available evidence establishes only what the cited paper itself claims, not whether that claim has since been confirmed or overturned elsewhere. Treating an unchecked claim as settled fact, or claiming replication status you have no way to know, would both be uncalibrated relative to what you actually have access to."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0008",
+    "split": "held_out",
+    "semantic_family": "calibrated_refusal_generalization",
+    "source_scope": "Calibration corpus, CC9",
+    "citations": [
+      "[24] Kadavath et al., Language Models (Mostly) Know What They Know — self-knowledge calibration claim",
+      "[25] Lin, Hilton, and Evans, TruthfulQA — raw truthfulness-rate claim; distinct property from calibration"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Two apparently contradictory claims about model calibration appear in your available sources: one paper reports models can be trained to estimate their own uncertainty reasonably well, another reports a much lower per-question truthfulness rate for tested models. Are these actually in tension?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not necessarily, and it would be a mistake to resolve the apparent tension by picking one paper as \"more correct.\" Kadavath et al.'s P(IK) result is about whether a model can predict its own probability of being correct, which is a claim about self-knowledge calibration; TruthfulQA's result is about how often tested models are truthful, which is a claim about raw output accuracy on a specific class of imitative-falsehood questions. A model could be reasonably well-calibrated about its own uncertainty while still being frequently wrong on truthfulness benchmarks — calibration and accuracy are different properties, and treating a calibration result and an accuracy result as directly contradicting each other conflates the two."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0009",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — pretraining on unlabeled positive examples plus accuracy-only grading create pressure to fill gaps fluently"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A model produces a fabricated citation to a plausible-sounding but nonexistent source when asked to support a claim it does not actually have evidence for. What incentive-level explanation does Kalai et al.'s framework offer for why this specific failure mode (fabricating a source, not just a fact) would arise?"
+      },
+      {
+        "role": "assistant",
+        "content": "The paper's account is that pretraining exposes a model only to positive examples of fluent text with no explicit true/false labels, and that grading procedures which reward confident, complete-looking answers over honest gaps create statistical pressure toward filling any gap — including a missing citation — with something fluent and plausible rather than an admission that no citation exists. A fabricated citation is a specific instance of that general pressure: the citation format itself is learnable and reproducible even where the specific cited claim is not verified."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0010",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — argues eval-incentive rework is necessary at the ecosystem level; distinct from whether project-local training data can help within one pipeline"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kalai et al. argue that the fix for hallucination is mostly socio-technical (reworking how benchmarks are scored) rather than purely a training-time model change. Does that mean better training data alone cannot help?"
+      },
+      {
+        "role": "assistant",
+        "content": "The paper's specific argument is about incentive structures across the field's dominant evaluation methods, arguing that a good hallucination-specific eval alone has little effect while it competes against many traditional accuracy-only evals that still reward guessing. That is a claim about evaluation ecosystems, not a claim that training-data composition is powerless within a single project's own pipeline; a project that both trains on calibrated-refusal examples and grades its own evaluations in a way that does not penalize appropriate abstention is addressing the mechanism the paper describes at a smaller, project-local scale, even though it is not a fix for benchmark incentives industry-wide."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0011",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — grading that scores abstention identically to a wrong guess removes the incentive to abstain"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "If a project's own held-out evaluation used exact-match scoring exclusively and never rewarded an explicit \"I don't know\" response, would that evaluation design itself be consistent with or in tension with the incentive problem Kalai et al. describe?"
+      },
+      {
+        "role": "assistant",
+        "content": "It would be in tension with it. Kalai et al.'s central point is that grading which only credits a specific correct string (and gives zero credit to an honest abstention, identical to giving zero credit to any wrong guess) provides no incentive to abstain rather than guess, since abstaining and guessing wrong are scored identically under such a scheme. A scoring design that gave a small amount of credit, or at least did not penalize abstention as though it were an ordinary wrong answer, would more directly match the paper's own proposed direction."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0012",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — the paper's mechanism explains guessing under genuine uncertainty, not errors on well-known answers"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A model is asked a question with a genuinely correct, well-known answer, and it hallucinates a wrong answer anyway. Does Kalai et al.'s incentive-based account explain every hallucination, including this one?"
+      },
+      {
+        "role": "assistant",
+        "content": "No, and the paper does not claim this. Its account specifically explains hallucinations that arise from genuine knowledge gaps under accuracy-only grading pressure (arbitrary, low-frequency, or unlabeled-in-training facts, in the paper's own pet-birthday analogy). A wrong answer to a question the model should know is better explained by a retrieval, reasoning, or representation failure within the model, not by the incentive-to-guess-when-uncertain mechanism the paper is specifically about; not every incorrect output is the same failure mode the paper analyzes."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0013",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[26] Kalai et al., Why Language Models Hallucinate — general incentive-structure claim applied to this project's own exact-match scoring design",
+      "Repository evidence: src/codevolt_mdf/hf_local_evaluator_adapter.py, exact-match string-containment scoring path (per independent diagnosis, task)"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "This project's own real evaluation captured a model fabricating a specific numeric learning-rate recipe with no citation. Using Kalai et al.'s framework rather than merely describing the incident, what training-and-evaluation-level condition would need to hold for that exact incentive to be present in this project's own pipeline?"
+      },
+      {
+        "role": "assistant",
+        "content": "The exact-match scorer used for this project's meta_trainer held-out suite grades a specific reference string as correct and everything else, including an honest \"no source specifies this\" response, as equally 0 — which matches the paper's described condition of scoring abstention no better than a wrong guess. That means, under this project's current scoring design, a model has no scoring incentive to prefer an honest gap-admission over a fluent, if unsupported, attempt at the reference answer's general shape; the incentive problem the paper describes is present in this project's current exact-match pipeline, independent of whether it is present in any specific captured output."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0014",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "Repository evidence:, root-cause diagnosis of the exact_match scorer's lack of dynamic range for free-form answers",
+      "[26] Kalai et al., Why Language Models Hallucinate — corpus-level behavior change does not by itself alter a scoring function's incentive structure"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Does adding calibrated-refusal training examples to this corpus, by itself, change the exact-match scoring incentive Kalai et al.'s framework identifies in this project's own evaluation pipeline?"
+      },
+      {
+        "role": "assistant",
+        "content": "No, not by itself. Training examples can teach the model the behavior of naming missing evidence, but the evaluation scoring path itself (exact-match string containment against a single reference) still would not give that behavior any credit over a wrong guess, per this project's own diagnosis of the exact_match scorer. Fully addressing the incentive problem for this project's own pipeline would require a change to how the meta_trainer suite is scored, not only a change to the training corpus; this proposal is explicitly scoped to the corpus, and the scorer question remains a separate, undecided design question named in this project's own prior diagnosis."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0015",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "[24] Kadavath et al., Language Models (Mostly) Know What They Know — P(IK) calibration struggles to generalize to new tasks, limiting claims about transfer beyond trained patterns"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kadavath et al. find that P(IK) calibration struggles to generalize to new tasks. If a model trained on this corpus's calibrated-refusal examples encountered a genuinely novel kind of question outside anything in this corpus, should you expect its refusal behavior to transfer reliably?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not reliably, and this should be stated as a real limitation rather than assumed away. Kadavath et al.'s own finding is that P(IK) calibration only partially generalizes and struggles specifically on new tasks; a model trained on this corpus's specific calibrated-refusal examples has evidence of behaving calibratedly on the patterns actually represented in the corpus, not a general guarantee that the same behavior extends to structurally different, unseen question types."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0016",
+    "split": "held_out",
+    "semantic_family": "hallucination_incentive_diagnosis",
+    "source_scope": "Calibration corpus, CC10",
+    "citations": [
+      "Marcus synthesis, MS14"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why does this family test the underlying incentive mechanism rather than only testing whether the model produces the right surface phrase (\"I don't know\") on a given prompt?"
+      },
+      {
+        "role": "assistant",
+        "content": "Because reproducing a surface phrase like \"I don't know\" on prompts resembling training examples is a weaker and more shallow capability than understanding why and when that response is the correct one — the latter is what would be needed for the behavior to generalize usefully to prompts not seen in training, which is also the exact limitation the previous record in this family names. Testing the incentive-level reasoning, not just the surface phrase, is the more demanding and more informative held-out check."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0017",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — divergence across independent samples is itself a signal against reliability, applied to a fresh three-sample scenario"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "You have access to three independently generated responses from the same model to the same factual question, and they give three meaningfully different specific answers. Applying SelfCheckGPT's core logic, what should you conclude about that specific claim's reliability?"
+      },
+      {
+        "role": "assistant",
+        "content": "The divergence across independently sampled responses is itself evidence against the claim's reliability, per SelfCheckGPT's core premise that a model with real knowledge of a concept tends to produce consistent samples, while a model without real grounding on that concept tends to produce divergent, contradictory samples. This does not identify which (if any) of the three answers is correct, only that the disagreement itself is a signal the claim should not be trusted without further, independent verification."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0018",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — method itself is silent on how a per-item exclusion registry should account for multiple generations",
+      "Repository evidence: examples/pilot-metatrainer-v2/held_out_exclusion_registry.json — schema records one example_id entry per held-out item, not per generation"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Suppose a project's contamination/exclusion registry is defined at the level of one fixed example_id per held-out item. If the evaluation harness were changed to generate several independent samples per held-out item to enable a SelfCheckGPT-style check, does the existing exclusion-registry design already account for multiple generations sharing one example_id?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not necessarily, and this is a real design question rather than an assumption to wave through. This project's registry records exactly one entry per example_id (mapping each id to its family and split membership), not per generation; introducing multiple sampled generations under the same example_id would need an explicit decision about whether new per-generation records are added, or generations are aggregated under the existing single id, before the registry's existing exact-id-accounting checks could be trusted to still hold unchanged. This is a concrete downstream consequence of adopting a sampling-based check, not addressed by the consistency method itself."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0019",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — method described generically; no specific minimum-sample-count claim verified for a resource-bounded setting"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "If a resource-bounded pilot run's budget only allows a small number of additional generations per held-out item, does SelfCheckGPT's method require a specific minimum number of samples to be meaningful?"
+      },
+      {
+        "role": "assistant",
+        "content": "The verified source describes the method generically in terms of comparing multiple sampled responses and demonstrates it on GPT-3-generated data, but this corpus's available evidence does not establish a specific minimum sample count the method requires to be meaningful in a resource-bounded setting; that is a genuine gap. The calibrated answer states that no verified minimum-sample-count figure is available from the cited source for this project's specific resource-bounded context, rather than asserting a specific number by analogy to the paper's own experimental setup."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0020",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — consistency is a correlated signal in the studied setting, not a guarantee of correctness"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "A model gives the same specific wrong answer every time it is resampled on a given question, with no divergence at all across samples. Does perfect consistency across samples guarantee the answer is correct?"
+      },
+      {
+        "role": "assistant",
+        "content": "No. SelfCheckGPT's premise is that consistency is a signal correlated with groundedness in the paper's studied setting, not a guarantee of correctness; a model can be consistently wrong if it has a stable but incorrect belief, memorized an incorrect pattern, or is deterministic enough (for example, near-greedy decoding at low temperature) that resampling does not actually probe genuine uncertainty. Consistency should be read as one probabilistic signal among others, not as proof of truth."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0021",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — method flags divergence, not stable confabulation, as a real limitation",
+      "Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output, used as the specific real confabulation this limitation is checked against"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Given this project's own real captured example of a fabricated learning-rate recipe, would resampling the same prompt multiple times necessarily have caught that specific fabrication, according to SelfCheckGPT's logic?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not necessarily, and this should not be overstated. SelfCheckGPT's method would catch the fabrication only if independent resamples produced meaningfully divergent specific numbers or procedures; if the model's confabulation is instead a stable, repeatable pattern learned from training (for example, always defaulting to a similar-looking generic recipe structure), resampling could produce consistent outputs that are all confabulated, which the method would not flag as suspicious by its consistency criterion alone. This is a real limitation of the method for stably-confabulated content, not a guaranteed catch-all."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0022",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "[20] OpenAI Evaluation Best Practices — task-structure and comparison-criteria guidance, distinct in scope from sample-consistency checking",
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — internal-consistency check, a different evaluation category from task-structure guidance"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "OpenAI's evaluation-best-practices guidance recommends comparing fixed alternatives with clear criteria. Is a SelfCheckGPT-style multi-sample consistency check an instance of that kind of production-shaped evaluation, or a different category of check?"
+      },
+      {
+        "role": "assistant",
+        "content": "It is a different, complementary category. The evaluation-best-practices guidance is about how a fixed evaluation task should be structured and judged (task-specific prompts, clear comparison criteria against known-good alternatives). A SelfCheckGPT-style check evaluates something different: the internal consistency of a single model's own outputs across resampling, independent of any external reference answer. A well-structured evaluation task (per the first guidance) could still incorporate a consistency check (per the second) as one of its scoring signals, but the two address different questions and neither substitutes for the other."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0023",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "Repository evidence:, root-cause diagnosis of exact-match scorer's lack of dynamic range for free-form sentence-length answers",
+      "[27] Manakul, Liusie, and Gales, SelfCheckGPT — addresses output-consistency, a different question from reference-answer matching"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "If this project later adopted a sampling-based consistency check as an additional signal alongside its existing exact-match scorer, would that resolve the scorer-task mismatch this project's own diagnosis identified for the meta_trainer suite?"
+      },
+      {
+        "role": "assistant",
+        "content": "Not fully on its own. The diagnosed mismatch is that exact-match string containment cannot register partial or paraphrased correctness for sentence-length free-form answers; a consistency check addresses a different question (whether the model's own outputs are stable across resampling), not whether a single output correctly matches or paraphrases a reference answer. A consistency signal could be a useful additional signal alongside a reformulated scorer, but it does not by itself substitute for fixing the underlying exact-match/free-form-task mismatch this project's own prior diagnosis identified."
+      }
+    ]
+  },
+  {
+    "example_id": "mtr-v3n-heldout-0024",
+    "split": "held_out",
+    "semantic_family": "sampling_consistency_application",
+    "source_scope": "Calibration corpus, CC11",
+    "citations": [
+      "Marcus synthesis, MS15"
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why is this family held out rather than trained on, given that the self_consistency_and_sampling_checks family already covers SelfCheckGPT's core mechanics in the training split?"
+      },
+      {
+        "role": "assistant",
+        "content": "This family tests application of the same underlying method to genuinely new scenarios (a fresh three-sample disagreement case, a resource-bounded pilot's sample-count question, a stably-confabulated-content limitation, and an interaction with this project's own specific exact-match diagnosis) that are not themselves taught verbatim in the training-split family, which instead covers the method's definitions, scope, and reported comparative performance. Holding this application layer out is the same train/held-out design already used in corpus v2 (teach the concept in train, test genuinely novel application in held-out) rather than testing recall of the same content twice."
+      }
+    ]
+  }
+]

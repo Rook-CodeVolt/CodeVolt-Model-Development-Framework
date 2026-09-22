@@ -1,0 +1,159 @@
+{
+  "status": "PASS",
+  "validated_at": "2026-09-22",
+  "counts": {
+    "total": 160,
+    "train": 112,
+    "held_out": 48
+  },
+  "checks": [
+    {
+      "check": "count_total",
+      "status": "PASS",
+      "detail": "160"
+    },
+    {
+      "check": "count_train_in_range",
+      "status": "PASS",
+      "detail": "112"
+    },
+    {
+      "check": "count_held_out_in_range",
+      "status": "PASS",
+      "detail": "48"
+    },
+    {
+      "check": "unique_ids",
+      "status": "PASS",
+      "detail": "160 ids, 160 unique"
+    },
+    {
+      "check": "required_fields",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "per_example_citations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "message_schema",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "citation_locator_format",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "check": "authorized_sections_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "semantic_family_disjoint",
+      "status": "PASS",
+      "detail": "set()"
+    },
+    {
+      "check": "manifest_exact_ids",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "manifest_family_single_split",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "registry_heldout_ids",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "representatives_exact_match",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "forbidden_content_absent",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "no_oversized_answers",
+      "status": "PASS",
+      "detail": "[]"
+    }
+  ],
+  "train_families": [
+    "accuracy_vs_calibration_tradeoff",
+    "adr0011_minimind_mechanical_success_vs_task_failure",
+    "adr0013_full_sft_overfitting_regression",
+    "bounded_reasoning_under_missing_citation",
+    "calibrated_refusal_when_evidence_absent",
+    "confabulated_recipe_detection",
+    "contamination_split_controls",
+    "corpus_audit_catches_leakage_before_training",
+    "exact_match_scorer_limits_and_proxies",
+    "governance_stop_and_reject_trigger_fires_correctly",
+    "limited_data_evaluation",
+    "qualified_hyperparameter_sweeps",
+    "refusal_vs_overrefusal_balance",
+    "self_consistency_and_sampling_checks",
+    "sft_objective_masking_format",
+    "uncertainty_language_calibration",
+    "zero_score_diagnostic_ladder"
+  ],
+  "held_out_families": [
+    "adr0011_minimind_mechanical_success_vs_task_failure_heldout",
+    "adr0013_full_sft_overfitting_regression_heldout",
+    "calibrated_refusal_generalization",
+    "catastrophic_forgetting_retention",
+    "corpus_audit_catches_leakage_before_training_heldout",
+    "governance_stop_and_reject_trigger_fires_correctly_heldout",
+    "hallucination_incentive_diagnosis",
+    "peft_lora_qlora_decisions",
+    "sampling_consistency_application",
+    "synthetic_data_tradeoffs"
+  ],
+  "direct_source_usage": {
+    "1": 13,
+    "2": 8,
+    "3": 3,
+    "4": 4,
+    "5": 1,
+    "6": 6,
+    "7": 3,
+    "11": 3,
+    "16": 4,
+    "17": 1,
+    "18": 1,
+    "19": 2,
+    "20": 6,
+    "21": 2,
+    "22": 2,
+    "23": 1,
+    "24": 5,
+    "25": 3,
+    "26": 18,
+    "27": 15,
+    "28": 16,
+    "29": 5,
+    "30": 4
+  },
+  "sha256": {
+    "train.jsonl": "74a42785a9b89d4fbf639c60e8c55cfa09356a37b29eab298995fe5be8f41a8b",
+    "held_out.json": "c0799d7032f7182d42edf0e87085786a6589d1709ba9bf2ced8f661f9ab79806",
+    "held_out_exclusion_registry.json": "7e95d5cc74ef229fda9ff34885bb08ff66aeb398878df817be9a31a3a30a72df",
+    "semantic_family_manifest.json": "90ebdd29989ce6847c74644724aed2fbafb653860101087a96d619ebd004308b",
+    "REPRESENTATIVE_EXAMPLES.json": "9394835ada2ad496527cf9223e7a2be37289fabc147125bc26a09a92f548fd33"
+  },
+  "limitations": [
+    "This validator proves exact family-key disjointness and structural citation-format presence; it does not replace an independent claim-support audit.",
+    "Subtle semantic adjacency across differently named families still requires human/independent review, same as corpus v2's own stated limitation.",
+    "The 1600-character answer-length check is a crude verbatim-copy smell test, not a citation-support or quote-length policy check."
+  ]
+}
