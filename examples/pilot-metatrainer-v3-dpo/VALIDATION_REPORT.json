@@ -1,0 +1,97 @@
+{
+  "status": "PASS",
+  "counts": {
+    "total": 22,
+    "refusal": 16,
+    "counter": 6,
+    "counter_share": 0.2727
+  },
+  "checks": [
+    {
+      "check": "nonempty",
+      "status": "PASS",
+      "detail": "22"
+    },
+    {
+      "check": "unique_pair_ids",
+      "status": "PASS",
+      "detail": "22 ids, 22 unique"
+    },
+    {
+      "check": "required_fields",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "all_train_split",
+      "status": "PASS",
+      "detail": "DPO package is train-only; no held-out preference pairs are proposed by ADR-0017"
+    },
+    {
+      "check": "direction_values",
+      "status": "PASS",
+      "detail": [
+        "counter",
+        "refusal"
+      ]
+    },
+    {
+      "check": "counter_direction_share_min_20pct",
+      "status": "PASS",
+      "detail": "6/22 = 0.2727, Maya's over-refusal gate requires >= 0.20"
+    },
+    {
+      "check": "chosen_rejected_distinct",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "per_example_citations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "no_literal_held_out_prompt_reuse",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "check": "mtr_v2_heldout_0013_present_in_registry",
+      "status": "PASS",
+      "detail": "heldout-0013 prompt text length=76 chars (0 would mean registry drift)"
+    },
+    {
+      "check": "no_near_paraphrase_of_heldout_0013",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "check": "no_forbidden_family_label_reuse",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "no_forbidden_family_name_mentioned",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "refusal_content_classes_are_new_vs_adr0016",
+      "status": "PASS",
+      "detail": "each refusal-direction record should use a distinct content_class (no duplicate coverage)"
+    }
+  ],
+  "sha256": {
+    "preference_pairs.jsonl": "a4f9499dd2cbb16f410ce44020e6ef69012e710bae0543ac86cde36fb520c040"
+  },
+  "held_out_contamination_check": {
+    "compared_against": "./examples/pilot-metatrainer-v3/held_out.json",
+    "held_out_records_checked": 48,
+    "exact_reuse_hits": [],
+    "near_paraphrase_hits_against_mtr_v2_heldout_0013": []
+  },
+  "limitations": [
+    "The near-paraphrase check is a token-overlap heuristic (>=60% of heldout-0013's content words), not a semantic-similarity model; a paraphrase that avoids heldout-0013's specific vocabulary could still evade this specific threshold and needs human/independent review, same limitation class as pilot-metatrainer-v3's own validator states for semantic adjacency.",
+    "This validator proves structural shape, counter-direction share, and held-out-contamination absence; it does not replace an independent claim-support/citation audit of the counter-direction pairs' factual claims."
+  ]
+}
