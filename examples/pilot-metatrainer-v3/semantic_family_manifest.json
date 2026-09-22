@@ -187,7 +187,7 @@
     "semantic_family": "confabulated_recipe_detection",
     "split": "train",
     "source_scope": "Calibration corpus, CC5",
-    "count": 8,
+    "count": 11,
     "example_ids": [
       "mtr-v3n-train-0033",
       "mtr-v3n-train-0034",
@@ -196,7 +196,10 @@
       "mtr-v3n-train-0037",
       "mtr-v3n-train-0038",
       "mtr-v3n-train-0039",
-      "mtr-v3n-train-0040"
+      "mtr-v3n-train-0040",
+      "mtr-v3n-train-0041",
+      "mtr-v3n-train-0042",
+      "mtr-v3n-train-0043"
     ]
   },
   {
@@ -205,14 +208,14 @@
     "source_scope": "Calibration corpus, CC6",
     "count": 8,
     "example_ids": [
-      "mtr-v3n-train-0041",
-      "mtr-v3n-train-0042",
-      "mtr-v3n-train-0043",
       "mtr-v3n-train-0044",
       "mtr-v3n-train-0045",
       "mtr-v3n-train-0046",
       "mtr-v3n-train-0047",
-      "mtr-v3n-train-0048"
+      "mtr-v3n-train-0048",
+      "mtr-v3n-train-0049",
+      "mtr-v3n-train-0050",
+      "mtr-v3n-train-0051"
     ]
   },
   {
@@ -221,14 +224,14 @@
     "source_scope": "Calibration corpus, CC7",
     "count": 8,
     "example_ids": [
-      "mtr-v3n-train-0049",
-      "mtr-v3n-train-0050",
-      "mtr-v3n-train-0051",
       "mtr-v3n-train-0052",
       "mtr-v3n-train-0053",
       "mtr-v3n-train-0054",
       "mtr-v3n-train-0055",
-      "mtr-v3n-train-0056"
+      "mtr-v3n-train-0056",
+      "mtr-v3n-train-0057",
+      "mtr-v3n-train-0058",
+      "mtr-v3n-train-0059"
     ]
   },
   {
@@ -237,14 +240,14 @@
     "source_scope": "Calibration corpus, CC8",
     "count": 8,
     "example_ids": [
-      "mtr-v3n-train-0057",
-      "mtr-v3n-train-0058",
-      "mtr-v3n-train-0059",
       "mtr-v3n-train-0060",
       "mtr-v3n-train-0061",
       "mtr-v3n-train-0062",
       "mtr-v3n-train-0063",
-      "mtr-v3n-train-0064"
+      "mtr-v3n-train-0064",
+      "mtr-v3n-train-0065",
+      "mtr-v3n-train-0066",
+      "mtr-v3n-train-0067"
     ]
   },
   {

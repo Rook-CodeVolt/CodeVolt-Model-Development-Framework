@@ -2,20 +2,20 @@
   "status": "PASS",
   "validated_at": "2026-09-22",
   "counts": {
-    "total": 160,
-    "train": 112,
+    "total": 163,
+    "train": 115,
     "held_out": 48
   },
   "checks": [
     {
       "check": "count_total",
       "status": "PASS",
-      "detail": "160"
+      "detail": "163"
     },
     {
       "check": "count_train_in_range",
       "status": "PASS",
-      "detail": "112"
+      "detail": "115"
     },
     {
       "check": "count_held_out_in_range",
@@ -25,7 +25,7 @@
     {
       "check": "unique_ids",
       "status": "PASS",
-      "detail": "160 ids, 160 unique"
+      "detail": "163 ids, 163 unique"
     },
     {
       "check": "required_fields",
@@ -121,7 +121,7 @@
   ],
   "direct_source_usage": {
     "1": 13,
-    "2": 8,
+    "2": 7,
     "3": 3,
     "4": 4,
     "5": 1,
@@ -136,19 +136,19 @@
     "21": 2,
     "22": 2,
     "23": 1,
-    "24": 5,
+    "24": 8,
     "25": 3,
-    "26": 18,
+    "26": 20,
     "27": 15,
-    "28": 16,
+    "28": 18,
     "29": 5,
     "30": 4
   },
   "sha256": {
-    "train.jsonl": "74a42785a9b89d4fbf639c60e8c55cfa09356a37b29eab298995fe5be8f41a8b",
+    "train.jsonl": "76b6e897949c89c3db72f2fd4dbe9aa035049b6d5dd37b76ee7e44516dd6d166",
     "held_out.json": "c0799d7032f7182d42edf0e87085786a6589d1709ba9bf2ced8f661f9ab79806",
-    "held_out_exclusion_registry.json": "7e95d5cc74ef229fda9ff34885bb08ff66aeb398878df817be9a31a3a30a72df",
-    "semantic_family_manifest.json": "90ebdd29989ce6847c74644724aed2fbafb653860101087a96d619ebd004308b",
+    "held_out_exclusion_registry.json": "ca0ded75cc7c18047f59c676f039a13cdcc04fe9b87ea2212485f2b4c2586247",
+    "semantic_family_manifest.json": "9699b6efb55f95ad84c89dbe45a218b55dd24e6497d525156c842ddc1b8e9353",
     "REPRESENTATIVE_EXAMPLES.json": "9394835ada2ad496527cf9223e7a2be37289fabc147125bc26a09a92f548fd33"
   },
   "limitations": [

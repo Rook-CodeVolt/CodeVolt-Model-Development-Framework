@@ -233,3 +233,51 @@ follow-up task before any merge decision; (3) Maya's security/dataset-rights
 review, per this project's standing governance pattern, gates merge
 regardless of the independent-audit outcome. This self-audit alone does not
 constitute acceptance.
+
+## ADR-0016 addendum: confabulated_recipe_detection rewrite (this session)
+
+Scope of this addendum: the 9 NEW records added to `confabulated_recipe_detection`
+(`mtr-v3n-train-0035`..`0043`, replacing the 6 removed original records) and
+the 2 ORIGINAL records kept as scaffolding (`mtr-v3n-train-0033`,
+`mtr-v3n-train-0034`, already independently re-verified against live on-disk
+evidence in this file's "Repository-evidence verification" section above —
+unchanged, not re-audited here). Same self-review caveat as above applies:
+this is the drafting task auditing its own new output, not a substitute for
+Maya's mandatory review or an independent audit pass.
+
+C1/C5 (claims trace to the actual cited source; locator supports the specific
+claim): every new record's citations were checked against `SOURCE_MAP.md`'s
+already-verified claim summaries for sources [24], [26], and [28] (Kadavath
+et al. on P(IK) generalization limits to new tasks; Kalai et al. on confident
+fabrication being the disincentivized failure mode; the Model Spec's
+"Express uncertainty" guideline on predictions-of-future-states as a listed
+uncertainty cause and its hedged-over-confident-wrong outcome ranking) —
+each new record's citation supports the specific "no, [X] needs a source /
+sounds plausible isn't evidence" claim it's attached to, not a broader
+unrelated claim from the same source. Two records cite this project's own
+`SOURCE_MAP.md` citation policy directly (repository-evidence locator,
+matching this validator's `repo_evidence_prefixes` format) rather than an
+external source, for the citation-guessing and fake-citation records, which
+is the correct locator choice since no external source directly states
+those specific claims about this project's own citation practice.
+
+C3 (no invented specific number presented as fact): none of the 9 new
+records states an invented number, date, or percentage as if verified —
+each is itself a refusal that names the class of claim (a number, a date, a
+percentage, a citation, etc.) as unsupported rather than producing one.
+
+C6 (no train/held-out leakage): `validate_dataset.py`'s
+`semantic_family_disjoint` and `manifest_family_single_split` checks both
+re-ran clean after this change (16/16 checks PASS, see updated
+`VALIDATION_REPORT.json`); `confabulated_recipe_detection` remains
+train-only and `mtr-v2-heldout-0013` remains in the unmodified
+`synthetic_data_tradeoffs` held-out family. None of the 9 new records
+restates `mtr-v2-heldout-0013`'s own text verbatim — each uses a distinct
+paraphrase of the closed-question shape with a different invented-content
+class ([X]), consistent with genuine behavioral rehearsal rather than a
+single memorized string.
+
+Known limitation carried forward: same as item 1 above — this addendum is
+a self-review by the same task that authored the change; it does not
+substitute for Maya's mandatory security/dataset-rights review before
+merge, which this task explicitly requests as the next step.

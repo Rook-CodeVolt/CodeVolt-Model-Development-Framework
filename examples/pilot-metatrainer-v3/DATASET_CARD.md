@@ -1,20 +1,24 @@
-# Meta-trainer corpus v3 — dataset card (ADR-0015 proposal)
+# Meta-trainer corpus v3 — dataset card (ADR-0015 proposal, ADR-0016 update)
 
-Status: DRAFT PROPOSAL, NOT YET REVIEWED. This is a new, separate proposal. It
-does not touch, replace, or invalidate the existing merged
-`examples/pilot-metatrainer-v2/train.jsonl` / `held_out.json` (SHA-256
-`d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3` /
+Status: v3 (ADR-0015) merged and executed. This card is updated in place for
+ADR-0016, which rewrites the `confabulated_recipe_detection` family only (see
+"ADR-0016: confabulated_recipe_detection rewrite" below) after diagnosis
+() found the family's original 8 records were
+format-mismatched against the behavior actually tested by held-out item
+`mtr-v2-heldout-0013`. This update does not touch, replace, or invalidate the
+existing merged `examples/pilot-metatrainer-v2/train.jsonl` / `held_out.json`
+(SHA-256 `d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3` /
 `6d96170aa13704bda37a9863ed1688e0e90ffaae7b65e201ad5d3b07796441d0`) or the
-`examples/metatrainer-corpus-addition-training-history/` draft. Nothing here
-is committed to git or opened as a PR by the drafting step; that follows this
-document, per this task's own instructions, as a separate PR requesting
-Maya's review.
+`examples/metatrainer-corpus-addition-training-history/` draft, and does not
+change train/held-out split boundaries: `mtr-v2-heldout-0013` stays
+`held_out`, and `confabulated_recipe_detection` stays train-only.
 
 ## Scope and provenance
 
-160 records (112 train / 48 held-out), assembled from three sources, none
-modified from its own already-reviewed/audited content except one explicit,
-previously-identified fix:
+163 records (115 train / 48 held-out) as of ADR-0016 (previously 160: 112
+train / 48 held-out under ADR-0015), assembled from three sources, none
+modified from its own already-reviewed/audited content except the two
+explicit, previously-identified fixes below:
 
 1. **meta-trainer-corpus-v2** (60 records: 40 train / 20 held-out), copied
    byte-identical from `examples/pilot-metatrainer-v2/{train.jsonl,held_out.json}`.
@@ -36,12 +40,16 @@ previously-identified fix:
    family's originally-shared train/held-out `semantic_family` label was split
    into a train-only name and a matching `..._heldout` name (see "Split
    construction" below for why).
-3. **New material** (88 records: 64 train / 24 held-out) added by this
-   proposal, spanning 11 new semantic families (8 train-only, 3 held-out-only).
-   All new material is weighted toward calibrated uncertainty and refusal, per
-   this task's explicit instruction following the real confabulated
-   learning-rate-recipe finding captured in ADR-0014's own evaluation run (see
-   "Calibrated-refusal emphasis and its real trigger" below).
+3. **New material** (91 records: 67 train / 24 held-out, as of ADR-0016; was
+   88: 64 train / 24 held-out under ADR-0015) added by this proposal, spanning
+   11 new semantic families (8 train-only, 3 held-out-only). All new material
+   is weighted toward calibrated uncertainty and refusal, per this task's
+   explicit instruction following the real confabulated learning-rate-recipe
+   finding captured in ADR-0014's own evaluation run (see "Calibrated-refusal
+   emphasis and its real trigger" below). ADR-0016 adds 9 records to and
+   removes 6 records from `confabulated_recipe_detection` specifically (net
+   +3 train records versus ADR-0015); see "ADR-0016: confabulated_recipe_detection
+   rewrite" below.
 
 Every record, across all three sources, contains:
 
@@ -81,7 +89,7 @@ disjointness check was split.
 Families and counts (32 families total: 8 v2-train + 3 v2-held-out unchanged,
 4 history-train + 4 history-held-out, 8 new-train + 3 new-held-out):
 
-Train-only families (112 examples):
+Train-only families (115 examples, as of ADR-0016; was 112 under ADR-0015):
 
 - `zero_score_diagnostic_ladder` (8, v2, unchanged)
 - `sft_objective_masking_format` (8, v2, unchanged)
@@ -96,7 +104,8 @@ Train-only families (112 examples):
 - `accuracy_vs_calibration_tradeoff` (8, **new**)
 - `self_consistency_and_sampling_checks` (8, **new**)
 - `exact_match_scorer_limits_and_proxies` (8, **new**)
-- `confabulated_recipe_detection` (8, **new**)
+- `confabulated_recipe_detection` (11, **new**, **rewritten for ADR-0016** —
+  was 8 under ADR-0015)
 - `uncertainty_language_calibration` (8, **new**)
 - `refusal_vs_overrefusal_balance` (8, **new**)
 - `bounded_reasoning_under_missing_citation` (8, **new**)
@@ -137,15 +146,57 @@ hallucination rates) were fetched and read in full specifically to ground this
 emphasis in independently-verifiable, directly-read technical sources rather
 than general impression.
 
-The 8 new train-only calibration families (64 records) and 3 new held-out-only
-calibration families (24 records) are deliberately NOT the entire new
-addition's balance point: `refusal_vs_overrefusal_balance` and several records
-across other new families explicitly test that calibrated refusal is scoped
-to genuinely unsupported claims, not a blanket hedge-everything pattern, per
-this project's own real evidence that a 70% refusal rate on one benchmark
-"limits utility" even while reducing hallucinated errors (source [30]). This
-corpus does not want to trade one failure mode (confident fabrication) for
-another (reflexive over-hedging on well-supported claims).
+The 8 new train-only calibration families (64 records under ADR-0015; 67 as
+of ADR-0016) and 3 new held-out-only calibration families (24 records) are
+deliberately NOT the entire new addition's balance point:
+`refusal_vs_overrefusal_balance` and several records across other new
+families explicitly test that calibrated refusal is scoped to genuinely
+unsupported claims, not a blanket hedge-everything pattern, per this
+project's own real evidence that a 70% refusal rate on one benchmark
+"limits utility" even while reducing hallucinated errors (source [30]).
+This corpus does not want to trade one failure mode (confident fabrication)
+for another (reflexive over-hedging on well-supported claims).
+
+## ADR-0016: confabulated_recipe_detection rewrite
+
+Diagnosis ( comment posted 2026-09-22): despite
+ADR-0015's corpus v3 adding 8 dedicated `confabulated_recipe_detection`
+training records, the ADR-0015 candidate's raw output on held-out item
+`mtr-v2-heldout-0013` got WORSE than ADR-0014's — it went from merely
+demonstrating the fabrication in a rambling worked example to explicitly
+answering the item's own closed yes/no question with "Yes, a synthetic
+answer can invent a learning-rate recipe if it sounds plausible," i.e.
+endorsing confabulation as normative policy. Root cause: the original 8
+records were long (512-724 char), third-person, retrospective meta-commentary
+about the historical ADR-0014 incident. None of them rehearsed the tested
+item's own shape — a short (148-char reference), first-person, closed
+yes/no question answered with a terse "No, because..." refusal. Split/
+leakage check was independently confirmed clean (families remain disjoint;
+`mtr-v2-heldout-0013` unaffected); dilution was assessed as a real but
+secondary factor given the corpus is trained for exactly one epoch.
+
+Fix applied here: kept 2 of the original 8 records
+(`mtr-v3n-train-0033`, `mtr-v3n-train-0034`) as accurate, well-cited
+scaffolding/context — they establish what the real ADR-0014 confabulation
+was and why it's a distinct, worse failure mode than a degeneration loop —
+and removed the other 6, which were pure retrospective analysis with no
+behavioral-rehearsal value for this specific target. Added 9 NEW short
+(1-3 sentence), first-person, closed-question-shaped records that directly
+mirror `mtr-v2-heldout-0013`'s own prompt/answer shape ("Can you invent/
+produce/extrapolate a specific [X] if it sounds plausible?" -> "No,
+[because...]."), varying [X] across a numeric training recipe, a cost
+figure, a calendar date, an accuracy percentage, a citation, a GPU-memory
+figure, a rounded percentage, a citation locator, and a benchmark score —
+genuine behavioral rehearsal of the refusal shape, not repeated paraphrase
+of one case study. Net family size: 8 -> 11 (2 kept + 9 new). Full
+citation-locator rigor applied (every new record's citations pass
+`validate_dataset.py`'s existing `citation_locator_format` check against
+numbered sources [24]/[26]/[28] or this project's own repository-evidence
+locator prefixes; no new source was fabricated). Train/held-out split
+boundaries are untouched: `confabulated_recipe_detection` remains
+train-only and `mtr-v2-heldout-0013` remains `held_out`, both verified by
+`validate_dataset.py`'s `semantic_family_disjoint` and
+`manifest_family_single_split` checks, which pass unchanged.
 
 ## Citation policy
 

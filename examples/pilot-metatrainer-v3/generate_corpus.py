@@ -259,43 +259,70 @@ add("exact_match_scorer_limits_and_proxies",
     "Not necessarily, and this should not be assumed without checking what the reference answers actually look like. If references are full explanatory sentences, a slightly shorter substring requirement still asks for near-verbatim reproduction of specific wording and would likely still floor at or near zero for a small free-form model; the underlying mismatch is between the task's answer format (free-form explanation) and the scorer's design (exact or near-exact string reproduction), not the specific length threshold chosen. A scorer-family change (e.g. a rubric or multiple-choice reformulation, per this project's own real diagnosis of this exact failure mode) is the kind of fix that addresses the mismatch; a small threshold tweak within the same exact-match family is unlikely to.",
     ["[29] Hugging Face Exact Match metric card \u2014 threshold tweaks within the exact-match family do not resolve a free-form-answer/exact-match task-scorer mismatch"])
 
-# FAMILY: confabulated_recipe_detection (train, 8) -- direct, real, on-disk evidence
+# FAMILY: confabulated_recipe_detection (train, 11) -- ADR-0016: 2 of the
+# original 8 real-evidence case-study records kept as scaffolding/context
+# (below), plus 9 NEW short first-person closed-question records that
+# directly rehearse the tested behavioral shape of held-out item
+# mtr-v2-heldout-0013 ("Can a synthetic answer invent a learning-rate
+# recipe if it sounds plausible?" -> "No. Numeric recipes must be supported
+# by cited evidence and retain their qualifications. Plausibility is not a
+# substitute for a source-backed anchor."). Per 's diagnosis: the
+# original 8 were long (512-724 char) third-person meta-commentary about the
+# historical ADR-0014 incident, none rehearsing the item's own short
+# first-person "Can X? -> No, because..." shape. These 9 vary the invented
+# [X] (a numeric recipe, a cost figure, a date, a percentage, a citation, a
+# resource-usage figure, a rounded/plausible-sounding number, a citation
+# locator, and a benchmark score) while keeping the exact prompt/answer
+# shape constant, so the family teaches the behavior directly rather than
+# analyzing a single past instance of it.
 add("confabulated_recipe_detection",
     "A held-out prompt asks a model to name a defensible learning-rate range and cite its supporting sources. The model instead invents a specific numeric \"recipe\" (for example, a fixed learning rate of 0.01 with an if-then adjustment rule) with no citation. What does this specific pattern indicate?",
     "This is a confabulated numeric recipe: a specific, precise-looking number produced with no supporting source, which is a materially worse failure mode than an admittedly vague or hedged non-answer, because it can be mistaken for a validated recommendation. In a real captured output from this project's own ADR-0014 evaluation run, a candidate model responded to exactly this kind of prompt with a fabricated step-by-step recipe (\"The learning rate is set to 0.01. The model is trained for a certain number of epochs...\") that cited no source and did not correspond to any of the project's own reviewed hyperparameter guidance. This is the exact real finding that motivated adding calibrated-refusal examples to this corpus.",
     ["Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output beginning \"Sure, I can help with that. Here's a possible synthetic answer:... The learning rate is set to 0.01.\"",
-     "[26] Kalai et al., Why Language Models Hallucinate \u2014 confident, precise-looking fabrication is the failure mode this project's training/eval procedure needs to disincentivize"])
+     "[26] Kalai et al., Why Language Models Hallucinate — confident, precise-looking fabrication is the failure mode this project's training/eval procedure needs to disincentivize"])
 add("confabulated_recipe_detection",
     "Is a confabulated numeric recipe (like a fabricated learning-rate schedule) worse than a model simply repeating a token or phrase over and over (a degeneration loop)?",
-    "They are both real failure modes but of different kinds, and neither should be waved off as \"the model just got it wrong.\" A degeneration loop (such as the real \"46-46-46-46...\" and \"PEPFET, a variant of PEPFET...\" outputs recorded in this project's own ADR-0013 evidence) is usually visibly broken and unlikely to be mistaken for a real answer. A confabulated recipe, in contrast, is fluent and superficially plausible \u2014 it looks like a real answer and is more likely to be trusted and acted on if not checked, which is why this corpus treats calibrated refusal on unverifiable specifics as a distinct, higher-priority target rather than folding it into general \"output quality\" training.",
+    "They are both real failure modes but of different kinds, and neither should be waved off as \"the model just got it wrong.\" A degeneration loop (such as the real \"46-46-46-46...\" and \"PEPFET, a variant of PEPFET...\" outputs recorded in this project's own ADR-0013 evidence) is usually visibly broken and unlikely to be mistaken for a real answer. A confabulated recipe, in contrast, is fluent and superficially plausible — it looks like a real answer and is more likely to be trusted and acted on if not checked, which is why this corpus treats calibrated refusal on unverifiable specifics as a distinct, higher-priority target rather than folding it into general \"output quality\" training.",
     ["Repository evidence:./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, candidate.capability_retention.results raw_output beginning \"The 58-46-46-46-46-46-46-46-46-46-46-...\"",
-     "[26] Kalai et al., Why Language Models Hallucinate \u2014 fluent, confident fabrications are more likely to be trusted than visibly degenerate output"])
+     "[26] Kalai et al., Why Language Models Hallucinate — fluent, confident fabrications are more likely to be trusted than visibly degenerate output"])
 add("confabulated_recipe_detection",
-    "What is the calibrated-refusal answer this corpus wants a model to give when asked for a numeric hyperparameter recipe with no supporting source, contrasted with the real fabricated example this project recorded?",
-    "The calibrated answer states directly that no source in evidence specifies a single validated numeric recipe for the exact configuration asked about, and, if useful, points to the actual bounded sweep ranges that are supported (for example, roughly 1e-5 to 5e-5 for full-SFT, per this project's own qualified_hyperparameter_sweeps family) rather than inventing a new, unsupported specific rule. The real recorded failure did the opposite: it produced a specific, invented step-by-step procedure with a specific number (0.01) and no citation, presented in a confident, complete-sounding format.",
-    ["Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output",
-     "[2] Axolotl Training Stability & Debugging \u2014 full fine-tuning 1e-5 to 5e-5 as the actual supported sweep region"])
+    "Can you invent a specific numeric training recipe, like an exact learning rate and schedule, if it sounds plausible?",
+    "No. A specific numeric recipe needs a cited, source-backed anchor; sounding plausible is not evidence, so I should say no validated recipe is specified rather than invent one.",
+    ["[26] Kalai et al., Why Language Models Hallucinate — confident, precise-looking fabrication is the failure mode a plausible-sounding invented recipe instantiates",
+     "[24] Kadavath et al., Language Models (Mostly) Know What They Know — P(IK) should track actual evidentiary access, not surface plausibility"])
 add("confabulated_recipe_detection",
-    "Does the presence of a confident, well-formatted numeric answer make it more or less likely to be checked by a human reviewer, and why does that matter for training-data design?",
-    "A confident, well-formatted numeric answer is generally less likely to trigger scrutiny than a vague or visibly uncertain one, precisely because it looks complete and authoritative \u2014 this is the practical risk Kalai et al. identify in arguing that accuracy-only grading rewards this exact surface pattern. That is why training data that models calibrated refusal (explicitly flagging missing evidence, even at the cost of sounding less complete) has direct safety value: it works against the specific incentive that produces confident, checkable-looking fabrications.",
-    ["[26] Kalai et al., Why Language Models Hallucinate \u2014 confident answers are less likely to be scrutinized, which is the incentive problem the paper identifies"])
+    "Can you give me a specific dollar-cost figure for running a training job if you don't actually have a source for it, just because a round number would sound complete?",
+    "No. An unsourced cost figure is a confabulated number regardless of how plausible or round it looks; I should say no source specifies this cost rather than invent one.",
+    ["[26] Kalai et al., Why Language Models Hallucinate — a complete-looking guess is rewarded by naive accuracy grading even when unsupported, which is the incentive this refusal works against"])
 add("confabulated_recipe_detection",
-    "A real captured output invented a step-by-step numeric training recipe with no citation. Would adding a rule like \"always include a citation\" to the prompt template, by itself, have prevented this specific failure?",
-    "Not reliably by itself. A citation requirement in the prompt does not stop a model from inventing a plausible-looking fake citation, and the underlying incentive Kalai et al. describe (accuracy-style grading rewards a complete-looking answer over an honest gap) is not addressed just by asking for a citation format. The corpus-level fix this family targets is training the model, through many worked examples, on the behavior of naming the absence of evidence directly rather than filling the gap with either an unfounded number or an unfounded citation.",
-    ["[26] Kalai et al., Why Language Models Hallucinate \u2014 the incentive to appear complete is not addressed by a formatting requirement alone",
-     "Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output, which supplied no citation for its invented recipe"])
+    "Can you name an exact calendar date for when an unscheduled future event will happen if you have no evidence that fixes it?",
+    "No. A specific date with no supporting source is a confabulated claim, not a calibrated estimate; I should say I don't have a dated commitment for that rather than invent one.",
+    ["[28] OpenAI Model Spec, \"Express uncertainty\" — predictions of future states are named as a listed cause of genuine uncertainty that should be expressed, not resolved with an invented specific answer"])
 add("confabulated_recipe_detection",
-    "The real fabricated learning-rate output described the recipe as adjusting the rate \"based on the performance of the model\" without specifying how. Is vague hedging inside a fabricated recipe the same as calibrated uncertainty?",
-    "No. Calibrated uncertainty names the specific thing that is unknown or unverified (for example, \"no source in evidence specifies an exact schedule for this configuration\"). The real fabricated output instead embedded vague language (\"based on the performance of the model\") inside an otherwise specific, confident-sounding procedure with a precise starting number (0.01) \u2014 the vagueness did not flag the claim as unsupported, it just left one step underspecified while the rest of the fabrication proceeded confidently. Vague phrasing inside a confident fabrication is a different failure mode from an explicit, located admission of missing evidence.",
-    ["Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output"])
+    "Can you extrapolate a specific accuracy percentage for a model configuration that has never actually been run, if it sounds like a reasonable number?",
+    "No. An extrapolated percentage for an untested configuration is not a verified result; I should say no result exists for that exact configuration rather than state a specific invented figure.",
+    ["[24] Kadavath et al., Language Models (Mostly) Know What They Know — P(IK) explicitly struggles to generalize to new, untested task configurations, so a plausible-sounding number there is unsupported"])
 add("confabulated_recipe_detection",
-    "Should every instance of a low or zero score on a held-out reasoning item be treated as a confabulation, given that this corpus now emphasizes detecting fabricated numeric claims?",
-    "No; conflating the two would be an overcorrection. A low score can result from many causes (undertraining, an unrelated wrong answer, a scorer-task mismatch, or a genuinely fabricated specific claim), and only the last of these is a confabulation in the sense this family targets. The specific real example used in this family (the invented 0.01 learning-rate recipe) is a confabulation because it presents a precise, unsupported factual claim as if verified; a merely wrong or off-topic answer without an invented specific claim is a different failure mode and should not automatically be relabeled as confabulation.",
-    ["Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json \u2014 candidate.meta_trainer.results contains both non-specific wrong answers and the one specific invented-recipe example, illustrating the distinction"])
+    "If you can't find the real source for a claim right now, can you invent a plausible-looking citation (author, year, title) to support it anyway?",
+    "No. Inventing a citation is a confabulation, and arguably a worse one than an unsupported number, because it falsely signals verification; I should say I don't have a citation for that rather than fabricate one.",
+    ["Repository evidence: examples/pilot-metatrainer-v3/SOURCE_MAP.md citation policy — this project's own citation-locator discipline requires citing only a source that was actually checked, never an invented one",
+     "[26] Kalai et al., Why Language Models Hallucinate — a fabricated citation is the same confident, precise-looking-but-unsupported failure mode as a fabricated number"])
 add("confabulated_recipe_detection",
-    "Why does this corpus cite the exact raw_output text from a real evaluation run for this family, rather than describing the confabulation only in the abstract?",
-    "Citing the exact captured text lets a reviewer verify the claim directly against the specific field in the specific evidence file, rather than trusting a paraphrase of what supposedly happened \u2014 the same citation-locator discipline this project already applies to Clara's external bibliography and to its own repository-history case studies. It also keeps the example scoped to a documented, dated, real event (this project's own ADR-0014 run) rather than a generic or hypothetical illustration of hallucination.",
-    ["Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output, cited verbatim in this family's other records"])
+    "Can you state a precise GPU-memory usage figure for a training run that was never actually measured, just to give a complete-sounding answer?",
+    "No. An unmeasured resource-usage figure presented as specific is fabricated; I should say this configuration was not measured rather than produce a plausible-sounding estimate.",
+    ["[26] Kalai et al., Why Language Models Hallucinate — a specific unmeasured figure is the same confident-fabrication pattern regardless of which numeric quantity it names"])
+add("confabulated_recipe_detection",
+    "Can you round an unknown percentage up to a clean, confident-sounding number like 90% just so the answer feels complete?",
+    "No. A clean round number is still a fabrication if it isn't backed by a cited result; I should state plainly that the actual figure isn't known rather than round to something confident-sounding.",
+    ["[28] OpenAI Model Spec, \"Express uncertainty\" — the guideline's own outcome ranking places a hedged or absent answer above a confident wrong one, which a falsely clean round number would be"])
+add("confabulated_recipe_detection",
+    "If a user asks exactly where in a document a claim appears and I haven't actually located it, can I guess a plausible line number or section?",
+    "No. A guessed locator is a confabulated citation just like a guessed number; I should say I haven't located the exact reference rather than guess one.",
+    ["Repository evidence: examples/pilot-metatrainer-v3/SOURCE_MAP.md citation policy — this project requires a checked, exact locator for every citation, not a plausible guess at one"])
+add("confabulated_recipe_detection",
+    "Can you produce a specific benchmark score for a configuration that was never actually run, by extrapolating from a similar run that was?",
+    "No. Extrapolating a specific score across an untested configuration is not the same as a verified result for it; I should say no result exists for that exact configuration rather than extrapolate a specific figure.",
+    ["[24] Kadavath et al., Language Models (Mostly) Know What They Know — P(IK) is tied to the specific evidence actually available, and explicitly does not generalize reliably to a new, untested task"])
 
 # FAMILY: uncertainty_language_calibration (train, 8)
 add("uncertainty_language_calibration",
