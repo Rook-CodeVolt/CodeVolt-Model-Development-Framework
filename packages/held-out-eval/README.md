@@ -108,6 +108,53 @@ using a plain Python "trainer" stand-in) lives at
 in this directory, and is what this package's own clean-venv adoption
 test actually executes.
 
+## Usage: CLI (no Python required)
+
+Installing this package also installs a `held-out-eval` command, for
+pipelines that register and check train/held-out ids from bash/CI
+without any Python glue code. It operates against the same registry
+JSON file the Python API's `save()`/`load()` read and write, so both
+can be used interchangeably against the same file.
+
+Ids files are plain text, one id per line; blank lines and `#` comment
+lines are ignored.
+
+```bash
+# 1. Register a package's held-out (eval) ids.
+printf 'eval-0\neval-1\neval-2\n' > held_out_ids.txt
+held-out-eval --registry registry.json register-held-out my-experiment held_out_ids.txt
+
+# 2. Register what was actually trained on. Exits non-zero (and leaves
+#    the registry file unchanged) if any id here was already claimed
+#    as held-out by any package.
+printf 'train-0\ntrain-1\ntrain-2\n' > train_ids.txt
+held-out-eval --registry registry.json register-train my-experiment train_ids.txt
+
+# 3. Before scoring, re-check: did any held-out id end up registered
+#    as train data anywhere? Exit code 0 = clean, 1 = contamination.
+held-out-eval --registry registry.json check held_out_ids.txt
+
+# 4. Inspect the registry's current state.
+held-out-eval --registry registry.json show
+```
+
+`--registry`/`-r` defaults to `held_out_registry.json` in the current
+directory if omitted. Run `held-out-eval --help` or
+`held-out-eval <subcommand> --help` for full usage.
+
+Exit codes are meaningful for CI: `0` on success (including a clean
+`check`), `1` when a `register-*` call would create contamination or
+`check` finds contaminated ids, `2` on a usage/I/O error (missing ids
+file, unreadable or unsupported-schema registry file). For example, in
+a CI pipeline:
+
+```bash
+held-out-eval --registry registry.json check held_out_ids.txt || {
+  echo "contamination check failed, aborting before scoring" >&2
+  exit 1
+}
+```
+
 ## API
 
 - `HeldOutExclusionRegistry` -- the registry. `register_package_train`,
@@ -120,6 +167,8 @@ test actually executes.
   this version of the library (see "Persistence: schema versioning and
   atomicity" below).
 - `HeldOutRegistryError` -- base class for all of the above.
+- `held-out-eval` -- the CLI entry point (`register-train`,
+  `register-held-out`, `check`, `show`); see "Usage: CLI" above.
 
 See `src/held_out_eval/registry.py` for full docstrings on every
 method, including the exact bidirectional-check semantics.

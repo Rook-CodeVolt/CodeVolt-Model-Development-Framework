@@ -28,6 +28,9 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
+[project.scripts]
+held-out-eval = "held_out_eval.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/tree/main/packages/held-out-eval"
 Source = "https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/tree/main/packages/held-out-eval"
