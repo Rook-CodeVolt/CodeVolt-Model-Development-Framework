@@ -1,0 +1,119 @@
+{
+  "status": "PASS",
+  "counts": {
+    "total": 20,
+    "refusal": 16,
+    "counter": 4,
+    "counter_share": 0.2
+  },
+  "checks": [
+    {
+      "check": "exactly_20_records",
+      "status": "PASS",
+      "detail": "20"
+    },
+    {
+      "check": "unique_pair_ids",
+      "status": "PASS",
+      "detail": "20 ids, 20 unique"
+    },
+    {
+      "check": "required_fields",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "all_held_out_split",
+      "status": "PASS",
+      "detail": "ADR-0019's held-out set is held_out-only; split is load-bearing for HeldOutExclusionRegistry registration"
+    },
+    {
+      "check": "direction_values",
+      "status": "PASS",
+      "detail": [
+        "counter",
+        "refusal"
+      ]
+    },
+    {
+      "check": "counter_direction_share_min_20pct",
+      "status": "PASS",
+      "detail": "4/20 = 0.2000, ADR-0019 section 2 bullet 2 requires >= 0.20"
+    },
+    {
+      "check": "chosen_rejected_distinct",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "per_example_citations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "training_package_has_22_records",
+      "status": "PASS",
+      "detail": "22"
+    },
+    {
+      "check": "content_class_disjoint_from_training",
+      "status": "PASS",
+      "detail": "overlap=[]; training has 22 classes, held-out has 20"
+    },
+    {
+      "check": "held_out_content_classes_all_distinct",
+      "status": "PASS",
+      "detail": "each held-out record should use a distinct content_class (no duplicate coverage)"
+    },
+    {
+      "check": "no_literal_training_pair_prompt_reuse",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "check": "real_held_out_registry_has_48_records",
+      "status": "PASS",
+      "detail": "48"
+    },
+    {
+      "check": "no_literal_real_held_out_prompt_reuse",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "check": "mtr_v2_heldout_0013_present_in_registry",
+      "status": "PASS",
+      "detail": "heldout-0013 prompt text length=76 chars (0 would mean registry drift)"
+    },
+    {
+      "check": "no_near_paraphrase_of_heldout_0013",
+      "status": "PASS",
+      "detail": "[]"
+    }
+  ],
+  "sha256": {
+    "held_out_pairs.jsonl": "e48551cbbdf117b89b3e6a5a5d37c3345afd8ac161b08c288a747de96303b541"
+  },
+  "contamination_audit_self_check": {
+    "adr0019_section2_check_1_zero_overlap_with_training": {
+      "compared_against": "examples/pilot-metatrainer-v3-dpo/preference_pairs.jsonl",
+      "training_records_checked": 22,
+      "exact_reuse_hits": []
+    },
+    "adr0019_section2_check_2_zero_overlap_with_48_held_out": {
+      "compared_against": "examples/pilot-metatrainer-v3/held_out.json",
+      "held_out_records_checked": 48,
+      "exact_reuse_hits": []
+    },
+    "adr0019_section2_check_3_zero_overlap_with_heldout_0013": {
+      "near_paraphrase_hits_ge_60pct": []
+    },
+    "adr0019_section2_check_4_registry_registration": "performed separately by register_held_out.py in this directory, not by this structural validator",
+    "adr0019_section2_check_5_counter_direction_share": 0.2
+  },
+  "limitations": [
+    "The near-paraphrase check is a token-overlap heuristic (>=60% of heldout-0013's content words), not a semantic-similarity model; a paraphrase that avoids heldout-0013's specific vocabulary could still evade this specific threshold and needs independent reviewer judgment, same limitation class as pilot-metatrainer-v3-dpo/validate_dataset.py's own stated limitation.",
+    "This is a self-check by the pair constructor (Marcus). Per ADR-0019 section 2's owner decision, all five section-2 audit checks must be independently re-run and sealed by Maya before this set is used for anything -- this report is not a substitute for that independent audit.",
+    "This validator proves structural shape, counter-direction share, content_class disjointness, and literal/near-paraphrase contamination absence; it does not replace an independent claim-support/citation audit of the 4 counter-direction pairs' factual claims."
+  ]
+}

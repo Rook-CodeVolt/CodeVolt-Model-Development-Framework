@@ -1,0 +1,28 @@
+{
+  "package_held_out_ids": {
+    "pilot-metatrainer-v3-dpo-heldout-adr0019": [
+      "dpo-heldout-counter-0001",
+      "dpo-heldout-counter-0002",
+      "dpo-heldout-counter-0003",
+      "dpo-heldout-counter-0004",
+      "dpo-heldout-refusal-0001",
+      "dpo-heldout-refusal-0002",
+      "dpo-heldout-refusal-0003",
+      "dpo-heldout-refusal-0004",
+      "dpo-heldout-refusal-0005",
+      "dpo-heldout-refusal-0006",
+      "dpo-heldout-refusal-0007",
+      "dpo-heldout-refusal-0008",
+      "dpo-heldout-refusal-0009",
+      "dpo-heldout-refusal-0010",
+      "dpo-heldout-refusal-0011",
+      "dpo-heldout-refusal-0012",
+      "dpo-heldout-refusal-0013",
+      "dpo-heldout-refusal-0014",
+      "dpo-heldout-refusal-0015",
+      "dpo-heldout-refusal-0016"
+    ]
+  },
+  "package_train_ids": {},
+  "schema_version": 1
+}
