@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from codevolt_mdf.hf_local_evaluator_adapter import _hash_model_dir
+from codevolt_mdf.process_isolation import MeasuredUsage
 
 RUNNER_PATH = (
     Path(__file__).resolve().parents[1]
@@ -922,3 +923,234 @@ def test_this_script_sha256_matches_a_direct_recompute(runner):
 
     digest = hashlib.sha256(RUNNER_PATH.read_bytes()).hexdigest()
     assert runner._this_script_sha256() == digest
+
+
+# ---------------------------------------------------------------------------
+# 12. Isolated-process resource enforcement (Maya's ADR-0019 gate requirement):
+#     execute_evaluation must run the model-load plus compute_all_pair_margins
+#     work through codevolt_mdf.process_isolation.run_callable_in_isolated_process,
+#     never in-process; overrun/timeout must refuse with no outcome
+#     classification written; and a gate declaring looser ceilings than this
+#     script's hard limits (2400MB / 300s) must be refused outright by
+#     load_gate before any isolation budget is even built.
+# ---------------------------------------------------------------------------
+
+
+def _valid_gate(runner, *, memory_mb: float = 500.0, wall_seconds: float = 60.0) -> dict:
+    return {
+        "schema_version": 1,
+        "script_sha256": runner._this_script_sha256(),
+        "held_out_package_id": runner.HELD_OUT_PACKAGE_ID,
+        "held_out_pairs_hash": runner.EXPECTED_HELD_OUT_PAIRS_HASH,
+        "held_out_registry_hash": runner.EXPECTED_HELD_OUT_REGISTRY_HASH,
+        "measured_max_memory_mb": memory_mb,
+        "measured_max_wall_seconds": wall_seconds,
+        "approval": {},
+    }
+
+
+def _write_gate(tmp_path: Path, gate: dict) -> Path:
+    path = tmp_path / "gate.json"
+    path.write_text(json.dumps(gate), encoding="utf-8")
+    return path
+
+
+def test_load_gate_refuses_memory_ceiling_looser_than_hard_limit(runner, tmp_path):
+    gate = _valid_gate(runner, memory_mb=runner.ISOLATION_MAX_MEMORY_MB + 1)
+    path = _write_gate(tmp_path, gate)
+    with pytest.raises(SystemExit, match="exceeds the hard ceiling"):
+        runner.load_gate(path)
+
+
+def test_load_gate_refuses_wall_seconds_ceiling_looser_than_hard_limit(runner, tmp_path):
+    gate = _valid_gate(runner, wall_seconds=runner.ISOLATION_MAX_WALL_SECONDS + 1)
+    path = _write_gate(tmp_path, gate)
+    with pytest.raises(SystemExit, match="exceeds the hard ceiling"):
+        runner.load_gate(path)
+
+
+def test_load_gate_accepts_ceilings_exactly_at_the_hard_limit(runner, tmp_path, monkeypatch):
+    # measured_max_memory_mb == ISOLATION_MAX_MEMORY_MB (not looser than it)
+    # must be accepted -- the check is a strict "exceeds", not "at or above".
+    # Bypass signature verification (not under test here) by stubbing
+    # _verify_signed_approval to a no-op that returns a document dict.
+    monkeypatch.setattr(
+        runner,
+        "_verify_signed_approval",
+        lambda approval, **kwargs: {"scope": [runner.HOST_CONTAINMENT_SCOPE]},
+    )
+    gate = _valid_gate(
+        runner,
+        memory_mb=runner.ISOLATION_MAX_MEMORY_MB,
+        wall_seconds=runner.ISOLATION_MAX_WALL_SECONDS,
+    )
+    path = _write_gate(tmp_path, gate)
+    result = runner.load_gate(path)
+    assert result["measured_max_memory_mb"] == runner.ISOLATION_MAX_MEMORY_MB
+    assert result["measured_max_wall_seconds"] == runner.ISOLATION_MAX_WALL_SECONDS
+
+
+def _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path):
+    """Common scaffolding for execute_evaluation isolation tests.
+
+    Bypasses validate_plan()'s unrelated "Maya's single-gate approval has
+    not been issued" blocker (a fixed on-disk path this test suite does not
+    stand up) and load_gate's signature verification (not under test here),
+    so each test below can focus purely on the isolation
+    enforcement/round-trip behaviour without needing a real signed approval
+    bundle on disk.
+    """
+    monkeypatch.setattr(
+        runner,
+        "validate_plan",
+        lambda: {"status": "PASS", "scoring_called": False, "execution_blockers": []},
+    )
+    gate = _valid_gate(runner)
+    monkeypatch.setattr(runner, "load_gate", lambda path: gate)
+    return gate
+
+
+def test_execute_evaluation_overrun_refuses_with_no_outcome_classification(
+    runner, tmp_path, monkeypatch
+):
+    _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path)
+
+    def _fake_isolated_run(*, compute_fn, kwargs, budget):
+        measured = MeasuredUsage(
+            wall_seconds=1.0,
+            cpu_seconds=1.0,
+            memory_mb_peak=9999.0,
+            storage_mb_used=None,
+            killed_for_overrun=True,
+            killed_for_timeout=False,
+        )
+        return None, None, measured
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    scratch_root = tmp_path / "scratch"
+    with pytest.raises(SystemExit, match="exceeded the resource budget"):
+        runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+    # No outcome classification -- no evidence file written at all.
+    assert not scratch_root.exists() or not list(scratch_root.glob("adr0019_result.json"))
+
+
+def test_execute_evaluation_timeout_refuses_with_no_outcome_classification(
+    runner, tmp_path, monkeypatch
+):
+    _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path)
+
+    def _fake_isolated_run(*, compute_fn, kwargs, budget):
+        measured = MeasuredUsage(
+            wall_seconds=999.0,
+            cpu_seconds=1.0,
+            memory_mb_peak=1.0,
+            storage_mb_used=None,
+            killed_for_overrun=False,
+            killed_for_timeout=True,
+        )
+        return None, None, measured
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    scratch_root = tmp_path / "scratch"
+    with pytest.raises(SystemExit, match="exceeded max_wall_seconds"):
+        runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+    assert not scratch_root.exists() or not list(scratch_root.glob("adr0019_result.json"))
+
+
+def test_execute_evaluation_child_exception_refuses_with_no_outcome_classification(
+    runner, tmp_path, monkeypatch
+):
+    _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path)
+
+    def _fake_isolated_run(*, compute_fn, kwargs, budget):
+        measured = MeasuredUsage(
+            wall_seconds=1.0,
+            cpu_seconds=1.0,
+            memory_mb_peak=1.0,
+            storage_mb_used=None,
+            killed_for_overrun=False,
+            killed_for_timeout=False,
+        )
+        return None, RuntimeError("boom"), measured
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    scratch_root = tmp_path / "scratch"
+    with pytest.raises(SystemExit, match="failed without producing a result"):
+        runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+    assert not scratch_root.exists() or not list(scratch_root.glob("adr0019_result.json"))
+
+
+def test_execute_evaluation_happy_path_round_trips_statistics_via_fake_isolated_runner(
+    runner, tmp_path, monkeypatch
+):
+    """Proves the isolation budget matches the gate's own ceilings and that the
+    statistics report crosses the (faked) isolation boundary unchanged --
+    theta, per-pair margins, and classification are exactly what the fake
+    child-process call returned, none of it recomputed or altered in the
+    parent."""
+    gate = _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path)
+
+    fake_report = {
+        "n_pairs": 20,
+        "full": {
+            "n": 20,
+            "mean_delta": 1.23,
+            "sd_delta": 0.5,
+            "classification": runner.OUTCOME_SHIFT_PRESENT,
+            "authoritative": True,
+        },
+        "theta": runner.THETA,
+        "pairs": [{"pair_id": "p0"}],
+    }
+    captured_budgets = []
+
+    def _fake_isolated_run(*, compute_fn, kwargs, budget):
+        captured_budgets.append(budget)
+        assert compute_fn is runner._run_margin_computation
+        assert set(kwargs) == {"candidate_model_path", "reference_model_path", "pairs"}
+        measured = MeasuredUsage(
+            wall_seconds=12.5,
+            cpu_seconds=20.0,
+            memory_mb_peak=321.0,
+            storage_mb_used=0.01,
+            killed_for_overrun=False,
+            killed_for_timeout=False,
+        )
+        return fake_report, None, measured
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    scratch_root = tmp_path / "scratch"
+    result = runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+
+    # Statistics round-trip intact: exactly the fake child-process report,
+    # theta/classification/pairs untouched.
+    assert result["statistics"] == fake_report
+    assert result["statistics"]["theta"] == runner.THETA
+    assert result["statistics"]["full"]["classification"] == runner.OUTCOME_SHIFT_PRESENT
+
+    # Isolation budget built from the gate's own signed ceilings, not some
+    # other value, and no looser than this script's hard limits.
+    assert len(captured_budgets) == 1
+    budget = captured_budgets[0]
+    assert budget.max_memory_mb == gate["measured_max_memory_mb"]
+    assert budget.max_wall_seconds == gate["measured_max_wall_seconds"]
+    assert budget.max_memory_mb <= runner.ISOLATION_MAX_MEMORY_MB
+    assert budget.max_wall_seconds <= runner.ISOLATION_MAX_WALL_SECONDS
+    assert budget.network_policy == "offline"
+    assert budget.filesystem_root == str(scratch_root)
+
+    # Evidence was written with a matching sha256 sidecar (unchanged
+    # _write_evidence behaviour).
+    evidence_path = scratch_root / "adr0019_result.json"
+    assert evidence_path.is_file()
+    sha_path = scratch_root / "adr0019_result.json.sha256"
+    assert sha_path.is_file()
+    import hashlib
+
+    assert sha_path.read_text(encoding="utf-8").strip() == hashlib.sha256(
+        evidence_path.read_bytes()
+    ).hexdigest()

@@ -620,6 +620,63 @@ def _child_worker(
         result_queue.put(("exception", _safe_exception_tuple(exc)))
 
 
+def _sanitize_json_payload(value: Any) -> Any:
+    """Validate/rebuild a plain JSON-safe payload for safe IPC back to the parent.
+
+    Unlike ``_sanitize_training_output``/``_sanitize_evaluation_output``, no
+    dataclass or enum type is allow-listed here: this is for callers whose
+    child-side work already reduces its own result to JSON-safe leaf types
+    plus ``list``/``tuple``/``dict`` (e.g. via a dataclass's own
+    ``to_dict()``/``asdict()``) before queuing it, exactly as
+    ``run_callable_in_isolated_process`` requires of ``compute_fn``'s return
+    value below. A child that queues anything else (an adapter object, a raw
+    dataclass instance, anything not already primitive) is rejected rather
+    than silently pickled -- the same untrusted-child-output discipline as
+    the two allow-listed sanitizers above, just without a fixed schema.
+    """
+    return _sanitize_ipc_value(value, allowed_dataclasses=(), allowed_enums=())
+
+
+def _callable_child_worker(
+    compute_fn: Any,
+    kwargs: dict[str, Any],
+    budget: Any,
+    result_queue: Any,
+) -> None:
+    """Run ``compute_fn(**kwargs)`` inside the same containment used for training/evaluation.
+
+    Generalizes beyond ``run_in_isolated_process`` (fixed to
+    ``adapter.train(...)``) and ``run_evaluator_in_isolated_process`` (fixed
+    to ``run_evaluator_contract``'s single-artifact ``score_example`` loop):
+    some evaluation work does not fit either fixed contract shape -- e.g. a
+    held-out log-probability margin evaluation that must load and score TWO
+    checkpoints (a candidate and a reference) and compute a statistics report
+    neither existing entry point can express. ``compute_fn`` is not
+    adapter-controlled/untrusted code admitted from outside this codebase: it
+    is a plain, picklable-by-reference, module-level function the calling
+    script itself defines (the same way ``adapter`` is already a
+    parent-constructed, picklable-by-reference object for every other
+    ``run_*_in_isolated_process`` entry point in this module) -- only its
+    *return value* is untrusted child output and is passed through
+    ``_sanitize_json_payload`` before crossing back, exactly as every other
+    child worker here sanitizes its own result before queuing it.
+    """
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            pass
+    try:
+        _sanitize_environment()
+        if budget.filesystem_root:
+            _pin_filesystem_root(budget.filesystem_root)
+        _apply_network_policy(budget.network_policy, budget.allowed_hosts)
+        output = compute_fn(**kwargs)
+        result_queue.put(("output", _sanitize_json_payload(output)))
+    except BaseException as exc:  # noqa: BLE001 - surfaced safely to parent
+        result_queue.put(("exception", _safe_exception_tuple(exc)))
+
+
 def _evaluator_child_worker(
     adapter: Any,
     artifact_id: str,
@@ -1114,6 +1171,108 @@ def run_in_isolated_process(
     except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
         return None, RuntimeError("child process exited without reporting a result"), measured
 
+    if kind == "output":
+        return payload, None, measured
+    return None, _reconstruct_exception(payload), measured
+
+
+def run_callable_in_isolated_process(
+    compute_fn: Any,
+    kwargs: dict[str, Any],
+    budget: Any,
+    poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
+) -> tuple[Any | None, BaseException | None, MeasuredUsage]:
+    """Run ``compute_fn(**kwargs)`` in a real child process with the same enforcement.
+
+    Generalizes ``run_evaluator_in_isolated_process`` for evaluation work that
+    does not fit the fixed ``EvaluatorAdapterV1.score_example`` (one artifact,
+    one held-out set, per-example ``ExampleResult``) contract shape -- e.g.
+    ``examples/pilot-metatrainer-v2/run_adr0019_logprob_margin_eval.py``'s
+    held-out log-probability margin evaluation, which must load and score TWO
+    checkpoints (a candidate and a frozen reference) per held-out pair and
+    return a full statistics report, not a single per-example score. Identical
+    resource-measurement, live-polled overrun kill, wall-clock timeout kill,
+    and environment/filesystem/network containment to
+    ``run_evaluator_in_isolated_process`` -- only the child-side entry point
+    differs (an arbitrary picklable-by-reference ``compute_fn`` instead of a
+    fixed ``run_evaluator_contract`` call).
+
+    ``compute_fn`` itself is not treated as untrusted/adapter-controlled code
+    (it is a plain module-level function the calling script defines, exactly
+    as ``adapter`` already is for every other ``run_*_in_isolated_process``
+    entry point in this module); only its *return value* is untrusted child
+    output and is passed through ``_sanitize_json_payload`` before crossing
+    the IPC boundary back to the parent. Callers must therefore have
+    ``compute_fn`` return only JSON-safe leaf types plus
+    ``list``/``tuple``/``dict`` (e.g. via a dataclass's own
+    ``to_dict()``/``asdict()``), the same discipline
+    ``run_in_isolated_process``/``run_evaluator_in_isolated_process`` already
+    require of their own allow-listed ``TrainingOutput``/``EvaluationOutput``
+    return values -- see ``_sanitize_json_payload``.
+    """
+    ctx = multiprocessing.get_context("spawn")
+    result_queue: multiprocessing.Queue = ctx.Queue()
+    process = ctx.Process(
+        target=_callable_child_worker,
+        args=(compute_fn, kwargs, budget, result_queue),
+        daemon=True,
+    )
+    rusage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    start = time.monotonic()
+    process.start()
+    peak_memory_mb = 0.0
+    live_cpu_seconds = 0.0
+    killed_for_overrun = False
+    killed_for_timeout = False
+    pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
+
+    while process.is_alive():
+        elapsed = time.monotonic() - start
+        live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
+        if live is not None:
+            memory_mb, cpu_seconds = live
+            peak_memory_mb = max(peak_memory_mb, memory_mb)
+            live_cpu_seconds = max(live_cpu_seconds, cpu_seconds)
+            if memory_mb > budget.max_memory_mb or cpu_seconds > budget.max_cpu_seconds:
+                killed_for_overrun = True
+                pid_tree_walk_outcome = _kill_group(process)
+                process.join(timeout=5)
+                break
+        if elapsed > budget.max_wall_seconds:
+            killed_for_timeout = True
+            pid_tree_walk_outcome = _kill_group(process)
+            process.join(timeout=5)
+            break
+        time.sleep(poll_interval)
+
+    process.join(timeout=5)
+    wall_seconds = round(time.monotonic() - start, 6)
+    rusage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    measured_cpu_seconds = max(
+        live_cpu_seconds,
+        (rusage_after.ru_utime + rusage_after.ru_stime)
+        - (rusage_before.ru_utime + rusage_before.ru_stime),
+    )
+    maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
+    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
+    measured = MeasuredUsage(
+        wall_seconds=wall_seconds,
+        cpu_seconds=round(measured_cpu_seconds, 6),
+        memory_mb_peak=round(max(peak_memory_mb, ru_maxrss_mb), 6),
+        storage_mb_used=storage_mb_used,
+        killed_for_overrun=killed_for_overrun,
+        killed_for_timeout=killed_for_timeout,
+        pid_tree_walk_outcome=pid_tree_walk_outcome,
+    )
+    if killed_for_overrun or killed_for_timeout:
+        return None, None, measured
+    if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
+        return None, RuntimeError("isolated callable exceeded max_storage_mb"), measured
+    try:
+        kind, payload = result_queue.get_nowait()
+    except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
+        return None, RuntimeError("isolated callable process exited without reporting a result"), measured
     if kind == "output":
         return payload, None, measured
     return None, _reconstruct_exception(payload), measured

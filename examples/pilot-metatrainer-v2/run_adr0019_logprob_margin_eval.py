@@ -86,6 +86,8 @@ from codevolt_mdf.hf_local_evaluator_adapter import (
     HFLocalCausalLMEvaluatorAdapter,
     _hash_model_dir,
 )
+from codevolt_mdf.process_isolation import run_callable_in_isolated_process
+from codevolt_mdf.trainer_contract import ResourceBudget
 
 # ---------------------------------------------------------------------------
 # Model identity -- both hash-verified before any load, per ADR-0019
@@ -195,6 +197,39 @@ APPROVED_REVIEW_GATE_PATH = APPROVED_EVIDENCE_ROOT / "adr0019-review-gate.json"
 APPROVED_SCRATCH_ROOT = APPROVED_ROOT / "scratch"
 APPROVED_EXECUTION_SCRATCH = APPROVED_SCRATCH_ROOT / RUN_ID
 MINIMUM_FREE_BYTES = 512 * 1024 * 1024
+
+# ---------------------------------------------------------------------------
+# Isolated-process resource enforcement (Maya's ADR-0019 gate requirement,
+# mirroring run_bounded_cycle_adr0018.py's own ``_budget``/
+# ``run_evaluator_in_isolated_process`` pattern): the model-load plus
+# ``compute_all_pair_margins`` work runs in a real OS child process via
+# ``codevolt_mdf.process_isolation.run_callable_in_isolated_process``, never
+# in-process, so a runaway or hung scoring pass is a genuine SIGKILL, not a
+# cooperative-only cancellation, and the ceilings below are enforced by the
+# OS-measured usage the isolation module reports -- not merely a positivity
+# check on whatever the gate happens to declare. These two constants are the
+# hard ceiling this script will accept from *any* gate: a gate declaring
+# looser values than these is refused outright by ``load_gate`` before
+# execution, regardless of who signed it.
+# ---------------------------------------------------------------------------
+ISOLATION_MAX_MEMORY_MB = 2400.0
+ISOLATION_MAX_WALL_SECONDS = 300.0
+# CPU-time ceiling for the isolated child: not a value the gate declares or
+# is checked against (the gate's own two enforced dimensions are wall-clock
+# and memory, per Maya's requirement), but ``ResourceBudget`` requires a
+# positive ``max_cpu_seconds`` regardless. Fixed at 2x the wall-clock
+# ceiling, the same ratio ``run_bounded_cycle_adr0018.py``'s own ``_budget``
+# uses (3600 CPU / 1800 wall) for a read-only inference workload that may
+# legitimately use multiple cores concurrently for a bounded stretch within
+# the wall-clock window.
+ISOLATION_MAX_CPU_SECONDS = 600.0
+# Storage ceiling for the isolated child's ``filesystem_root``: this
+# evaluation only ever writes small JSON evidence (per-pair scores plus the
+# statistics report) into the reviewed scratch root, and loads model
+# checkpoints read-only from outside it -- no checkpoint or dataset write
+# ever happens here. 64MB is generous headroom over that, not a value tuned
+# to any specific measured run.
+ISOLATION_MAX_STORAGE_MB = 64.0
 
 
 class Adr0019Error(SystemExit):
@@ -498,6 +533,41 @@ def compute_all_pair_margins(
     pairs: Sequence[dict[str, Any]],
 ) -> list[PairMarginResult]:
     return [compute_pair_margin(evaluator, candidate, reference, pair) for pair in pairs]
+
+
+def _run_margin_computation(
+    *,
+    candidate_model_path: str,
+    reference_model_path: str,
+    pairs: list[dict[str, Any]],
+    use_chat_template: bool = True,
+) -> dict[str, Any]:
+    """Child-process entry point: load both checkpoints, score every pair, build the report.
+
+    Runs entirely inside the isolated child process started by
+    ``codevolt_mdf.process_isolation.run_callable_in_isolated_process`` (see
+    ``execute_evaluation``) -- this is the "model-load plus
+    ``compute_all_pair_margins`` work" Maya's ADR-0019 gate requirement
+    names, moved out of the parent process. A module-level function
+    (picklable by reference), not a closure, so ``multiprocessing``'s
+    ``spawn`` start method can hand it to the child.
+
+    Its return value is exactly ``build_statistics_report``'s own return
+    shape: a plain nested dict/list/str/int/float/bool/None structure with
+    no dataclass or enum instances, since that is what crosses the IPC
+    sanitizer boundary back to the parent (see
+    ``process_isolation._sanitize_json_payload``). Statistics, theta, the
+    outcome classification, and the held-out pair content itself are
+    completely untouched by moving this call into a child process -- this
+    function computes exactly what ``execute_evaluation`` computed
+    in-process before, in the same order, via the same
+    ``compute_all_pair_margins``/``build_statistics_report`` calls.
+    """
+    evaluator = HFLocalCausalLMEvaluatorAdapter(use_chat_template=use_chat_template)
+    candidate = evaluator._get_model(Path(candidate_model_path))
+    reference = evaluator._get_model(Path(reference_model_path))
+    pair_results = compute_all_pair_margins(evaluator, candidate, reference, pairs)
+    return build_statistics_report(pair_results)
 
 
 # ---------------------------------------------------------------------------
@@ -931,6 +1001,25 @@ def load_gate(path: Path) -> dict[str, Any]:
         or gate["measured_max_wall_seconds"] <= 0
     ):
         raise Adr0019Error("gate measured_max_wall_seconds must be a positive number")
+    # Enforce the ceiling, not just positivity (Maya's ADR-0019 gate
+    # requirement): a gate whose own declared ceilings are looser than this
+    # script's hard limits is refused outright, regardless of who signed it.
+    # The isolation budget execute_evaluation later builds is set to exactly
+    # these gate-declared values (see ``_isolation_budget``), so this check
+    # is what guarantees that budget can never itself exceed the hard
+    # ceiling below.
+    if gate["measured_max_memory_mb"] > ISOLATION_MAX_MEMORY_MB:
+        raise Adr0019Error(
+            f"gate measured_max_memory_mb={gate['measured_max_memory_mb']} exceeds the "
+            f"hard ceiling {ISOLATION_MAX_MEMORY_MB} this script enforces regardless of "
+            "gate content"
+        )
+    if gate["measured_max_wall_seconds"] > ISOLATION_MAX_WALL_SECONDS:
+        raise Adr0019Error(
+            f"gate measured_max_wall_seconds={gate['measured_max_wall_seconds']} exceeds "
+            f"the hard ceiling {ISOLATION_MAX_WALL_SECONDS} this script enforces "
+            "regardless of gate content"
+        )
     trusted_signer_lines = [
         line
         for line in APPROVAL_ALLOWED_SIGNERS_PATH.read_text(encoding="utf-8").splitlines()
@@ -1135,6 +1224,27 @@ def validate_plan() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _isolation_budget(gate: dict[str, Any], scratch_root: Path) -> ResourceBudget:
+    """Build the ``ResourceBudget`` for the isolated child process from the gate's own values.
+
+    Uses the gate's signed ``measured_max_memory_mb``/``measured_max_wall_seconds``
+    directly (already verified by ``load_gate`` to be no looser than
+    ``ISOLATION_MAX_MEMORY_MB``/``ISOLATION_MAX_WALL_SECONDS``), so the budget
+    actually enforced in the child can never exceed this script's hard
+    ceiling -- the gate can only ever *tighten* it further, never loosen it
+    past the hard limit.
+    """
+    return ResourceBudget(
+        max_wall_seconds=gate["measured_max_wall_seconds"],
+        max_cpu_seconds=ISOLATION_MAX_CPU_SECONDS,
+        max_memory_mb=gate["measured_max_memory_mb"],
+        max_gpu_count=0,
+        max_storage_mb=ISOLATION_MAX_STORAGE_MB,
+        network_policy="offline",
+        filesystem_root=str(scratch_root),
+    )
+
+
 def execute_evaluation(scratch_root: Path, gate_path: Path) -> dict[str, Any]:
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -1148,18 +1258,55 @@ def execute_evaluation(scratch_root: Path, gate_path: Path) -> dict[str, Any]:
     pair_ids = [p["pair_id"] for p in pairs]
     verify_registry_admits_no_contamination(HELD_OUT_REGISTRY_PATH, pair_ids)
 
-    evaluator = HFLocalCausalLMEvaluatorAdapter(use_chat_template=True)
-    candidate = evaluator._get_model(CANDIDATE_MODEL_PATH)
-    reference = evaluator._get_model(REFERENCE_MODEL_PATH)
-
-    pair_results = compute_all_pair_margins(evaluator, candidate, reference, pairs)
-    statistics_report = build_statistics_report(pair_results)
+    # Model-load plus compute_all_pair_margins work runs through
+    # codevolt_mdf.process_isolation.run_callable_in_isolated_process,
+    # exactly as run_bounded_cycle_adr0018.py's own evaluation step does via
+    # run_evaluator_in_isolated_process -- never in-process. The budget
+    # passed in is built from the gate's own signed ceilings, which
+    # load_gate already refused to accept if they exceeded
+    # ISOLATION_MAX_MEMORY_MB/ISOLATION_MAX_WALL_SECONDS.
+    budget = _isolation_budget(gate, scratch_root)
+    statistics_report, error, measured = run_callable_in_isolated_process(
+        compute_fn=_run_margin_computation,
+        kwargs={
+            "candidate_model_path": str(CANDIDATE_MODEL_PATH),
+            "reference_model_path": str(REFERENCE_MODEL_PATH),
+            "pairs": pairs,
+        },
+        budget=budget,
+    )
+    if measured.killed_for_overrun:
+        raise Adr0019Error(
+            f"isolated evaluator process exceeded the resource budget (measured "
+            f"wall={measured.wall_seconds}s, cpu={measured.cpu_seconds}s, "
+            f"memory={measured.memory_mb_peak}MB against max_memory_mb="
+            f"{budget.max_memory_mb}, max_cpu_seconds={budget.max_cpu_seconds}); "
+            "refusing to write any outcome classification"
+        )
+    if measured.killed_for_timeout:
+        raise Adr0019Error(
+            f"isolated evaluator process exceeded max_wall_seconds="
+            f"{budget.max_wall_seconds} (measured {measured.wall_seconds}s); refusing "
+            "to write any outcome classification"
+        )
+    if error is not None or statistics_report is None:
+        raise Adr0019Error(
+            f"isolated evaluator process failed without producing a result: {error}"
+        )
 
     result = {
         "run_id": RUN_ID,
         "gate": gate,
         "plan": plan,
         "statistics": statistics_report,
+        "isolation": {
+            "wall_seconds": measured.wall_seconds,
+            "cpu_seconds": measured.cpu_seconds,
+            "memory_mb_peak": measured.memory_mb_peak,
+            "storage_mb_used": measured.storage_mb_used,
+            "max_wall_seconds": budget.max_wall_seconds,
+            "max_memory_mb": budget.max_memory_mb,
+        },
     }
     _write_evidence(scratch_root, result)
     return result
