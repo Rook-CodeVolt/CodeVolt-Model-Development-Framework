@@ -623,10 +623,13 @@ def test_load_gate_rejects_wrong_package_id(runner, tmp_path):
         runner.load_gate(path)
 
 
-def test_load_gate_refuses_while_held_out_placeholder_is_unset(runner, tmp_path):
-    # EXPECTED_HELD_OUT_PAIRS_HASH/EXPECTED_HELD_OUT_REGISTRY_HASH are None
-    # by default (card 1 not sealed yet) -- load_gate must fail closed
-    # regardless of gate content, rather than guessing a hash.
+def test_load_gate_refuses_while_held_out_placeholder_is_unset(runner, tmp_path, monkeypatch):
+    # Card 1 is sealed on main, so the module-level constants are real
+    # pinned hashes by default now -- monkeypatch them back to the
+    # placeholder ``None`` sentinel here to prove load_gate still fails
+    # closed in that state, rather than guessing a hash.
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_PAIRS_HASH", None)
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_REGISTRY_HASH", None)
     assert runner.EXPECTED_HELD_OUT_PAIRS_HASH is None
     assert runner.EXPECTED_HELD_OUT_REGISTRY_HASH is None
     gate = {
@@ -749,10 +752,50 @@ def test_validate_plan_passes_with_valid_fake_checkpoints_and_reports_blockers(
     result = runner.validate_plan()
     assert result["status"] == "PASS"
     assert result["scoring_called"] is False
-    # No real gate/pair set exists in this sandboxed test -- both must be
-    # reported as blockers, not silently treated as satisfied.
+    # Card 1 is sealed on main and the real held-out pair set/registry
+    # files (matching the pinned hashes) ship in this checkout, so the
+    # held-out placeholder blocker must be gone; only the still-missing
+    # review gate remains.
+    assert not any("card 1" in b for b in result["execution_blockers"])
+    assert any("gate" in b.lower() for b in result["execution_blockers"])
+
+
+def test_validate_plan_reports_placeholder_blocker_when_held_out_unset(
+    runner, tmp_path, monkeypatch
+):
+    # Direct test of the fail-closed placeholder path: monkeypatch the
+    # pinned hashes back to the ``None`` sentinel and confirm the "card
+    # 1 not sealed" blocker reappears exactly as it did before sealing.
+    _patch_valid_model_paths(runner, tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_PAIRS_HASH", None)
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_REGISTRY_HASH", None)
+    result = runner.validate_plan()
+    assert result["status"] == "PASS"
     assert any("card 1" in b for b in result["execution_blockers"])
     assert any("gate" in b.lower() for b in result["execution_blockers"])
+
+
+def test_validate_plan_refuses_on_mismatched_held_out_pairs_hash(
+    runner, tmp_path, monkeypatch
+):
+    # A pinned hash that no longer matches the file on disk (tampered or
+    # stale content) must be reported as a blocker, not silently ignored.
+    _patch_valid_model_paths(runner, tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_PAIRS_HASH", "f" * 64)
+    result = runner.validate_plan()
+    assert result["status"] == "PASS"
+    assert any("held-out pair set file is missing or hash-mismatched" in b for b in result["execution_blockers"])
+
+
+def test_validate_plan_refuses_on_mismatched_held_out_registry_hash(
+    runner, tmp_path, monkeypatch
+):
+    # Same guarantee for the exclusion-registry hash.
+    _patch_valid_model_paths(runner, tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "EXPECTED_HELD_OUT_REGISTRY_HASH", "f" * 64)
+    result = runner.validate_plan()
+    assert result["status"] == "PASS"
+    assert any("held-out registry file is missing or hash-mismatched" in b for b in result["execution_blockers"])
 
 
 def test_validate_plan_never_imports_torch_or_transformers(runner, tmp_path, monkeypatch):

@@ -129,13 +129,15 @@ EXPECTED_CANDIDATE_MODEL_HASH = (
 )
 
 # ---------------------------------------------------------------------------
-# Held-out pair set: PLACEHOLDER, pending card 1 ("Build and seal the
-# held-out preference-pair set", ADR-0019 section 6 card 1). This path
-# and these hashes are pinned by constant, per this task's own
-# instruction, and are left unset (``None``) rather than guessed. Every
-# entry point below that would use them fails closed with an explicit
-# message naming card 1 as the blocker, instead of silently treating an
-# absent or unsealed file as usable.
+# Held-out pair set: SEALED as of card 1 ("Build and seal the held-out
+# preference-pair set", ADR-0019 section 6 card 1), merged and
+# independently audited/approved by Maya (PR #104, origin/main
+# 1d6e5704246af59bba645d4951c40e5354e2c805). The two hashes below are
+# pinned to that exact content and were computed directly from that
+# commit, not guessed or copied from an unverified source. Every entry
+# point below re-checks the file on disk against these pinned hashes and
+# fails closed on any mismatch, so a tampered or stale file is refused
+# rather than silently treated as usable.
 # ---------------------------------------------------------------------------
 HELD_OUT_DIR = REPO_ROOT / "examples/pilot-metatrainer-v3-dpo-heldout"
 HELD_OUT_PAIRS_PATH = HELD_OUT_DIR / "held_out_pairs.jsonl"
@@ -145,12 +147,15 @@ HELD_OUT_REGISTRY_PATH = HELD_OUT_DIR / "held_out_exclusion_registry.json"
 # this evaluation script's own registry re-check (below) has a stable
 # name to look up regardless of who builds the set or when.
 HELD_OUT_PACKAGE_ID = "pilot-metatrainer-v3-dpo-heldout-adr0019"
-# PLACEHOLDER: filled in by a follow-up commit once card 1 seals the set
-# and Maya's five-part contamination audit (ADR-0019 section 2) passes.
-# ``None`` is a sentinel, not a real sha256 value -- comparing it against
-# an actual hex digest can never accidentally succeed.
-EXPECTED_HELD_OUT_PAIRS_HASH: str | None = None
-EXPECTED_HELD_OUT_REGISTRY_HASH: str | None = None
+# Sealed sha256 of examples/pilot-metatrainer-v3-dpo-heldout/held_out_pairs.jsonl
+# and held_out_exclusion_registry.json, both on origin/main at
+# 1d6e5704246af59bba645d4951c40e5354e2c805 (PR #104, Maya-approved).
+EXPECTED_HELD_OUT_PAIRS_HASH: str | None = (
+    "e48551cbbdf117b89b3e6a5a5d37c3345afd8ac161b08c288a747de96303b541"
+)
+EXPECTED_HELD_OUT_REGISTRY_HASH: str | None = (
+    "b70dc244ee40b6513e85c0321250ec6c8c3e3c98b85f96d6dc0db91068bc5bb3"
+)
 N_PAIRS_EXPECTED = 20
 MIN_COUNTER_SHARE = 0.20
 
