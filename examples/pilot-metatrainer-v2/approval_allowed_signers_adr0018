@@ -1,0 +1,28 @@
+# ADR-0018 execution remains fail-closed until the three public keys below are
+# supplied by their holders and admitted through independent review in this file.
+# This is the same trust root as ADR-0013/ADR-0014/ADR-0015/ADR-0016 (same three
+# role holders/keys), but a fresh copy scoped to ADR-0018's approval namespace/run
+# id/implementation SHA: no prior cycle's existing signed approval documents carry
+# over. Each holder must sign a fresh document bound to ADR-0018's exact values
+# before execution.
+# OpenSSH allowed-signers format:
+#   <principal> ssh-ed25519 <base64-public-key> <optional-comment>
+#
+# Required role-specific principals (one independently controlled key per role):
+#   maya-security       — Maya's Gate 1 security approval
+#   maya-dataset-rights — Maya's already-admitted single-run dataset decision
+#   rook-owner          — Rook's authorization for the exact single run
+#
+# Private keys must remain solely with each holder and must never be committed,
+# copied into a review gate, or shared with the runner. Public-key admission is a
+# reviewed code change; replacing or adding a key changes the trust root and
+# requires a fresh exact-head review. The three keys below are the same admitted
+# ADR-0013 role keys (PRs #82/#83), also reused unchanged for ADR-0014, ADR-0015,
+# and ADR-0016; they identify the same holders and are reused here rather than
+# re-admitted, since ADR-0018 does not change who holds each role. A fresh signed
+# approval document bound to ADR-0018's exact implementation SHA/run id/namespace
+# is still required from each holder -- no prior cycle's existing signatures
+# verify against ADR-0018's documents.
+rook-owner ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINS+HYmrc0CvqCIQmnWwEYSp9PIfxhjmxubxna7Xgnwc rook-owner
+maya-security ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDCvEYKtwPc55olohMn5YhInjNl7aynjpvGfQAZbYsnL maya-security
+maya-dataset-rights ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMUcUYP5D5CHroKYNaArG92HK7+gnB/0Yt4sftDLt/k3 maya-dataset-rights
