@@ -192,7 +192,9 @@ SECONDARY_ITEM_ID = "mtr-v2-heldout-0013"
 # then-unsealed held-out pair set.
 # ---------------------------------------------------------------------------
 EXPECTED_CLASSIFIER_SCRIPT_PATH: Path | None = None
-EXPECTED_CLASSIFIER_SCRIPT_HASH: str | None = None
+EXPECTED_CLASSIFIER_SCRIPT_HASH: str | None = (
+    "610c09252773951e53e3bc61f35f06c72b7c7e4a47ca8634412cfb9706105b63"
+)
 
 # ---------------------------------------------------------------------------
 # Decoding protocol (ADR-0020 section 3) -- fixed in advance, identical for

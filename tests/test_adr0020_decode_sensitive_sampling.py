@@ -836,11 +836,13 @@ def test_load_gate_rejects_script_hash_mismatch(runner, tmp_path):
         runner.load_gate(path)
 
 
-def test_load_gate_refuses_while_classifier_placeholder_is_unset(runner, tmp_path):
-    # Card 2 (classifier) has not been built as of this file's drafting --
-    # EXPECTED_CLASSIFIER_SCRIPT_HASH defaults to None, so load_gate must
-    # fail closed regardless of gate content.
-    assert runner.EXPECTED_CLASSIFIER_SCRIPT_HASH is None
+def test_load_gate_refuses_while_classifier_placeholder_is_unset(runner, tmp_path, monkeypatch):
+    # Card 2 (classifier) is now sealed and its hash is pinned (see
+    # test_expected_classifier_script_hash_matches_sealed_classifier_file
+    # below), but load_gate must still fail closed if that pin is ever
+    # unset again -- this is a regression guard on the fail-closed branch,
+    # not a statement about the current default.
+    monkeypatch.setattr(runner, "EXPECTED_CLASSIFIER_SCRIPT_HASH", None)
     gate = {
         "schema_version": 1,
         "script_sha256": runner._this_script_sha256(),
@@ -864,6 +866,38 @@ def test_load_gate_rejects_classifier_hash_mismatch(runner, tmp_path, monkeypatc
     path = _write_gate(tmp_path, gate)
     with pytest.raises(SystemExit, match="classifier script hash"):
         runner.load_gate(path)
+
+
+# ---------------------------------------------------------------------------
+# 13b. EXPECTED_CLASSIFIER_SCRIPT_HASH pin: proves the sealed constant
+#      equals the real card-2 classifier file's content hash on disk, and
+#      that load_gate's classifier-hash-check step now passes with that
+#      real, unpatched pin (not a monkeypatched stand-in) once the rest of
+#      the gate is otherwise valid.
+# ---------------------------------------------------------------------------
+
+
+def test_expected_classifier_script_hash_matches_sealed_classifier_file(runner):
+    classifier_path = runner.REPO_ROOT / "examples/pilot-metatrainer-v2/adr0020_scoring_classifier.py"
+    assert classifier_path.is_file()
+    assert runner.EXPECTED_CLASSIFIER_SCRIPT_HASH is not None
+    assert runner._sha256_file(classifier_path) == runner.EXPECTED_CLASSIFIER_SCRIPT_HASH
+
+
+def test_load_gate_classifier_hash_check_passes_with_real_pinned_hash(runner, tmp_path, monkeypatch):
+    # Deliberately does NOT call _patch_valid_classifier: this exercises the
+    # real, unpatched EXPECTED_CLASSIFIER_SCRIPT_HASH module constant to
+    # prove the pin itself -- not a fake classifier substituted in its
+    # place -- is what load_gate's classifier-hash-check step now accepts.
+    gate = _valid_gate(runner)
+    monkeypatch.setattr(
+        runner,
+        "_verify_signed_approval",
+        lambda approval, **kwargs: {"scope": [runner.HOST_CONTAINMENT_SCOPE]},
+    )
+    path = _write_gate(tmp_path, gate)
+    result = runner.load_gate(path)
+    assert result["classifier_script_sha256"] == runner.EXPECTED_CLASSIFIER_SCRIPT_HASH
 
 
 def test_load_gate_rejects_wrong_package_id(runner, tmp_path, monkeypatch):
@@ -982,15 +1016,21 @@ def test_validate_plan_detects_reference_hash_mismatch(runner, tmp_path, monkeyp
 
 def test_validate_plan_passes_and_reports_expected_blockers(runner, tmp_path, monkeypatch):
     _patch_valid_model_paths(runner, tmp_path, monkeypatch)
+    # Deterministic regardless of host state: force the review-gate path to
+    # a tmp_path location that does not exist, rather than relying on
+    # whatever real evidence file may or may not be present on this
+    # machine at the fixed absolute APPROVED_REVIEW_GATE_PATH.
+    monkeypatch.setattr(runner, "APPROVED_REVIEW_GATE_PATH", tmp_path / "no-gate-here.json")
     result = runner.validate_plan()
     assert result["status"] == "PASS"
     assert result["sampling_called"] is False
-    # Held-out/secondary files are real and sealed in this checkout, so
-    # those blockers are absent; the classifier placeholder (card 2) and
-    # the missing gate (card 3) remain, since neither is patched here.
+    # Held-out/secondary files are real and sealed in this checkout, and
+    # the classifier hash is now pinned (card 2 sealed), so those
+    # blockers are absent; only the missing gate (card 3) remains, since
+    # it is not patched here.
     assert not any("held-out pair set" in b for b in result["execution_blockers"])
     assert not any("secondary held-out" in b for b in result["execution_blockers"])
-    assert any("card 2" in b for b in result["execution_blockers"])
+    assert not any("card 2" in b for b in result["execution_blockers"])
     assert any("gate" in b.lower() for b in result["execution_blockers"])
 
 
