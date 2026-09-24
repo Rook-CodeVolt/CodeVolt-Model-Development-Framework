@@ -13,7 +13,7 @@ separate review/PR cycle per the task that requested this document.
 
 12 new candidate examples (8 train-candidate, 4 held-out-candidate) grounded
 only in this repository's own real, already-happened training-run history and
-its own internal audit record -- not in Clara's external research corpus, and not
+its own internal audit record -- not in the external research corpus, and not
 overlapping in content or source with the existing `meta-trainer-corpus-v2`
 records. This is intentionally a different provenance class from that corpus:
 every claim here traces to this repository's own git history, its own
@@ -58,8 +58,8 @@ specific field path inside a real evidence JSON already on this host
 or a specific completed internal tracking item id plus the exact metadata field(s) relied
 on. No record cites a source that was not directly read and checked against
 the claim in that record during drafting (see "Self-audit" below). No
-`Clara synthesis`-style locator is used anywhere in this file: none of this
-material is drawn from Clara's research corpus, and it must not be confused
+`research synthesis`-style locator is used anywhere in this file: none of this
+material is drawn from the external research corpus, and it must not be confused
 with or merged into `meta-trainer-corpus-v2`'s existing citation namespace.
 
 ## Explicit exclusions and cautions
@@ -97,7 +97,7 @@ claim of independent acceptance.
 | No fabricated framing / no invented numbers | PASS (self-review) | All numeric evaluation scores, loss values, and pass/fail counts are copied exactly from source; no interpolated or rounded-for-effect figures. (One user-turn prompt originally said "around 2.08" for the ADR-0011 loss and was corrected to "around 2.1" with the exact 2.0751 value preserved in the assistant answer, to avoid a numeric claim in a user turn that doesn't exactly match the cited source.) |
 | Train/held-out semantic-family split: family assigned before content was finalized, held-out record tests a related-but-distinct angle of the family rather than a rephrasing of a train record | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | Structural check (family-level split, no id overlap) passed programmatically. Content-level non-overlap is asserted by the drafting task (e.g. family 1's two train records cover "accepted status + loss don't imply capability" and "check EOS-emission root cause," while its held-out record covers "reconcile the pipeline-worked claim with the zero score" -- a distinct question from either train record) but was not independently re-verified by a second reviewer, which is exactly the check that caught real leakage in `meta-trainer-corpus-v2`'s first audit. This is the single item on this table a reviewer should scrutinize most closely, per that corpus's own precedent. |
 | No licensing/legal conclusion asserted | PASS | See "Explicit exclusions." |
-| Distinct provenance from `meta-trainer-corpus-v2` (no accidental reuse of Clara-sourced content or citation ids) | PASS | Confirmed by construction: no record references any Clara section, numbered Clara source `[N]`, or `Seed-rich A/B` locator; all locators are internal-repository/internal-only. |
+| Distinct provenance from `meta-trainer-corpus-v2` (no accidental reuse of externally-sourced content or citation ids) | PASS | Confirmed by construction: no record references any external research-synthesis section, numbered external source `[N]`, or `Seed-rich A/B` locator; all locators are internal-repository/internal-only. |
 
 ### Known limitation this self-audit cannot close
 
@@ -130,7 +130,7 @@ own `VALIDATION_REPORT.json`.
    post-correction revision) under `examples/`, explicitly not touching
    `meta-trainer-corpus-v2/train.jsonl` or `held_out.json` and not changing
    the frozen ADR-0013/0014 `dataset_hash` values those ADRs gate on.
-3. Maya security/dataset-rights review of that PR per this repository's
+3. Security-reviewer/dataset-rights review of that PR per this repository's
    existing governance pattern for anything proposed for the training
    corpus, before any merge.
 4. Repository admission (if it happens) does not by itself authorize any

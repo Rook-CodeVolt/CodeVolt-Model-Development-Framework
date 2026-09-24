@@ -9,8 +9,8 @@ committed as part of any training-eligible corpus by this change. Per this
 project's standing pattern (ADR-0013/0014/0015's own "Review path" sections),
 admission into a training-eligible corpus requires a separate PR, an
 independent per-example citation-locator and semantic-split audit with the
-same rigor as the prior corpus-v2 and history-addition audits, and Maya's
-security/dataset-rights review — none of which is performed by drafting this
+same rigor as the prior corpus-v2 and history-addition audits, and the
+security-reviewer/dataset-rights review — none of which is performed by drafting this
 file.
 
 ## Revision note (2026-09-22)
@@ -18,7 +18,7 @@ file.
 This file's first draft taught a single "four iterations, no target-task
 movement, change method" conclusion, based only on the automated
 `exact_match` scorer reading `0.0%` across all four cycles. That conclusion
-was incomplete: Maya's review of the parent PR (#91) identified that an
+was incomplete: an independent security review of the parent PR (#91) identified that an
 independent manual rubric review — which existed before this
 file was first drafted but had not yet been incorporated — found the
 ADR-0015 candidate's rubric score is `0.65/4.0`, continuing a strictly
@@ -113,7 +113,7 @@ This proposal does not assert:
 - that continuing corpus growth is confirmed to work, or that a method
   change (scorer redesign, different training method/base model) is
   confirmed necessary — both readings remain live, and the outcome record
-  and this addition explicitly leave that choice to Rook rather than
+  and this addition explicitly leave that choice open for the project owner rather than
   asserting either as a pre-validated conclusion;
 - that the item-level critical-error regression on `mtr-v2-heldout-0013`
   (endorsing invented numeric recipes) is representative of all safety
@@ -140,7 +140,7 @@ not as a claim of independent acceptance.
 | No fabricated framing / no invented numbers | PASS (self-review) | All numeric figures are copied exactly from the revised `docs/decisions/ADR-0015-outcome.md`; no interpolated or rounded-for-effect figures. |
 | Train/held-out semantic-family split: family assigned before content was finalized, held-out record tests a related-but-distinct angle | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | Structural check (single family, wholly train/held-out disjoint per record) passed by construction (2 train ids, 1 held-out id, no overlap). Content-level non-overlap is asserted by the drafting task (the held-out record tests "revising a document's own prior conclusion under new evidence," a distinct question from either train record's "report two disagreeing signals honestly" and "a mixed signal doesn't resolve to one recommendation") but was not independently re-verified by a second reviewer — the same open item the prior drafts' own self-audits flagged for their family splits, per that precedent for what a reviewer should scrutinize most closely. |
 | No licensing/legal conclusion asserted | PASS | See "Explicit exclusions." |
-| Distinct provenance from `meta-trainer-corpus-v2` and the training-history addition (no accidental reuse of Clara-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any Clara section or numbered Clara source `[N]`; all locators are internal-repository/internal-only, citing the revised outcome record and prior ADR/rubric-review text, not restating any of the four existing `metatrainer-corpus-addition-training-history` families' own content. |
+| Distinct provenance from `meta-trainer-corpus-v2` and the training-history addition (no accidental reuse of externally-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any external research-synthesis section or numbered external source `[N]`; all locators are internal-repository/internal-only, citing the revised outcome record and prior ADR/rubric-review text, not restating any of the four existing `metatrainer-corpus-addition-training-history` families' own content. |
 | Superseded-draft handling: original single-conclusion version fully replaced, not left alongside a conflicting version | PASS | This revision replaces the entire prior `CANDIDATE_CASE_STUDIES.jsonl` content (all 3 `mtr-4cycle-case-*` records) rather than appending alongside it; no record from the withdrawn draft remains in this file. |
 
 ### Known limitation this self-audit cannot close
@@ -176,7 +176,7 @@ re-verification here specifically.
    `pilot-metatrainer-v2/`, `pilot-metatrainer-v3/`, or
    `metatrainer-corpus-addition-training-history/`, and not changing any
    frozen ADR-0013/0014/0015 `dataset_hash` value those ADRs gate on.
-3. Maya security/dataset-rights review of that PR per this repository's
+3. Security-reviewer/dataset-rights review of that PR per this repository's
    existing governance pattern for anything proposed for the training
    corpus, before any merge.
 4. Repository admission (if it happens) does not by itself authorize any

@@ -14,7 +14,7 @@ this change. Per this project's standing pattern, admission into a
 training-eligible corpus requires a separate PR, an independent
 per-example citation-locator and semantic-split audit with the same rigor
 as the prior corpus-v2, history-addition, four-cycle-lesson, and
-dpo-method-switch-lesson audits, and Maya's security/dataset-rights
+dpo-method-switch-lesson audits, and the security-reviewer/dataset-rights
 review — none of which is performed by drafting this file.
 
 ## Scope
@@ -152,7 +152,7 @@ not as a claim of independent acceptance.
 | Train/held-out semantic-family split: family assigned before content was finalized, held-out record tests a related-but-distinct angle | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | Structural check (single family, wholly train/held-out disjoint per record) passed by construction (2 train ids, 1 held-out id, no overlap). Content-level non-overlap is asserted by the drafting task (the held-out record tests "a knife-edge secondary-subset classification must not be over-read against a separately authoritative full-set result," a distinct question from either train record's "decode-level null and probability-space positive coexist without contradiction" / "state hypothesis movement without declaring resolution") but was not independently re-verified by a second reviewer. |
 | No held-out contamination: does not reproduce or paraphrase any real held-out item's own prompt or answer text (`mtr-v2-heldout-*`, `mtr-v3n-heldout-*`, `dpo-heldout-refusal-*`, `dpo-heldout-counter-*`) | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | No record quotes any real held-out item's own prompt text or correct answer, and no record references any specific held-out `pair_id`. A self-check text-search for `dpo-heldout-refusal`/`dpo-heldout-counter`/`mtr-v2-heldout-0013`/the specific confabulated-recipe wording against this file found zero hits, but this is a self-check by the drafting task, not an independent audit, and must respect the full held-out registry (including the new `pilot-metatrainer-v3-dpo-heldout-adr0019` package) per this project's registry discipline. |
 | No licensing/legal conclusion asserted | PASS | See "Explicit exclusions." |
-| Distinct provenance from prior additions (no accidental reuse of Clara-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any Clara section or numbered Clara source `[N]`; all locators cite `docs/decisions/ADR-0019-outcome.md` directly, not restating any of the four prior additions' own family content. |
+| Distinct provenance from prior additions (no accidental reuse of externally-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any external research-synthesis section or numbered external source `[N]`; all locators cite `docs/decisions/ADR-0019-outcome.md` directly, not restating any of the four prior additions' own family content. |
 
 ### Known limitation this self-audit cannot close
 
@@ -189,7 +189,7 @@ ADR added to the standing held-out inventory.
    `pilot-metatrainer-v3-dpo/`, `pilot-metatrainer-v3-dpo-heldout/`, or
    any of the four prior `metatrainer-corpus-addition-*` directories, and
    not changing any frozen ADR's `dataset_hash` value those ADRs gate on.
-3. Maya security/dataset-rights review of that PR per this repository's
+3. Security-reviewer/dataset-rights review of that PR per this repository's
    existing governance pattern for anything proposed for the training
    corpus, before any merge.
 4. Repository admission (if it happens) does not by itself authorize any

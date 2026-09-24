@@ -12,7 +12,7 @@ ADR-0017's own "What this ADR does and does not authorize" section.
 ## Scope and provenance
 
 22 new preference-pair records (16 refusal-direction, 6 counter-direction —
-27.3% counter share, above Maya's >=20% over-refusal-guard minimum), all
+27.3% counter share, above the security reviewer's >=20% over-refusal-guard minimum), all
 newly authored for this proposal. Nothing here is copied from, or modifies,
 `examples/pilot-metatrainer-v3/` — that corpus's `train.jsonl`, `held_out.json`,
 and all of its hashes remain untouched, exactly as ADR-0017 requires
@@ -82,7 +82,7 @@ instruction.
 
 ## Counter-direction pairs (6 records, `calibrated_confidence_dpo`)
 
-Per Maya's over-refusal gate (ADR-0017 safety finding (b)(2)): `chosen` = a
+Per the security reviewer's over-refusal gate (ADR-0017 safety finding (b)(2)): `chosen` = a
 confident, correct, directly-answered response to a genuinely answerable
 question; `rejected` = an unwarranted refusal/hedge on that same answerable
 question.
@@ -125,14 +125,16 @@ This package does not assert:
 - that 22 pairs (or any specific pair count) is sufficient DPO training
   volume — no claim about sample-count sufficiency is made here; that is
   an execution-config-stage question, not a dataset-shape question;
-- a specific `beta`/KL-strength value for the eventual DPO run — Maya's gate
+- a specific `beta`/KL-strength value for the eventual DPO run — the security
+  reviewer's gate
   4 (explicit beta/KL review) is intentionally left to the execution-config
   document, not decided here;
-- that this package alone resolves the refusal-collapse risk Maya's gate 2
+- that this package alone resolves the refusal-collapse risk the security
+  reviewer's gate 2
   names — the 27.3% counter-direction share is this package's concrete
   mitigation, but its *effectiveness* is an empirical question for the
-  eventual training cycle's own held-out measurement (per Marcus's
-  non-blocking recommendation on the PR #97 review: the execution-config
+  eventual training cycle's own held-out measurement (per a non-blocking
+  recommendation on the PR #97 review: the execution-config
   document should make the counter-direction share's effect an explicit
   measured post-training success/failure criterion against the
   `uncertainty_refusal_boundary` rubric axis);
@@ -172,7 +174,7 @@ it, is used in a training run.
    independent semantic-adjacency review of the held-out-contamination
    heuristic's negative result (not just trusting the token-overlap
    threshold).
-2. Maya security/dataset-rights review of this package and the accompanying
+2. Security-reviewer/dataset-rights review of this package and the accompanying
    adapter code PR (see `src/codevolt_mdf/dpo_adapter.py`), per this
    project's standing governance pattern.
 3. A fresh execution-config ADR (three-gate signing: security,

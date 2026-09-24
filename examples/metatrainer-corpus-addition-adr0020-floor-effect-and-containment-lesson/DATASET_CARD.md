@@ -16,7 +16,7 @@ training-eligible corpus requires a separate PR, an independent
 per-example citation-locator and semantic-split audit with the same rigor
 as the prior corpus-v2, history-addition, four-cycle-lesson,
 dpo-method-switch-lesson, and adr0019-subtheta-heldout-shift-lesson
-audits, and Maya's security/dataset-rights review — none of which is
+audits, and the security-reviewer/dataset-rights review — none of which is
 performed by drafting this file.
 
 ## Scope
@@ -209,7 +209,7 @@ produced.
    `pilot-metatrainer-v3-dpo/`, `pilot-metatrainer-v3-dpo-heldout/`, or
    any of the five prior `metatrainer-corpus-addition-*` directories, and
    not changing any frozen ADR's `dataset_hash` value those ADRs gate on.
-3. Maya security/dataset-rights review of that PR per this repository's
+3. Security-reviewer/dataset-rights review of that PR per this repository's
    existing governance pattern for anything proposed for the training
    corpus, before any merge.
 4. Repository admission (if it happens) does not by itself authorize any

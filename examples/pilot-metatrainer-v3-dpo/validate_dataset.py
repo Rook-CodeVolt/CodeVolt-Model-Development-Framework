@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+REPO_ROOT = ROOT.parent.parent
 V3_DIR = ROOT.parent / "pilot-metatrainer-v3"
 
 
@@ -67,7 +68,7 @@ def main():
     check(
         "counter_direction_share_min_20pct",
         counter_share >= 0.20,
-        f"{len(counter)}/{len(records)} = {counter_share:.4f}, Maya's over-refusal gate requires >= 0.20",
+        f"{len(counter)}/{len(records)} = {counter_share:.4f}, the security reviewer's over-refusal gate requires >= 0.20",
     )
 
     check(
@@ -169,7 +170,7 @@ def main():
         "checks": checks,
         "sha256": hashes,
         "held_out_contamination_check": {
-            "compared_against": str(V3_DIR / "held_out.json"),
+            "compared_against": str((V3_DIR / "held_out.json").relative_to(REPO_ROOT)),
             "held_out_records_checked": len(held_out_prompts),
             "exact_reuse_hits": exact_hits,
             "near_paraphrase_hits_against_mtr_v2_heldout_0013": near_paraphrase_hits,

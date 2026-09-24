@@ -41,7 +41,7 @@ This is a held-out asset proposal only. Repository admission of this
 directory does not itself authorize any scoring/evaluation run -- see
 DATASET_CARD.md's "Intended use" section and ADR-0019 section 5/6. The
 five-part contamination audit (ADR-0019 section 2) is re-run independently
-by Maya before this set is used for anything; this generator and its sibling
+by the security reviewer before this set is used for anything; this generator and its sibling
 ``validate_dataset.py`` only produce and self-check the candidate set.
 """
 import json

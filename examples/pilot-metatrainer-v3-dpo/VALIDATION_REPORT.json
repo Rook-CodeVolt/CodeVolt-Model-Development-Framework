@@ -38,7 +38,7 @@
     {
       "check": "counter_direction_share_min_20pct",
       "status": "PASS",
-      "detail": "6/22 = 0.2727, Maya's over-refusal gate requires >= 0.20"
+      "detail": "6/22 = 0.2727, the security reviewer's over-refusal gate requires >= 0.20"
     },
     {
       "check": "chosen_rejected_distinct",
@@ -85,7 +85,7 @@
     "preference_pairs.jsonl": "e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33"
   },
   "held_out_contamination_check": {
-    "compared_against": "./examples/pilot-metatrainer-v3/held_out.json",
+    "compared_against": "examples/pilot-metatrainer-v3/held_out.json",
     "held_out_records_checked": 48,
     "exact_reuse_hits": [],
     "near_paraphrase_hits_against_mtr_v2_heldout_0013": []

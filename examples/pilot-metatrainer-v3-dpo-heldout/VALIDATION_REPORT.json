@@ -113,7 +113,7 @@
   },
   "limitations": [
     "The near-paraphrase check is a token-overlap heuristic (>=60% of heldout-0013's content words), not a semantic-similarity model; a paraphrase that avoids heldout-0013's specific vocabulary could still evade this specific threshold and needs independent reviewer judgment, same limitation class as pilot-metatrainer-v3-dpo/validate_dataset.py's own stated limitation.",
-    "This is a self-check by the pair constructor (Marcus). Per ADR-0019 section 2's owner decision, all five section-2 audit checks must be independently re-run and sealed by Maya before this set is used for anything -- this report is not a substitute for that independent audit.",
+    "This is a self-check by the pair constructor. Per ADR-0019 section 2's owner decision, all five section-2 audit checks must be independently re-run and sealed by the security reviewer before this set is used for anything -- this report is not a substitute for that independent audit.",
     "This validator proves structural shape, counter-direction share, content_class disjointness, and literal/near-paraphrase contamination absence; it does not replace an independent claim-support/citation audit of the 4 counter-direction pairs' factual claims."
   ]
 }

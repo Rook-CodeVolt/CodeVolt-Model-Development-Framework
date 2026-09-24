@@ -11,7 +11,7 @@ validator's ``_normalize``/``_token_set`` helpers directly instead of
 reimplementing normalized-string or token-overlap comparison.
 
 This validator programmatically re-runs, on the held-out set itself, four
-of the five section-2 checks Marcus (the pair author) is asked to run and
+of the five section-2 checks the pair author is asked to run and
 record; the fifth (registration through ``HeldOutExclusionRegistry``) is
 performed separately by ``register_held_out.py`` in this directory, which
 imports this module's ``main()`` output rather than duplicating the
@@ -31,8 +31,8 @@ Plus this set's own additional binding rule not present in the ADR-0017
 training validator: every ``content_class`` value must be disjoint from the
 22 training pairs' ``content_class`` values (ADR-0019 section 2, bullet 3).
 
-This script is authored and run by the pair constructor (Marcus) to record
-a self-check result; Maya independently re-runs all five section-2 checks
+This script is authored and run by the pair constructor to record
+a self-check result; the security reviewer independently re-runs all five section-2 checks
 before the set is sealed, per ADR-0019's own "different person builds vs.
 audits" separation-of-duties rule (section 2, "Who builds it").
 """
@@ -224,7 +224,7 @@ def main():
         },
         "limitations": [
             "The near-paraphrase check is a token-overlap heuristic (>=60% of heldout-0013's content words), not a semantic-similarity model; a paraphrase that avoids heldout-0013's specific vocabulary could still evade this specific threshold and needs independent reviewer judgment, same limitation class as pilot-metatrainer-v3-dpo/validate_dataset.py's own stated limitation.",
-            "This is a self-check by the pair constructor (Marcus). Per ADR-0019 section 2's owner decision, all five section-2 audit checks must be independently re-run and sealed by Maya before this set is used for anything -- this report is not a substitute for that independent audit.",
+            "This is a self-check by the pair constructor. Per ADR-0019 section 2's owner decision, all five section-2 audit checks must be independently re-run and sealed by the security reviewer before this set is used for anything -- this report is not a substitute for that independent audit.",
             "This validator proves structural shape, counter-direction share, content_class disjointness, and literal/near-paraphrase contamination absence; it does not replace an independent claim-support/citation audit of the 4 counter-direction pairs' factual claims.",
         ],
     }

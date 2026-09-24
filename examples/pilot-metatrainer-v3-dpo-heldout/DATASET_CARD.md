@@ -5,7 +5,7 @@ card are the 20-pair held-out preference-pair set named in ADR-0019 section
 2 (`docs/decisions/ADR-0019-held-out-logprob-margin-eval.md`, PR #102, base
 commit `ad610be8789035e0602f01802cf71e5bb8fd894b`). Repository admission of
 this directory does not by itself authorize any scoring/evaluation run —
-ADR-0019 section 5's proportionate gate (Maya's dataset-admissibility and
+ADR-0019 section 5's proportionate gate (the security reviewer's dataset-admissibility and
 evaluation-scope review) must clear first, and the evaluation script itself
 is separate follow-up work (ADR-0019 section 6, card 2) that this task does
 not write.
@@ -61,10 +61,10 @@ coverage against the training package); `source_scope`; a non-empty
 `validate_dataset.py` in this directory (extending, not duplicating,
 `examples/pilot-metatrainer-v3-dpo/validate_dataset.py`'s own
 `_normalize`/`_token_set` helpers) and `register_held_out.py` together
-implement all five of ADR-0019 section 2's audit checks, self-run by Marcus
-(the pair constructor) as recorded below. **Per ADR-0019 section 2's "Who
+implement all five of ADR-0019 section 2's audit checks, self-run by the
+pair constructor as recorded below. **Per ADR-0019 section 2's "Who
 builds it" decision, this is a self-check only — all five checks must be
-independently re-run and sealed by Maya, not by the pair constructor,
+independently re-run and sealed by the security reviewer, not by the pair constructor,
 before this set is used for anything.**
 
 | # | Check | Mechanism | Self-check result |
@@ -104,7 +104,7 @@ already avoided.
 ## Counter-direction pairs (4 records, `calibrated_confidence_dpo`)
 
 Per ADR-0019 section 2 bullet 2's over-refusal-guard rationale (adopting
-Maya's ADR-0017 gate (b)(2) identically here): `chosen` = a confident,
+the security reviewer's ADR-0017 gate (b)(2) identically here): `chosen` = a confident,
 correct, directly-answered response to a genuinely answerable question;
 `rejected` = an unwarranted refusal/hedge on that same answerable question.
 
@@ -143,8 +143,8 @@ This package does not assert:
 - a specific evaluation outcome or decision-rule result — this document
   proposes and validates a *set*, it does not run any scoring pass (ADR-0019
   section 6, card 2/4 are separate, not performed here);
-- that this self-check audit (above) is a substitute for Maya's independent
-  re-run of all five section-2 checks — per ADR-0019 section 2's own "Who
+- that this self-check audit (above) is a substitute for the security
+  reviewer's independent re-run of all five section-2 checks — per ADR-0019 section 2's own "Who
   builds it" decision, it is explicitly not;
 - a promotion, deployment, or production-readiness claim of any kind;
 - a licensing or legal conclusion of any kind. All content in this package
@@ -154,7 +154,7 @@ This package does not assert:
 ## Intended use
 
 Per ADR-0019 section 2's "Does it become a permanent held-out asset?"
-answer: **yes, if it passes Maya's audit.** Once independently sealed, this
+answer: **yes, if it passes the security reviewer's audit.** Once independently sealed, this
 set is added to this project's standing held-out inventory (alongside the
 existing 48-item `mtr-v2-heldout-*`/`mtr-v3n-heldout-*` set) for reuse by
 future preference-training evaluations on this same axis. It is explicitly
@@ -188,14 +188,14 @@ task explicitly does not write (ADR-0019 section 6, card 2).
 
 ## Next steps (not performed by this task)
 
-1. **Maya's independent re-run of all five section-2 audit checks**,
+1. **The security reviewer's independent re-run of all five section-2 audit checks**,
    distinct from this self-check, per ADR-0019 section 2's "Who builds it"
-   decision — sealing this set in `HeldOutExclusionRegistry` is her call,
-   not this task's.
+   decision — sealing this set in `HeldOutExclusionRegistry` is the security
+   reviewer's call, not this task's.
 2. **Write the held-out log-prob margin evaluation script** (ADR-0019
    section 3/6 card 2) — separate follow-up work, not performed here per
    this task's explicit scope (no evaluation script, no scoring).
-3. **Maya's gate review** of ADR-0019 section 5's proposed proportionate
+3. **The security reviewer's gate review** of ADR-0019 section 5's proposed proportionate
    gate (ADR-0019 section 6, card 3), against the real script and this
    sealed dataset.
 4. **Execute the evaluation exactly once** (ADR-0019 section 6, card 4), by

@@ -20,7 +20,8 @@ Binding constraints this generator enforces by construction (see ADR-0017,
   records (which covered: numeric training recipe, cost figure, date,
   accuracy percentage, citation, GPU-memory figure, rounded percentage,
   citation locator, benchmark score).
-- `counter` direction pairs (>= 20% of the package, per Maya's over-refusal
+- `counter` direction pairs (>= 20% of the package, per the security
+  reviewer's over-refusal
   gate) are grounded in real, independently-checkable repository facts so
   the "correct answer" side is genuinely verifiable, not invented for this
   proposal -- each one is something this same review session (or the prior
@@ -215,7 +216,8 @@ REFUSAL_PAIRS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Counter-direction pairs (>= 20% of this package, per Maya's over-refusal
+# Counter-direction pairs (>= 20% of this package, per the security
+# reviewer's over-refusal
 # gate): chosen = confident, correct, directly-answered response to a
 # genuinely answerable question; rejected = an unwarranted refusal/hedge on
 # that same answerable question. Every "chosen" fact here is a real,

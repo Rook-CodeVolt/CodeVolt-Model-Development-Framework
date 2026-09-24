@@ -11,8 +11,8 @@ training-eligible corpus by this change. Per this project's standing pattern
 (ADR-0013/0014/0015's own "Review path" sections), admission into a
 training-eligible corpus requires a separate PR, an independent per-example
 citation-locator and semantic-split audit with the same rigor as the prior
-corpus-v2, history-addition, and four-cycle-lesson audits, and Maya's
-security/dataset-rights review -- none of which is performed by drafting
+corpus-v2, history-addition, and four-cycle-lesson audits, and the
+security-reviewer/dataset-rights review -- none of which is performed by drafting
 this file.
 
 ## Scope
@@ -27,7 +27,7 @@ switch the training *mechanism* (SFT corpus rewrite -> DPO/preference
 training) rather than attempt a third rewrite. Source: `docs/decisions/ADR-0016-outcome.md`
 ("The pattern across ADR-0015 and ADR-0016 on this one item") and
 `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md` ("Context" and
-Marcus's/Maya's assessments).
+the training-methodology and security assessments).
 
 This addition is intentionally narrow and single-purpose: it teaches the
 reasoning pattern that when two independently constructed, differently
@@ -128,13 +128,13 @@ not as a claim of independent acceptance.
 | Every `example_id` unique | PASS | 3/3 unique, distinct from every existing corpus-v2, history-addition, four-cycle-lesson, and corpus-v3 id (new `mtr-dpo-switch-case-*` prefix). |
 | Every record has >=1 source locator | PASS | 3/3. |
 | Every record has exactly one user + one assistant message | PASS | 3/3. |
-| Source-boundary: every factual claim traces to a real, directly-read artifact at or before drafting time | PASS (self-review) | Every claim (byte-identical convergence on `mtr-v2-heldout-0013`; the ADR-0015 8-example / ADR-0016 9-example corpus-construction facts; the mechanism-switch decision and its stated rationale; the over-refusal/calibration-collapse risk Maya named for the new mechanism) was copied from `docs/decisions/ADR-0016-outcome.md` and `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md`, both re-read in full during this file's drafting, not paraphrased from memory. |
+| Source-boundary: every factual claim traces to a real, directly-read artifact at or before drafting time | PASS (self-review) | Every claim (byte-identical convergence on `mtr-v2-heldout-0013`; the ADR-0015 8-example / ADR-0016 9-example corpus-construction facts; the mechanism-switch decision and its stated rationale; the over-refusal/calibration-collapse risk the security reviewer named for the new mechanism) was copied from `docs/decisions/ADR-0016-outcome.md` and `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md`, both re-read in full during this file's drafting, not paraphrased from memory. |
 | Citation-claim support: locator text actually supports the specific claim made | PASS (self-review) | Spot-checked during drafting: the "byte-identical convergence" claim in `mtr-dpo-switch-case-train-0001` is directly supported by ADR-0016-outcome.md's "The pattern across ADR-0015 and ADR-0016 on this one item" table, which records the same quoted candidate output for both cycles. |
 | No fabricated framing / no invented numbers | PASS (self-review) | No numeric figures beyond the record counts (8/9 examples) already stated in ADR-0016-outcome.md's own "Why this cycle exists" section; no interpolated figures. |
 | Train/held-out semantic-family split: family assigned before content was finalized, held-out record tests a related-but-distinct angle | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | Structural check (single family, wholly train/held-out disjoint per record) passed by construction (2 train ids, 1 held-out id, no overlap). Content-level non-overlap is asserted by the drafting task (the held-out record tests "a mechanism switch requires naming the new mechanism's own distinct risks up front," a distinct question from either train record's "convergent failure is evidence" or "a general-capability trend doesn't override a narrow-item mechanism decision") but was not independently re-verified by a second reviewer. |
 | No held-out contamination: does not reproduce or paraphrase `mtr-v2-heldout-0013`'s own prompt or correct answer text | PASS (self-review), NEEDS INDEPENDENT VERIFICATION | No record quotes the held-out item's own prompt text or its correct "No" answer; only the fact pattern of the two training cycles' own process and outcomes is described. A fresh token-overlap check (same method as `examples/pilot-metatrainer-v3-dpo/validate_dataset.py`) against the real `mtr-v2-heldout-0013` prompt text found zero overlap hits, but this is a self-check by the drafting task, not an independent audit. |
 | No licensing/legal conclusion asserted | PASS | See "Explicit exclusions." |
-| Distinct provenance from prior additions (no accidental reuse of Clara-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any Clara section or numbered Clara source `[N]`; all locators are internal-repository/internal-only, citing `docs/decisions/ADR-0016-outcome.md` and `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md` directly, not restating any of `metatrainer-corpus-addition-training-history/`'s or `metatrainer-corpus-addition-four-cycle-lesson/`'s own family content. |
+| Distinct provenance from prior additions (no accidental reuse of externally-sourced content or citation ids, no duplicate coverage of an existing family) | PASS | Confirmed by construction: no record references any external research-synthesis section or numbered external source `[N]`; all locators are internal-repository/internal-only, citing `docs/decisions/ADR-0016-outcome.md` and `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md` directly, not restating any of `metatrainer-corpus-addition-training-history/`'s or `metatrainer-corpus-addition-four-cycle-lesson/`'s own family content. |
 
 ### Known limitation this self-audit cannot close
 
@@ -169,7 +169,7 @@ against `mtr-v2-heldout-0013`'s real prompt text.
    `pilot-metatrainer-v3-dpo/`, `metatrainer-corpus-addition-training-history/`,
    or `metatrainer-corpus-addition-four-cycle-lesson/`, and not changing any
    frozen ADR's `dataset_hash` value those ADRs gate on.
-3. Maya security/dataset-rights review of that PR per this repository's
+3. Security-reviewer/dataset-rights review of that PR per this repository's
    existing governance pattern for anything proposed for the training
    corpus, before any merge.
 4. Repository admission (if it happens) does not by itself authorize any

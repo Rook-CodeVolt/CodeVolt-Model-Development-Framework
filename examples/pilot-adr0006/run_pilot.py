@@ -6,7 +6,7 @@ after:
 
 1. ADR-0006's locked configuration (model, dataset, resource budget,
    concurrency=1) -- see docs/decisions/0006-bounded-real-trl-pilot-plan.md.
-2. Maya's pilot-specific live-execution security review (issue #7 step 5,
+2. The pilot-specific live-execution security review (issue #7 step 5,
    PR #18 review) -- CLEAR TO EXECUTE, residual LOW/non-blocking note only
    (macOS ps-timing behaviour), findings 1-3 fixed and merged (PR #21,
    c3cbc5513fff8fc78526403ea75513c43229c1b8).
