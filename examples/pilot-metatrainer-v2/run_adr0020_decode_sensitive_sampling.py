@@ -1122,7 +1122,7 @@ def _verify_signed_approval(
         raise Adr0020Error(f"approval document schema mismatch: {sorted(document)}")
     expected = {
         "schema_version": 1,
-        "role": "maya-eval-gate",
+        "role": "held-out-eval-gate",
         "approver_id": APPROVAL_ROLE_PRINCIPAL,
         "decision": APPROVAL_ROLE_DECISION,
         "script_sha256": script_sha256,

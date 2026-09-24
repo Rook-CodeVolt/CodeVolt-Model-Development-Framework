@@ -64,7 +64,7 @@ scoring stage.
   the value recorded at hand-off, and matching the co-located
   `adr0019_result.json.sha256` file written alongside it.
 - `plan.script_sha256` inside the result file
-  (`76da2041a8a8685257d2328bcd9553fc5a8840575360fe96fefa1d45ff542fd4`)
+  (`fab608cc7ba1e08262991912ce268fb71b9914a5c1b590483cf9e6e40c346376`)
   re-verified byte-for-byte against
   `examples/pilot-metatrainer-v2/run_adr0019_logprob_margin_eval.py` on
   `main` at `660ae440f57ad3281a7501579baeff2a14d0abdf` (the exact commit
@@ -93,7 +93,7 @@ scoring stage.
   `approval_document.json` at the reviewed evidence root
   (`./local-evidence/adr0019/evidence/`) — identical hash;
   the document records `approver_id: security-reviewer`, `decision: approved`,
-  `role: maya-eval-gate`, `scope: [evaluator-process-containment-v1]`, and
+  `role: held-out-eval-gate`, `scope: [evaluator-process-containment-v1]`, and
   the same `script_sha256`/`held_out_registry_hash`/resource-ceiling values
   the result file's own `verified_approval` block repeats — a self-consistent,
   independently re-hashed chain from signed gate through to scored result.
