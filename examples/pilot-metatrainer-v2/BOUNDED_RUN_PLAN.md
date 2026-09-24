@@ -38,7 +38,7 @@ containment profile.
 
 The versioned `approval_allowed_signers` file is the only trust root. It uses
 OpenSSH allowed-signers entries and requires three role-specific principals:
-`maya-security`, `maya-dataset-rights`, and `rook-owner`. Each holder generates and
+`security-reviewer`, `dataset-rights-reviewer`, and `project-owner`. Each holder generates and
 retains their own private key; only the public key is proposed in a reviewed change.
 Private keys, credentials, and signatures are never committed to the trust root or
 embedded in the gate. No public keys are admitted in this revision, so execution

@@ -92,7 +92,7 @@ scoring stage.
   re-verified byte-for-byte against the on-disk
   `approval_document.json` at the reviewed evidence root
   (`./local-evidence/adr0019/evidence/`) — identical hash;
-  the document records `approver_id: maya-security`, `decision: approved`,
+  the document records `approver_id: security-reviewer`, `decision: approved`,
   `role: maya-eval-gate`, `scope: [evaluator-process-containment-v1]`, and
   the same `script_sha256`/`held_out_registry_hash`/resource-ceiling values
   the result file's own `verified_approval` block repeats — a self-consistent,

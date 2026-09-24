@@ -185,10 +185,10 @@ APPROVAL_NAMESPACE = "codevolt-adr0019"
 # dataset-rights role -- this evaluation has no promotion path and no
 # new dataset admission of its own to authorize (the held-out set's own
 # admission is card 1/Maya's separate contamination audit, not this
-# gate). Reuses the same admitted ``maya-security`` public key as every
+# gate). Reuses the same admitted ``security-reviewer`` public key as every
 # prior cycle (same holder, no role-holder change) rather than minting a
 # new principal for a review that is, in substance, the same reviewer.
-APPROVAL_ROLE_PRINCIPAL = "maya-security"
+APPROVAL_ROLE_PRINCIPAL = "security-reviewer"
 APPROVAL_ROLE_DECISION = "approved"
 
 APPROVED_ROOT = Path("./local-evidence/adr0019")

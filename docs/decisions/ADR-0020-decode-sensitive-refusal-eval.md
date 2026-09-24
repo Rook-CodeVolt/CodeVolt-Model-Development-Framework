@@ -550,7 +550,7 @@ Marcus's deferred recommendation.
   unmodified by this document); (d) an independently re-measured compute
   ceiling for this evaluation's actual shape (420-call-order, not
   ADR-0019's 80-call-order), not inherited by reference from a differently-
-  shaped prior evaluation. No `rook-owner` promotion-authorization gate is
+  shaped prior evaluation. No `project-owner` promotion-authorization gate is
   proposed, for the same "no promotion path exists to authorize" reason
   ADR-0019 gave.
 - **Execution location: this evaluation must run outside execution-worker

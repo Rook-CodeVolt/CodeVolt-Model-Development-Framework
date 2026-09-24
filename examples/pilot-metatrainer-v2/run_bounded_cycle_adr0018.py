@@ -186,9 +186,9 @@ EVALUATION_SUITES = {
 }
 APPROVAL_NAMESPACE = "codevolt-adr0018"
 APPROVAL_ROLES = {
-    "security": ("maya-security", "approved"),
-    "owner": ("rook-owner", "authorized"),
-    "dataset": ("maya-dataset-rights", "admitted"),
+    "security": ("security-reviewer", "approved"),
+    "owner": ("project-owner", "authorized"),
+    "dataset": ("dataset-rights-reviewer", "admitted"),
 }
 # Fresh, run-specific seed distinct from every prior cycle's seed, per this
 # project's own "fresh run id/seed per new proposal, never reuse a prior

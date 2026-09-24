@@ -136,7 +136,7 @@ ADR-0013's own text requires a genuinely new proposal, not an in-place retry. A 
 signed approvals, and live-execution scratch directory can never be confused with
 ADR-0013's already-consumed, already-rejected run, and that ADR-0013's existing
 signed approvals cannot be mistakenly treated as covering this cycle. The three
-admitted signer identities (`rook-owner`, `maya-security`, `maya-dataset-rights`) are
+admitted signer identities (`project-owner`, `security-reviewer`, `dataset-rights-reviewer`) are
 unchanged — the same people hold the same roles — but
 `examples/pilot-metatrainer-v2/approval_allowed_signers_adr0014` is a fresh copy of
 the trust root scoped to this ADR, and a fresh signed approval document bound to
@@ -209,7 +209,7 @@ validation-only and prints `training_called=false` — confirmed by the dry-vali
 run below. `--execute` additionally requires a review-gate JSON whose implementation
 and dataset hashes are exact and whose three approval documents have detached SSH
 signatures verified against `approval_allowed_signers_adr0014`. The allowed-signers
-principals are exactly `maya-security`, `maya-dataset-rights`, and `rook-owner` — the
+principals are exactly `security-reviewer`, `dataset-rights-reviewer`, and `project-owner` — the
 same three people ADR-0013 admitted (PRs #82/#83) — but no fresh signature exists yet
 against ADR-0014's exact SHA/run_id/namespace, so execution remains fail-closed until:
 

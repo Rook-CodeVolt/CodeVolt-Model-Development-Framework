@@ -22,7 +22,7 @@
   `docs/decisions/ADR-0015-execution-config.md` and
   `docs/decisions/ADR-0016-execution-config.md` — a hyperparameter/config
   record for a fresh execution-config ADR, gated by the same three signer
-  roles (`maya-security`, `maya-dataset-rights`, `rook-owner`) under a fresh,
+  roles (`security-reviewer`, `dataset-rights-reviewer`, `project-owner`) under a fresh,
   never-reused approval namespace. Unlike ADR-0015/0016 (mechanical
   adaptations of an already-existing runner script to new corpus content),
   this is the **first** execution-config document for a **new trainer path**
@@ -359,7 +359,7 @@ into this document's own follow-on runner PR.
 
 ```
 GATE 1 — SECURITY (Maya)
-  Role: maya-security
+  Role: security-reviewer
   Scope required: evaluator-process-containment-v1, complete-cycle-host-containment-v1
   Decision: UNSIGNED — pending Maya's independent review of this exact
     document (config identity, beta/KL-strength justification per her own
@@ -372,7 +372,7 @@ GATE 1 — SECURITY (Maya)
     from any prior review of related but distinct artifacts.
 
 GATE 2 — DATASET-RIGHTS (Maya)
-  Role: maya-dataset-rights
+  Role: dataset-rights-reviewer
   Decision: UNSIGNED — pending independent confirmation that the
     `examples/pilot-metatrainer-v3-dpo/` package (already PR #98-merged, not
     modified by this document) remains admissible for this specific proposed
@@ -381,7 +381,7 @@ GATE 2 — DATASET-RIGHTS (Maya)
     admission's sign-off as automatically covering a new proposed run.
 
 GATE 3 — OWNER (Rook)
-  Role: rook-owner
+  Role: project-owner
   Decision: UNSIGNED — pending Rook's confirmation of this document's exact
     hyperparameter choices, resource-budget increase, and the explicit
     ADR-0016-rubric-baseline gap named in "Promotion/failure criteria" above,

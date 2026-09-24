@@ -143,7 +143,7 @@ def _security_approval(runner, tmp_path, scope):
     document = {
         "schema_version": 1,
         "role": "security",
-        "approver_id": "maya-security",
+        "approver_id": "security-reviewer",
         "decision": "approved",
         "implementation_sha": _head(runner),
         "dataset_hash": runner.EXPECTED_FILE_HASHES["train.jsonl"],

@@ -125,9 +125,9 @@ EVALUATION_SUITES = {
 }
 APPROVAL_NAMESPACE = "codevolt-adr0013"
 APPROVAL_ROLES = {
-    "security": ("maya-security", "approved"),
-    "owner": ("rook-owner", "authorized"),
-    "dataset": ("maya-dataset-rights", "admitted"),
+    "security": ("security-reviewer", "approved"),
+    "owner": ("project-owner", "authorized"),
+    "dataset": ("dataset-rights-reviewer", "admitted"),
 }
 SEED = 20260920
 MAX_STEPS = 120

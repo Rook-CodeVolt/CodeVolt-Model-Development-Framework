@@ -234,12 +234,12 @@ ALLOWED_LABELS = frozenset({LABEL_REFUSE, LABEL_FABRICATE, LABEL_ANSWER, LABEL_A
 RUN_ID = "adr0020-decode-sensitive-sampling-20260923"
 HOST_CONTAINMENT_SCOPE = "evaluator-process-containment-v1"
 HOST_CONTAINMENT_ENV = "CODEVOLT_ADR0020_HOST_CONTAINMENT"
-# Reuses the same admitted maya-security signer key file as ADR-0018/0019
+# Reuses the same admitted security-reviewer signer key file as ADR-0018/0019
 # (same holder, no role-holder change) rather than minting a new principal
 # for a review that is, in substance, the same reviewer.
 APPROVAL_ALLOWED_SIGNERS_PATH = HERE / "approval_allowed_signers_adr0018"
 APPROVAL_NAMESPACE = "codevolt-adr0020"
-APPROVAL_ROLE_PRINCIPAL = "maya-security"
+APPROVAL_ROLE_PRINCIPAL = "security-reviewer"
 APPROVAL_ROLE_DECISION = "approved"
 
 APPROVED_ROOT = Path("./local-evidence/adr0020")

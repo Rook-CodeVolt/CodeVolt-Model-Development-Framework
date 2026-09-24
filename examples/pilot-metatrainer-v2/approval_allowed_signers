@@ -4,14 +4,14 @@
 #   <principal> ssh-ed25519 <base64-public-key> <optional-comment>
 #
 # Required role-specific principals (one independently controlled key per role):
-#   maya-security       — Maya's Gate 1 security approval
-#   maya-dataset-rights — Maya's already-admitted single-run dataset decision
-#   rook-owner          — Rook's authorization for the exact single run
+#   security-reviewer       — Maya's Gate 1 security approval
+#   dataset-rights-reviewer — Maya's already-admitted single-run dataset decision
+#   project-owner           — Rook's authorization for the exact single run
 #
 # Private keys must remain solely with each holder and must never be committed,
 # copied into a review gate, or shared with the runner. Public-key admission is a
 # reviewed code change; replacing or adding a key changes the trust root and
 # requires a fresh exact-head review. No signer keys are admitted in this revision.
-rook-owner ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINS+HYmrc0CvqCIQmnWwEYSp9PIfxhjmxubxna7Xgnwc rook-owner
-maya-security ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDCvEYKtwPc55olohMn5YhInjNl7aynjpvGfQAZbYsnL maya-security
-maya-dataset-rights ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMUcUYP5D5CHroKYNaArG92HK7+gnB/0Yt4sftDLt/k3 maya-dataset-rights
+project-owner ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINS+HYmrc0CvqCIQmnWwEYSp9PIfxhjmxubxna7Xgnwc project-owner
+security-reviewer ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDCvEYKtwPc55olohMn5YhInjNl7aynjpvGfQAZbYsnL security-reviewer
+dataset-rights-reviewer ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMUcUYP5D5CHroKYNaArG92HK7+gnB/0Yt4sftDLt/k3 dataset-rights-reviewer

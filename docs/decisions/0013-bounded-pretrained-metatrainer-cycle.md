@@ -447,8 +447,8 @@ candidate disposition below. Cleanup never mutates the pinned base-model cache.
 prints `training_called=false`. `--execute` additionally requires a review-gate JSON
 whose implementation and dataset hashes are exact and whose three approval documents
 have detached SSH signatures verified against the versioned role-specific trust root.
-The allowed-signers principals are exactly `maya-security`, `maya-dataset-rights`, and
-`rook-owner`; each holder retains their private key and proposes only their public key
+The allowed-signers principals are exactly `security-reviewer`, `dataset-rights-reviewer`, and
+`project-owner`; each holder retains their private key and proposes only their public key
 for independent review. No keys are admitted in this revision, so execution remains
 blocked until holder-supplied public keys are reviewed and merged. Arbitrary
 references, local booleans, placeholders, missing roles, stale signatures, or

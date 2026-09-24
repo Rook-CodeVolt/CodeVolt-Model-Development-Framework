@@ -373,7 +373,7 @@ test, not overturn the NEGATIVE verdict already recorded.
     every prior ADR-0013 through ADR-0018 cycle has stated about its own
     training runs, true here even more directly since there is no training
     at all). The full three-role signing pattern
-    (`maya-security`/`maya-dataset-rights`/`rook-owner`) that ADR-0013
+    (`security-reviewer`/`dataset-rights-reviewer`/`project-owner`) that ADR-0013
     through ADR-0018 each required exists specifically to gate an
     irreversible, resource-consuming, weight-modifying action against a
     real trust root — none of those three properties apply here.
@@ -395,12 +395,12 @@ test, not overturn the NEGATIVE verdict already recorded.
     changes nothing about `hf_local_evaluator_adapter.py`'s existing,
     already-reviewed inference/containment path beyond reusing
     `_choice_log_likelihood`; (c) the compute-budget ceiling proposed above.
-    **No `rook-owner` promotion-authorization gate is proposed**, because
+    **No `project-owner` promotion-authorization gate is proposed**, because
     this evaluation has no promotion path to authorize (identical fact
     to every prior cycle's own `promotion_decision: null` design) — Rook's
     role here is the ordinary PR-merge/task-acceptance authority this
     document already operates under, not a fourth signed document. **No
-    `maya-security` host-containment gate is proposed as a *separate*
+    `security-reviewer` host-containment gate is proposed as a *separate*
     signature**, because the containment profile being reused
     (`evaluator-process-containment-v1`) is already independently
     security-approved and unmodified by this proposal — re-signing an
