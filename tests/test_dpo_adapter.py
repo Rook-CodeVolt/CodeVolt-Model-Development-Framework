@@ -357,7 +357,7 @@ def test_prepare_rejects_missing_max_steps(tmp_path):
 
 def test_prepare_rejects_missing_beta(tmp_path):
     """beta has NO library-default fallback in this adapter (unlike TRLTrainerAdapter's
-    learning_rate) -- Maya's gate 4 requires an explicit, reviewed value."""
+    learning_rate) -- the security reviewer's gate 4 requires an explicit, reviewed value."""
     adapter = make_adapter(tmp_path)
     inputs = make_inputs(tmp_path, beta=None)
     budget = make_budget()
@@ -376,8 +376,8 @@ def test_prepare_rejects_zero_or_negative_beta(tmp_path):
 
 
 def test_prepare_rejects_missing_reference_free(tmp_path):
-    """reference_free has NO library-default fallback in this adapter -- same
-    Maya gate-4 rationale as beta."""
+    """reference_free has NO library-default fallback in this adapter -- the
+    same gate-4 rationale as beta."""
     adapter = make_adapter(tmp_path)
     inputs = make_inputs(tmp_path, reference_free=None)
     budget = make_budget()

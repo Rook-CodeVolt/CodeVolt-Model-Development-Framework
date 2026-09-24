@@ -588,7 +588,7 @@ def _measured_usage_as_resource_usage(measured: Any) -> ResourceUsage:
 def _pid_tree_walk_reason_suffix(measured: Any) -> str:
     """Append evidence-bundle-visible text when the pid-tree kill walk degraded.
 
-    Surfaces both originally-silent failure modes flagged in Maya's PR #14
+    Surfaces both originally-silent failure modes flagged in the PR #14
     review (issue #7's approved Layer 1 design, step 3): the underlying
     ``ps`` call failing/timing out during the kill, and the bounded
     walk-and-kill loop exhausting all its passes without confirming a

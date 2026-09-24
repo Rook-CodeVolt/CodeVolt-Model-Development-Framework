@@ -24,7 +24,7 @@ reusing its contract)"):
 - Same ``model_hash``/offline-enforcement pattern (``_hash_path_identity``,
   ``HF_HUB_OFFLINE``/``TRANSFORMERS_OFFLINE`` forced inside the isolated
   child process) -- extended here to a SECOND path, the reference model,
-  per Maya's safety finding (b)(3) on ADR-0017 ("The new DPO adapter code
+  per safety finding (b)(3) on ADR-0017 ("The new DPO adapter code
   must apply the identical content-hash verification and offline
   enforcement to whatever path is loaded as the reference model").
 - Same containment properties this project already relies on (isolated
@@ -50,7 +50,7 @@ Deliberately narrow, matching ADR-0017's own scope:
   resolved from a Hub id, and both are content-hash-verified against
   locally-declared paths before any training work starts.
 - ``beta`` and ``reference_free`` are REQUIRED, explicit ``training_params``
-  (no library-default fallback), per Maya's safety finding (b)(4) ("expose
+  (no library-default fallback), per safety finding (b)(4) ("expose
   ``beta`` and ``reference_free`` as reviewed, justified configuration
   rather than library defaults"). ``prepare()`` raises ``InvalidInputError``
   if either is omitted -- this is a deliberate, stricter departure from
@@ -127,7 +127,7 @@ class DPOTrainerAdapter:
       model. An unverified or content-mismatched reference model is
       rejected the same way a tampered policy model already is.
     - ``beta`` (float, > 0): DPO's KL-regularization strength. REQUIRED,
-      no default -- see module docstring. Maya's gate: too low risks
+      no default -- see module docstring. The security reviewer's gate: too low risks
       degenerate drift, too high risks reproducing the observed
       insensitivity this ADR exists to fix; the caller's execution-config
       document must state and justify this value explicitly.
@@ -385,7 +385,7 @@ class DPOTrainerAdapter:
             save_strategy="steps",
             # Same storage-growth rationale as TRLTrainerAdapter: bound
             # checkpoint accumulation generically, not just for this run's
-            # numbers (Maya's PR #18 Finding 2, re-applied here).
+            # numbers (PR #18 Finding 2, re-applied here).
             save_total_limit=int(params.get("save_total_limit", 2)),
             learning_rate=float(params.get("learning_rate", 5e-7)),
             per_device_train_batch_size=int(params.get("per_device_train_batch_size", 1)),

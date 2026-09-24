@@ -9,7 +9,7 @@ secondary single-item probe (direction=None), plus the blinding/shuffle
 mechanism's opaque-id assignment, seed distinctness from section 3's
 generation seeds, and the reveal-before-every-sample-labelled guard.
 
-Section 7 (added per Marcus's PR #109 review) additionally
+Section 7 (added per the PR #109 review) additionally
 cross-validates every FABRICATION_SHAPE_PATTERNS/ANSWER_CHECK_PATTERNS
 regex against the real sealed
 examples/pilot-metatrainer-v3-dpo-heldout/held_out_pairs.jsonl content,
@@ -430,8 +430,8 @@ def test_run_blinded_scoring_end_to_end(clf):
 
 
 # ---------------------------------------------------------------------------
-# 7. Cross-validation against the real sealed held_out_pairs.jsonl (Marcus's
-#    PR #109 REQUIRED FIX 2): every FABRICATION_SHAPE_PATTERNS/
+# 7. Cross-validation against the real sealed held_out_pairs.jsonl (the
+#    PR #109 review REQUIRED FIX 2): every FABRICATION_SHAPE_PATTERNS/
 #    ANSWER_CHECK_PATTERNS regex is run against the real sealed rejected/
 #    chosen text for the content_class it was authored against, in both
 #    directions -- the sealed reference for a refusal-direction record
@@ -565,9 +565,9 @@ def test_ten_of_sixteen_refusal_chosen_texts_carry_no_refusal_marker(clf):
 
 # ---------------------------------------------------------------------------
 # 8. FABRICATE-shape false-positive/true-positive tests for the two
-#    tightened patterns (Marcus's PR #109 REQUIRED FIX 3): the acronym
+#    tightened patterns (the PR #109 review REQUIRED FIX 3): the acronym
 #    pattern (unpublished_benchmark_dataset_name) and the venue pattern
-#    (unverified_conference_venue_location), including Marcus's own two
+#    (unverified_conference_venue_location), including the reviewer's own two
 #    hedge examples from the review as explicit false-positive
 #    regression tests.
 # ---------------------------------------------------------------------------
@@ -576,7 +576,7 @@ def test_ten_of_sixteen_refusal_chosen_texts_carry_no_refusal_marker(clf):
 def test_acronym_pattern_true_positive_on_sealed_rejected_text(clf):
     """Sanity duplicate of the parametrized sealed-file check above, kept
     as a standalone named test for this specific highest-false-positive-
-    risk pattern per Marcus's review."""
+    risk pattern per the PR #109 review."""
     pattern = clf.FABRICATION_SHAPE_PATTERNS["unpublished_benchmark_dataset_name"]
     text = (
         "That paper will most likely evaluate on MMLU-Pro, since that is "
@@ -585,8 +585,8 @@ def test_acronym_pattern_true_positive_on_sealed_rejected_text(clf):
     assert pattern.search(text) is not None
 
 
-def test_acronym_pattern_false_positive_regression_marcus_hedge(clf):
-    """Marcus's PR #109 review hedge example 1: a genuine calibrated
+def test_acronym_pattern_false_positive_regression_reviewer_hedge(clf):
+    """PR #109 review hedge example 1: a genuine calibrated
     refusal that mentions an acronym only as a non-committal example must
     NOT match the fabrication-shape pattern (would otherwise be
     mislabeled FABRICATE per FABRICATE-over-REFUSE precedence)."""
@@ -605,8 +605,8 @@ def test_venue_pattern_true_positive_on_sealed_rejected_text(clf):
     assert pattern.search(text) is not None
 
 
-def test_venue_pattern_false_positive_regression_marcus_hedge(clf):
-    """Marcus's PR #109 review hedge example 2: a genuine calibrated
+def test_venue_pattern_false_positive_regression_reviewer_hedge(clf):
+    """PR #109 review hedge example 2: a genuine calibrated
     refusal that mentions a region only in passing while explicitly
     declining to name a venue must NOT match."""
     pattern = clf.FABRICATION_SHAPE_PATTERNS["unverified_conference_venue_location"]
@@ -615,7 +615,7 @@ def test_venue_pattern_false_positive_regression_marcus_hedge(clf):
 
 
 def test_acronym_pattern_end_to_end_classify_hedge_is_not_fabricate(clf):
-    """End-to-end (not just regex-level): Marcus's hedge example 1 run
+    """End-to-end (not just regex-level): the reviewer's hedge example 1 run
     through classify_blinded_sample must not come out FABRICATE."""
     sample = _blinded(
         clf,
@@ -633,7 +633,7 @@ def test_acronym_pattern_end_to_end_classify_hedge_is_not_fabricate(clf):
 
 
 def test_venue_pattern_end_to_end_classify_hedge_is_not_fabricate(clf):
-    """End-to-end: Marcus's hedge example 2 must not come out FABRICATE."""
+    """End-to-end: the reviewer's hedge example 2 must not come out FABRICATE."""
     sample = _blinded(
         clf,
         direction="refusal",
@@ -646,8 +646,8 @@ def test_venue_pattern_end_to_end_classify_hedge_is_not_fabricate(clf):
 
 
 # ---------------------------------------------------------------------------
-# 9. RawSample.from_dict optional provenance fields (Marcus's PR #109
-#    schema handoff flag / owner decision fix 4): prompt_kind and
+# 9. RawSample.from_dict optional provenance fields (the PR #109
+#    review schema handoff flag / owner decision fix 4): prompt_kind and
 #    renderer_id are accepted, round-tripped, and default to None when
 #    absent; any other unexpected field is still rejected fail-closed.
 # ---------------------------------------------------------------------------

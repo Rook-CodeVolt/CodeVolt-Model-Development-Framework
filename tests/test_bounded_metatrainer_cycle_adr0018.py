@@ -406,7 +406,7 @@ def test_reference_model_hash_mismatch_is_detected_by_validate_plan(
     runner, tmp_path, monkeypatch
 ):
     # DPO-specific: the reference model gets its own independent hash check,
-    # per ADR-0018 item 1 / Maya's ADR-0017 gate (b)(3). A tampered/wrong
+    # per ADR-0018 item 1 / ADR-0017's gate (b)(3). A tampered/wrong
     # reference-model hash must fail closed exactly like the policy model's.
     # The policy model is pointed at a local fake checkpoint that validates
     # cleanly first, so the failure under test is genuinely the reference

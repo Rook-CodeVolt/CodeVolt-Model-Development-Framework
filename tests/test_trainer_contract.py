@@ -548,7 +548,7 @@ def test_legitimate_adapter_exception_propagates_with_correct_type_and_message(t
 
 # 11. pid-tree-walk failure/exhaustion observability -----------------------
 #
-# Maya's PR #14 review (REQUEST CHANGES, required remediation item): the
+# The PR #14 review (REQUEST CHANGES, required remediation item): the
 # approved issue #7 Layer 1 design specified logging/evidence-bundle
 # visibility when the pid-tree walk exhausts its passes without fully
 # reaping a target, or when the underlying `ps` call fails -- previously
@@ -623,7 +623,7 @@ def test_evidence_bundle_reason_reflects_degraded_pid_tree_walk(monkeypatch):
     RunawayAdapter OS process that gets SIGKILLed on timeout: forces the
     `ps` call used by the pid-tree walk to fail during that real kill,
     then asserts the evidence text appears in the reported reason --
-    this is the evidence-bundle-visibility requirement from Maya's PR #14
+    this is the evidence-bundle-visibility requirement from the PR #14
     review, not just an internal dataclass field nobody reads.
     """
     budget = make_budget(max_wall_seconds=1.0, max_cpu_seconds=100.0)
@@ -643,7 +643,7 @@ def test_evidence_bundle_reason_reflects_degraded_pid_tree_walk(monkeypatch):
 
 # 12. cancellation-triggered hard-kill path ---------------------------------
 #
-# Maya's 2nd REQUEST CHANGES on PR #14: the pid-tree-walk degraded-walk
+# The 2nd REQUEST CHANGES on PR #14: the pid-tree-walk degraded-walk
 # signal reached TrainingOutput.reason on 2 of the 3 _kill_group() call
 # sites (timeout, resource-overrun) but not the 3rd -- the
 # cancellation-triggered hard-kill path, where a non-cooperative adapter
@@ -687,7 +687,7 @@ def test_cancellation_hard_kill_of_noncooperative_adapter_reaches_reason(monkeyp
 
     # End-to-end: run_trainer_contract with a forced degraded pid-tree walk,
     # proving the signal reaches the evidence-bundle-visible reason on the
-    # cancellation path specifically -- the gap Maya's 2nd review identified.
+    # cancellation path specifically -- the gap the 2nd review identified.
     def _raising_run(*_args, **_kwargs):
         raise OSError("ps: simulated failure")
 

@@ -643,7 +643,7 @@ def test_train_builds_expected_subprocess_args(tmp_path, monkeypatch):
     assert "--epochs" in argv
     assert "--save_dir" in argv
     assert "--from_weight" in argv
-    # Regression guard for escalated from Maya's PR #62 re-review: --from_weight must be the fixed staged NAME, never the
+    # Regression guard for escalated from the PR #62 re-review: --from_weight must be the fixed staged NAME, never the
     # literal model_path -- MiniMind's own --from_weight resolution treats
     # it as a name/prefix resolved against init_model()'s own hardcoded
     # save_dir, not a literal path. See test_train_stages_from_weight_checkpoint_at_expected_path
@@ -681,7 +681,7 @@ def test_train_creates_isolated_shadow_directory_layout(tmp_path, monkeypatch):
     invoking the subprocess, and that the shadow checkpoints dir exists
     ready to receive MiniMind's hardcoded '../checkpoints' write.
 
-    This is the regression guard for the exact defect Maya's live-execution
+    This is the regression guard for the exact defect a live-execution
     review found (issue #46/ADR-0011): a fake MiniMind
     checkout fixture here includes model/ and dataset/ directories (the
     real pinned commit has both), and this test fails if either is missing
@@ -800,7 +800,7 @@ def test_train_reaches_adr0011_minimind2_small_config_end_to_end(tmp_path, monke
     (which must resolve using the SAME hidden_size, per MiniMind's own
     ``f'{save_dir}/{from_weight}_{hidden_size}{moe_suffix}.pth'``
     formula) -- not silently downgraded to the script's 768-hidden-size
-    default. This is the exact gap Maya's issue #67 Finding 1 review
+    default. This is the exact gap issue #67's Finding 1 review
     comment identified as invalidating ADR-0011's resource-limits table.
     """
     repo_path, head = make_fake_minimind_repo(tmp_path, pinned=False)
@@ -865,7 +865,7 @@ def test_train_stages_from_weight_checkpoint_at_expected_path(tmp_path, monkeypa
     init_model()'s own hardcoded save_dir='../out' default -- never this
     adapter's --save_dir flag) will look for it, relative to the real
     subprocess cwd (the shadow trainer dir). This is the direct regression
-    guard for Maya's PR #62 re-review escalation: the
+    guard for the PR #62 re-review escalation: the
     pre-fix adapter passed model_path literally as --from_weight, which
     MiniMind's own script cannot resolve to any real file at all.
     """
@@ -1125,7 +1125,7 @@ def test_cleanup_removes_shadow_dir_with_read_only_copies(tmp_path, caplog):
 
     # Directly confirm the failure mode this test guards against: a plain
     # shutil.rmtree with no special handling really does raise
-    # PermissionError against this exact fixture, matching Maya's live
+    # PermissionError against this exact fixture, matching the live
     # confirmation in the review.
     with pytest.raises(PermissionError):
         shutil.rmtree(run_dir)

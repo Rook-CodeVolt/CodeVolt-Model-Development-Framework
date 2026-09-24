@@ -74,7 +74,7 @@ from .trainer_contract import (
 # docs/decisions/0005-trl-trainer-adapter-v1.md, "Evidence" and its
 # "Exact pin, not a range" addendum). Originally this declared a range
 # ([0.20.0, 0.24.0)) that was only ever independently verified at its
-# upper end; Maya's PR #15 review flagged that as a medium finding
+# upper end; the PR #15 review flagged that as a medium finding
 # (pip could resolve anywhere in the unverified range) required before
 # any pilot. Fixed by pinning min == max == the one version actually
 # tested, rather than widening verification to match the range. Widening
@@ -324,7 +324,7 @@ class TRLTrainerAdapter:
         # declared root, so datasets.load_dataset()'s own arrow-cache
         # `.lock` file write there trips the write-scoped filesystem
         # guard exactly like any other out-of-root write would (real
-        # reproduction: Maya's pilot-specific live-execution review,
+        # reproduction: the pilot-specific live-execution review,
         # issue #7 step 5, PR #18, Finding 1 follow-on). Must happen
         # before datasets/transformers/huggingface_hub are imported below
         # (even lazily) since each reads these as module-level constants
@@ -354,7 +354,7 @@ class TRLTrainerAdapter:
             # in addition to the final saved model -- a real 50-step pilot
             # run at the default save_steps cadence measured 8,239 MB
             # against a locked 2,048 MB storage budget (5 un-pruned
-            # checkpoints, ~257 MB each, plus the final artifact). Maya's
+            # checkpoints, ~257 MB each, plus the final artifact). The
             # pilot-specific live-execution review (issue #7 step 5, PR #18
             # Finding 2) recommended this one-line fix over raising the
             # budget: it caps storage growth generically for any future
@@ -503,7 +503,7 @@ class TRLTrainerAdapter:
         ``CheckpointHandle.state_locator`` contract) instead of
         ``Trainer``'s own ``checkpoint-<step>`` subdirectory naming.
         Reproduced twice against a real TRL ``Trainer`` at different real
-        cancellation points -- see Maya's pilot-specific live-execution
+        cancellation points -- see the pilot-specific live-execution
         review (issue #7 step 5, PR #18) Finding 3.
 
         These are private ``Trainer`` methods (leading underscore), used

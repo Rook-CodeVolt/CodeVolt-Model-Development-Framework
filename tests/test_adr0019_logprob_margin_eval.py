@@ -926,7 +926,7 @@ def test_this_script_sha256_matches_a_direct_recompute(runner):
 
 
 # ---------------------------------------------------------------------------
-# 12. Isolated-process resource enforcement (Maya's ADR-0019 gate requirement):
+# 12. Isolated-process resource enforcement (ADR-0019's gate requirement):
 #     execute_evaluation must run the model-load plus compute_all_pair_margins
 #     work through codevolt_mdf.process_isolation.run_callable_in_isolated_process,
 #     never in-process; overrun/timeout must refuse with no outcome
@@ -993,8 +993,8 @@ def test_load_gate_accepts_ceilings_exactly_at_the_hard_limit(runner, tmp_path, 
 def _prepare_execute_evaluation_call(runner, monkeypatch, tmp_path):
     """Common scaffolding for execute_evaluation isolation tests.
 
-    Bypasses validate_plan()'s unrelated "Maya's single-gate approval has
-    not been issued" blocker (a fixed on-disk path this test suite does not
+    Bypasses validate_plan()'s unrelated "the security reviewer's single-gate
+    approval has not been issued" blocker (a fixed on-disk path this test suite does not
     stand up) and load_gate's signature verification (not under test here),
     so each test below can focus purely on the isolation
     enforcement/round-trip behaviour without needing a real signed approval

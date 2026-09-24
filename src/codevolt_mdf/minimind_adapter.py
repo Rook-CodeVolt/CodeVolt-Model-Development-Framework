@@ -103,7 +103,7 @@ MINIMIND_PINNED_BRANCH = "master"
 _logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
-# --from_weight staging (issue escalated from Maya's live-execution
+# --from_weight staging (issue escalated from a live-execution
 # re-review of PR #62).
 #
 # MiniMind's real trainer/train_full_sft.py treats --from_weight as a
@@ -591,7 +591,7 @@ class MiniMindTrainerAdapter:
         # to locations this adapter controls, not to the checkout itself.
         #
         # Why this matters (found and empirically verified fixing issue
-        # #46/ADR-0011's Maya-reported secondary defect, internal tracking item
+        # #46/ADR-0011's reported secondary defect, internal tracking item
         #): once the cwd is corrected to <repo>/trainer, MiniMind's
         # own train_epoch() unconditionally also calls
         # lm_checkpoint(..., save_dir='../checkpoints') at least once per
@@ -656,7 +656,7 @@ class MiniMindTrainerAdapter:
         if not shadow_dataset_dir.exists() and (minimind_repo_path / "dataset").exists():
             shutil.copytree(minimind_repo_path / "dataset", shadow_dataset_dir)
 
-        # --from_weight staging (issue escalated from Maya's live-execution
+        # --from_weight staging (issue escalated from a live-execution
         # re-review of PR #62,; see the
         # MINIMIND_FROM_WEIGHT_STAGED_NAME module comment and
         # _stage_from_weight_checkpoint for the full rationale). Must run
@@ -824,7 +824,7 @@ class MiniMindTrainerAdapter:
         key for it at all, so every real run silently used the script's
         own 768-hidden-size default regardless of what a caller intended,
         which is exactly what invalidated ADR-0011's resource-limits table
-        (see Maya's pass-2 review comment on issue #67).
+        (see the pass-2 review comment on issue #67).
         """
         args = [python_executable, str(script_path)]
         args += ["--save_dir", str(checkpoint_dir)]

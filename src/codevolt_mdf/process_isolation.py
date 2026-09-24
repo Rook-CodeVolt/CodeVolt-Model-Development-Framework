@@ -40,7 +40,7 @@ documented as such rather than oversold.
   except ``/dev/null`` (explicitly allowlisted -- see
   ``_DEVNULL_RESOLVED``; a write there cannot persist or exfiltrate
   anything). Reads are not restricted to the root -- see "What this does
-  NOT enforce" below for why, and Finding 1 of Maya's pilot-specific
+  NOT enforce" below for why, and Finding 1 of the pilot-specific
   live-execution review (issue #7 step 5, PR #18) for the concrete
   real-execution failures a read-restrictive guard caused.
 - **Network containment (Python-level)**: when ``budget.network_policy``
@@ -90,7 +90,7 @@ documented as such rather than oversold.
   before installing the guard only pushes the failure one import
   deeper, and a curated site-packages/stdlib/devnull-only allowlist
   still breaks on the model/dataset read the adapter must legitimately
-  perform. See Maya's pilot-specific live-execution review (issue #7
+  perform. See the pilot-specific live-execution review (issue #7
   step 5, PR #18), Finding 1, for the concrete reproduction.
 - **Not GPU-usage measurement.** There is no portable stdlib way to
   measure GPU utilisation; ``gpu_count_used`` remains adapter
@@ -104,7 +104,7 @@ documented as such rather than oversold.
   ``docs/TRAINER_ADAPTER_CONTRACT.md``).
 
 Real, OS-level sandboxing (containers, gVisor, a signed seccomp profile,
-network namespaces) is exactly the kind of control Maya's independent
+network namespaces) is exactly the kind of control the independent
 security review (issue #7 step 5) is expected to require before any real
 training engine is admitted; this module raises the floor from "nothing
 enforced, adapter self-discipline only" to "real process isolation for
@@ -132,7 +132,7 @@ from typing import Any
 
 _logger = logging.getLogger(__name__)
 """Module logger for the two originally-approved-but-silent failure modes
-of the pid-tree walk (issue #7 Layer 1 design step 3, flagged by Maya's
+of the pid-tree walk (issue #7 Layer 1 design step 3, flagged by the
 PR #14 review): the underlying ``ps`` call failing/timing out, and the
 bounded walk-and-kill loop exhausting all its passes without confirming a
 full reap. Both are logged here (host-side observability) and also
@@ -165,9 +165,9 @@ DEFAULT_KILL_GRACE_SECONDS = 1.0
 # here (see ``run_trainer_contract``'s ``killed_for_cancellation``
 # handling only discarding it when the adapter never got the chance).
 #
-# Raised from an original single shared 1.0s during Elias's
-# real-execution verification of the trl_adapter.py checkpoint/resume
-# fix (Maya's pilot-specific live-execution review, issue #7 step 5,
+# Raised from an original single shared 1.0s during real-execution
+# verification of the trl_adapter.py checkpoint/resume
+# fix (the pilot-specific live-execution review, issue #7 step 5,
 # PR #18, Finding 3): once ``_safe_halt_output`` genuinely persists a
 # resumable checkpoint (``save_model`` + optimizer/scheduler/scaler/RNG
 # state + ``save_state()``, not just ``save_model`` alone), that save
@@ -443,7 +443,7 @@ by mode, so it is not covered by the read/write split above, but it is
 categorically harmless regardless of ``filesystem_root``: the kernel
 discards everything written to it, nothing is created, persisted, or
 exfiltrated anywhere. Blocking it serves no containment purpose and
-was the literal first failure a real pilot run hit (Maya's
+was the literal first failure a real pilot run hit (the
 pilot-specific live-execution review, issue #7 step 5, PR #18, Finding
 1). Explicitly allowlisted rather than silently exempted by the
 write-detection logic above, so the exemption is visible and
@@ -465,7 +465,7 @@ def _pin_filesystem_root(filesystem_root: str) -> None:
     writes -- checkpoints, evidence, any file the untrusted adapter code
     creates or mutates -- is the actual security property this boundary
     is for; reads outside the root are not a filesystem-containment gap
-    on their own (see Maya's pilot-specific live-execution review,
+    on their own (see the pilot-specific live-execution review,
     issue #7 step 5, PR #18, Finding 1).
 
     Honest scope: only intercepts ``builtins.open`` and ``os.open`` inside
@@ -768,7 +768,7 @@ def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
     inferring failure from an empty list, because this failure mode was
     previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
     same as "no descendants exist" and quietly degrade to a root-pid-only
-    kill with zero observability (Maya's PR #14 review, required
+    kill with zero observability (the PR #14 review, required
     remediation item). See
     ``docs/decisions/0004-pid-tree-walk-setsid-escape-fix.md``.
 
@@ -854,7 +854,7 @@ _MAX_PID_TREE_WALK_PASSES = 3
 class PidTreeWalkOutcome:
     """Result of one ``_kill_pid_tree`` call: did the walk fully confirm the kill?
 
-    Both fields are the two failure modes Maya's PR #14 review required
+    Both fields are the two failure modes the PR #14 review required
     visibility for (issue #7's approved Layer 1 design, step 3):
 
     - ``ps_call_failed``: the underlying ``ps -eo pid=,ppid=`` call
@@ -911,7 +911,7 @@ def _kill_pid_tree(root_pid: int) -> PidTreeWalkOutcome:
     degrading a pass to a root-pid-only kill, and the bounded retry
     loop exhausting without a pass confirming zero live targets -- into
     both the module logger and the evidence-visible ``TrainingOutput``
-    reason string, per Maya's PR #14 review (required remediation item,
+    reason string, per the PR #14 review (required remediation item,
     the approved issue #7 Layer 1 design's step 3).
     """
     ps_call_failed = False
