@@ -4,6 +4,8 @@ The roadmap describes intent, not a promise of dates.
 
 For an evidence-led view of where the next real effort should go and why — informed by external open-source ecosystem research rather than internal planning alone — see [Next progression](PROGRESSION.md).
 
+The meta-trainer's mission, capability map, authority model, and evaluation strategy — including the sequenced roadmap of the next several ADRs, starting with a training-free baseline measurement — are recorded in [ADR-0021](decisions/ADR-0021-metatrainer-mission-and-capability-map.md), which supersedes ADR-0013's original narrower mission framing without reopening ADR-0013's own gates or recorded outcome.
+
 ## v0.1 — Foundation
 
 - Versioned experiment contract and locked manifests.
