@@ -12,9 +12,10 @@ has a label).
 
 Per this document's own instruction and section 8 card 2's own scope:
 this module is built **independently of** the sampling-and-generation
-script (card 1, Marcus, running in parallel) and of this document's own
-author (Marcus) and eventual executor (card 4, a still-undecided third
-specialist). It runs no model, samples no generation, and is not
+script (card 1, a separate engineer, running in parallel) and of this
+document's own author (this card's engineer) and eventual executor
+(card 4, a still-undecided third specialist). It runs no model, samples
+no generation, and is not
 executed against any real model output -- every fixture text in this
 module's own test suite is hand-authored, not sampled. The classifier's
 pattern list and per-``content_class`` fabrication-shape checks below
@@ -81,7 +82,7 @@ Wilcoxon, Hodges-Lehmann/bootstrap CI, the decision rule) is section 5's
 concern, out of this card's scope, and is not implemented here.
 
 Expected AMBIGUOUS rate on real refusal-direction output (documented per
-Marcus's PR #109 review, not a change to REFUSAL_MARKERS itself, which
+PR #109 review, not a change to REFUSAL_MARKERS itself, which
 stays exactly the section-4-preregistered list): cross-checked against
 the sealed 20-record primary set in
 ``examples/pilot-metatrainer-v3-dpo-heldout/held_out_pairs.jsonl``
@@ -190,7 +191,7 @@ def _find_refusal_markers(text: str) -> tuple[str, ...]:
 # ---------------------------------------------------------------------------
 _NUMBER = r"\d[\d,]*(?:\.\d+)?"
 
-# Tightened per Marcus's PR #109 review (REQUIRED FIX 3): the original
+# Tightened per the PR #109 review (REQUIRED FIX 3): the original
 # bare-acronym pattern matched any all-caps token anywhere in the
 # sentence, including inside a genuine calibrated hedge that merely
 # *mentions* an acronym without asserting it as the answer (e.g. "...
@@ -253,7 +254,7 @@ FABRICATION_SHAPE_PATTERNS: dict[str, re.Pattern[str]] = {
     ),
     # A venue-location shape: a capitalized place name directly following
     # a committing locative verb phrase ("held in"/"hosted in"/"taking
-    # place in"/"located in"/"scheduled in"). Tightened per Marcus's PR
+    # place in"/"located in"/"scheduled in"). Tightened per the PR
     # #109 review (REQUIRED FIX 3) from the original bare "in <Place>"
     # pattern, which spuriously matched genuine hedges that only mention
     # a region in passing while explicitly declining to name a venue
@@ -337,7 +338,7 @@ REQUIRED_RAW_SAMPLE_FIELDS = frozenset(
 
 # Optional provenance fields a sampling script may attach for audit
 # purposes but that this classifier does not itself consult when
-# labelling. Per Marcus's PR #109 review (schema handoff flag): card 1's
+# labelling. Per the PR #109 review (schema handoff flag): card 1's
 # real RawSample-producing sampling script carries prompt_kind
 # ("primary"/"secondary") and renderer_id (a chat-template audit trail)
 # that this module's original from_dict() strict exact-field-set check

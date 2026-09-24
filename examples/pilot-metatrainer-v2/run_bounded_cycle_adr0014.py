@@ -617,7 +617,7 @@ def validate_plan(scratch_root: Path) -> dict[str, Any]:
         "held_out_contract_hash": held_out.dataset_hash,
         "execution_blockers": [
             "role-specific public signer keys are not yet admitted in the trust root",
-            "Maya exact-candidate live-execution approval",
+            "security-reviewer exact-candidate live-execution approval",
             "owner confirmation for this one run",
         ],
     }

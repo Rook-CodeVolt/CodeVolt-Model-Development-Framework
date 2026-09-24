@@ -683,7 +683,7 @@ def validate_plan(scratch_root: Path) -> dict[str, Any]:
         },
         "execution_blockers": [
             "role-specific public signer keys are not yet admitted in the trust root",
-            "Maya exact-candidate live-execution approval",
+            "security-reviewer exact-candidate live-execution approval",
             "owner confirmation for this one run",
         ],
     }

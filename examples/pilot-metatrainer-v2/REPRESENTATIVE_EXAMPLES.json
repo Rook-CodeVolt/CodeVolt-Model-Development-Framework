@@ -5,7 +5,7 @@
     "semantic_family": "zero_score_diagnostic_ladder",
     "source_scope": "Seed-rich A, SS4.2",
     "citations": [
-      "Clara synthesis, SS4.2"
+      "research synthesis, SS4.2"
     ],
     "messages": [
       {
@@ -25,7 +25,7 @@
     "source_scope": "Seed-rich A, SS1.1",
     "citations": [
       "[1] TRL v0.21 SFT Trainer — chat templates and EOS alignment",
-      "Clara synthesis, SS1.1"
+      "research synthesis, SS1.1"
     ],
     "messages": [
       {
@@ -44,7 +44,7 @@
     "semantic_family": "contamination_split_controls",
     "source_scope": "Seed-rich A, SS3.2",
     "citations": [
-      "Clara synthesis, SS3.2",
+      "research synthesis, SS3.2",
       "[16] Google ML Crash Course — separate train/validation/test data and avoid duplicates"
     ],
     "messages": [
@@ -84,7 +84,7 @@
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
       "[6] LoRA paper — frozen base and learned adapters",
-      "Clara synthesis, SS1.3"
+      "research synthesis, SS1.3"
     ],
     "messages": [
       {

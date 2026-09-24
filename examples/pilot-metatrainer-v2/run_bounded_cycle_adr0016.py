@@ -15,8 +15,9 @@ yes/no "Can X? -> No, because..." shape -- plausibly reinforcing confident
 discursive prose rather than terse refusal, consistent with that item's
 observed regression (ADR-0015's candidate went from merely demonstrating
 fabrication to explicitly endorsing it as policy). PR #93 (task,
-Maya-reviewed and approved, independently re-verified by Rook) rewrote the
-family: kept 2 of the original 8 as accurate scaffolding/context, removed
+security-reviewer-reviewed and approved, independently re-verified by the
+project owner) rewrote the family: kept 2 of the original 8 as accurate
+scaffolding/context, removed
 the other 6, and added 9 new short first-person closed-question-shaped
 records directly mirroring the held-out item's own prompt/answer shape. Net:
 confabulated_recipe_detection family 8 -> 11 records; corpus v3 totals
@@ -669,7 +670,7 @@ def validate_plan(scratch_root: Path) -> dict[str, Any]:
         "held_out_contract_hash": held_out.dataset_hash,
         "execution_blockers": [
             "role-specific public signer keys are not yet admitted in the trust root",
-            "Maya exact-candidate live-execution approval",
+            "security-reviewer exact-candidate live-execution approval",
             "owner confirmation for this one run",
         ],
     }

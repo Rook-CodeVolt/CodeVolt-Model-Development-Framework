@@ -3,7 +3,7 @@
 
 This is a mechanical adaptation of the proven ADR-0014 runner
 (examples/pilot-metatrainer-v2/run_bounded_cycle_adr0014.py) to the new,
-independently audited and Maya-reviewed meta-trainer corpus v3
+independently audited and security-reviewer-reviewed meta-trainer corpus v3
 (examples/pilot-metatrainer-v3/, 112 train / 48 held-out, PR #87, commit
 153cb1e2672c1ef61dab01f224f2cb528fc49fc9), per ADR-0015
 (docs/decisions/0015-metatrainer-corpus-v3.md). ADR-0015 itself only proposed
@@ -659,7 +659,7 @@ def validate_plan(scratch_root: Path) -> dict[str, Any]:
         "held_out_contract_hash": held_out.dataset_hash,
         "execution_blockers": [
             "role-specific public signer keys are not yet admitted in the trust root",
-            "Maya exact-candidate live-execution approval",
+            "security-reviewer exact-candidate live-execution approval",
             "owner confirmation for this one run",
         ],
     }

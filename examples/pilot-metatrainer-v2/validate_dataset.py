@@ -27,7 +27,7 @@ def main():
     check("required_fields", all(required <= set(r) for r in records))
     check("per_example_citations", all(isinstance(r["citations"], list) and r["citations"] for r in records))
 
-    locator = re.compile(r"^(\[(?:[1-9]|1\d|2[0-3])\]|Clara synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5))")
+    locator = re.compile(r"^(\[(?:[1-9]|1\d|2[0-3])\]|research synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5))")
     check("citation_locator_format", all(all(locator.match(c) for c in r["citations"]) for r in records))
     check("authorized_sections_only", all("SS3.1" not in r["source_scope"] and "SS3.1" not in " ".join(r["citations"]) for r in records))
 

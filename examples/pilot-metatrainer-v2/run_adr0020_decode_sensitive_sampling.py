@@ -11,7 +11,7 @@ fields only) plus the single named secondary probe item
 does not execute it against either checkpoint. Mirrors every prior
 ``run_bounded_cycle_adrXXXX.py``/``run_adr0019_logprob_margin_eval.py``'s
 dry-run vs ``--execute`` split and single-gate-signature-verification
-structure, adapted to ADR-0020's own single gate (Maya only, per section
+structure, adapted to ADR-0020's own single gate (security-reviewer only, per section
 7: "no promotion path exists to authorize") and this evaluation's own
 sampling-specific compute (no trainer adapter, no training contract, no
 per-choice log-probability scoring).
@@ -19,9 +19,9 @@ per-choice log-probability scoring).
 Card boundary (ADR-0020 section 8, "Proposed follow-up cards"): this
 file is card 1 only -- "Write the decode-sensitive sampling-and-
 generation script ... gated, no execution." It does not build the
-deterministic scoring classifier (card 2, Maya's separate build:
+deterministic scoring classifier (card 2, a separate engineer's build:
 ``adr0020_scoring_classifier.py``), does not review or issue the gate
-(card 3, Maya), and does not execute the evaluation (card 4, a
+(card 3, the security reviewer), and does not execute the evaluation (card 4, a
 still-later-decided executor distinct from both card 1's and card 2's
 authors). Because no classifier exists yet, this file's own statistics
 layer (section 5: per-prompt rate, delta_i, Wilcoxon signed-rank,
@@ -80,8 +80,8 @@ plus-sampling work runs through
 ``codevolt_mdf.process_isolation.run_callable_in_isolated_process``
 from this file's first written version, exactly mirroring
 ``run_adr0019_logprob_margin_eval.py``'s ``execute_evaluation()`` /
-``_run_margin_computation()`` split. A single proportionate gate (Maya
-only), bound to: (a) this exact file's own content hash; (b) the
+``_run_margin_computation()`` split. A single proportionate gate (the
+security reviewer only), bound to: (a) this exact file's own content hash; (b) the
 classifier script's content hash (card 2, a placeholder here that fails
 closed until card 2 completes); (c) the sealed ``HeldOutExclusionRegistry``
 entry this evaluation reuses unchanged from ADR-0019; (d) an
@@ -184,7 +184,7 @@ EXPECTED_SECONDARY_HELD_OUT_HASH = (
 SECONDARY_ITEM_ID = "mtr-v2-heldout-0013"
 
 # ---------------------------------------------------------------------------
-# Classifier script identity (ADR-0020 section 8 card 2, Maya's separate
+# Classifier script identity (ADR-0020 section 8 card 2, a separate engineer's
 # build): does not exist yet as of this file's own drafting. Placeholder
 # that fails closed (refuses with an explicit, actionable message) rather
 # than guessing a hash or silently treating an absent classifier as ready --
@@ -260,7 +260,7 @@ MINIMUM_FREE_BYTES = 512 * 1024 * 1024
 # workload relative to ADR-0019's 80 forward passes -- not because this
 # evaluation is training-cycle-scale, but because no real measurement of
 # this evaluation's own shape exists yet to justify a tighter number.
-# Card 3 (Maya's gate review) must independently re-measure and confirm,
+# Card 3 (the security reviewer's gate review) must independently re-measure and confirm,
 # not assume, both figures before the gate can ever bind to them -- this
 # script enforces them only as a hard *ceiling* a gate cannot loosen.
 # ---------------------------------------------------------------------------
@@ -1395,10 +1395,10 @@ def validate_plan() -> dict[str, Any]:
     if EXPECTED_CLASSIFIER_SCRIPT_HASH is None:
         blockers.append(
             "classifier script is a placeholder pending card 2 (build the deterministic "
-            "scoring classifier, Maya) -- execution remains blocked regardless of gate content"
+            "scoring classifier, card 2's engineer) -- execution remains blocked regardless of gate content"
         )
     if not APPROVED_REVIEW_GATE_PATH.is_file():
-        blockers.append("Maya's single-gate approval (ADR-0020 section 7) has not been issued")
+        blockers.append("the security reviewer's single-gate approval (ADR-0020 section 7) has not been issued")
 
     return {
         "status": "PASS",

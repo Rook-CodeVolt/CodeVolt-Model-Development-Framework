@@ -6,7 +6,7 @@
     "source_scope": "Seed-rich A, SS2",
     "citations": [
       "[6] LoRA paper — frozen pretrained weights and low-rank adaptation",
-      "Clara synthesis, SS2"
+      "research synthesis, SS2"
     ],
     "messages": [
       {
@@ -45,7 +45,7 @@
     "source_scope": "Seed-rich A, SS2",
     "citations": [
       "[6] LoRA paper — GPT-3 175B experimental setting",
-      "Clara synthesis, SS2"
+      "research synthesis, SS2"
     ],
     "messages": [
       {
@@ -84,7 +84,7 @@
     "source_scope": "Seed-rich A, SS2",
     "citations": [
       "[7] QLoRA paper — 65B model on one 48GB GPU",
-      "Clara synthesis, SS2"
+      "research synthesis, SS2"
     ],
     "messages": [
       {
@@ -103,7 +103,7 @@
     "semantic_family": "peft_lora_qlora_decisions",
     "source_scope": "Seed-rich A, SS2",
     "citations": [
-      "Clara synthesis, SS2"
+      "research synthesis, SS2"
     ],
     "messages": [
       {
@@ -112,7 +112,7 @@
       },
       {
         "role": "assistant",
-        "content": "Benchmark it when the model fits comfortably, the desired shift is broad, and adapters may lack capacity. This is Clara's qualified decision guidance, not a direct claim that full SFT always wins on small models."
+        "content": "Benchmark it when the model fits comfortably, the desired shift is broad, and adapters may lack capacity. This is qualified decision guidance, not a direct claim that full SFT always wins on small models."
       }
     ]
   },
@@ -122,7 +122,7 @@
     "semantic_family": "peft_lora_qlora_decisions",
     "source_scope": "Seed-rich A, SS2",
     "citations": [
-      "Clara synthesis, SS2",
+      "research synthesis, SS2",
       "[6] LoRA paper — frozen base and low-rank adapters"
     ],
     "messages": [
@@ -142,13 +142,13 @@
     "semantic_family": "peft_lora_qlora_decisions",
     "source_scope": "Seed-rich A, SS2",
     "citations": [
-      "Clara synthesis, SS2",
+      "research synthesis, SS2",
       "[7] QLoRA paper — quantized frozen base with LoRA adapters"
     ],
     "messages": [
       {
         "role": "user",
-        "content": "When should QLoRA be chosen according to Clara's guidance?"
+        "content": "When should QLoRA be chosen according to this guidance?"
       },
       {
         "role": "assistant",
@@ -163,7 +163,7 @@
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
       "[18] Self-Instruct paper — Sections 1-2",
-      "Clara synthesis, SS3.3"
+      "research synthesis, SS3.3"
     ],
     "messages": [
       {
@@ -183,7 +183,7 @@
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
       "[19] Nature model-collapse paper — abstract and Definition 2.1",
-      "Clara synthesis, SS3.3"
+      "research synthesis, SS3.3"
     ],
     "messages": [
       {
@@ -202,7 +202,7 @@
     "semantic_family": "synthetic_data_tradeoffs",
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
-      "Clara synthesis, SS3.3"
+      "research synthesis, SS3.3"
     ],
     "messages": [
       {
@@ -221,7 +221,7 @@
     "semantic_family": "synthetic_data_tradeoffs",
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
-      "Clara synthesis, SS3.3"
+      "research synthesis, SS3.3"
     ],
     "messages": [
       {
@@ -240,7 +240,7 @@
     "semantic_family": "synthetic_data_tradeoffs",
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
-      "Clara synthesis, SS3.3"
+      "research synthesis, SS3.3"
     ],
     "messages": [
       {
@@ -259,13 +259,13 @@
     "semantic_family": "synthetic_data_tradeoffs",
     "source_scope": "Seed-rich B, SS3.3",
     "citations": [
-      "Clara synthesis, SS3.3",
+      "research synthesis, SS3.3",
       "[19] Nature model-collapse paper — recursive-training risk"
     ],
     "messages": [
       {
         "role": "user",
-        "content": "Name the main synthetic-data risks Clara identifies."
+        "content": "Name the main synthetic-data risks the research synthesis identifies."
       },
       {
         "role": "assistant",
@@ -279,7 +279,7 @@
     "semantic_family": "catastrophic_forgetting_retention",
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
-      "Clara synthesis, SS1.3"
+      "research synthesis, SS1.3"
     ],
     "messages": [
       {
@@ -299,8 +299,8 @@
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
       "[6] LoRA paper — frozen base weights and low-rank updates",
-      "Clara synthesis, SS1.3",
-      "Clara synthesis, SS2 — reversible experiments"
+      "research synthesis, SS1.3",
+      "research synthesis, SS2 — reversible experiments"
     ],
     "messages": [
       {
@@ -320,7 +320,7 @@
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
       "[6] LoRA paper — frozen base and learned adapters",
-      "Clara synthesis, SS1.3"
+      "research synthesis, SS1.3"
     ],
     "messages": [
       {
@@ -339,8 +339,8 @@
     "semantic_family": "catastrophic_forgetting_retention",
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
-      "Clara synthesis, SS1.3",
-      "Clara synthesis, SS4.1 — capability-retention suite composition"
+      "research synthesis, SS1.3",
+      "research synthesis, SS4.1 — capability-retention suite composition"
     ],
     "messages": [
       {
@@ -349,7 +349,7 @@
       },
       {
         "role": "assistant",
-        "content": "It supplies a stable reference for pre-existing instruction following, basic language behavior, safety boundaries, and prior capabilities. Clara recommends it as a control; its exact composition should match deployment scope."
+        "content": "It supplies a stable reference for pre-existing instruction following, basic language behavior, safety boundaries, and prior capabilities. The research synthesis recommends it as a control; its exact composition should match deployment scope."
       }
     ]
   },
@@ -359,8 +359,8 @@
     "semantic_family": "catastrophic_forgetting_retention",
     "source_scope": "Seed-rich A, SS1.3",
     "citations": [
-      "Clara synthesis, SS1.3",
-      "Clara synthesis, SS5"
+      "research synthesis, SS1.3",
+      "research synthesis, SS5"
     ],
     "messages": [
       {
@@ -379,7 +379,7 @@
     "semantic_family": "catastrophic_forgetting_retention",
     "source_scope": "Seed-rich B, SS5",
     "citations": [
-      "Clara synthesis, SS5"
+      "research synthesis, SS5"
     ],
     "messages": [
       {
@@ -388,7 +388,7 @@
       },
       {
         "role": "assistant",
-        "content": "Require a predeclared target-task gain, no material base-regression failure, and a paired improvement larger than observed run or evaluation variability. This is Clara's recommended gate, not a universal external standard."
+        "content": "Require a predeclared target-task gain, no material base-regression failure, and a paired improvement larger than observed run or evaluation variability. This is the research synthesis's recommended gate, not a universal external standard."
       }
     ]
   }

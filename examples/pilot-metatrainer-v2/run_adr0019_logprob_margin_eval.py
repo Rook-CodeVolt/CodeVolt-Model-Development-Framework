@@ -15,7 +15,7 @@ yet either, so there is nothing real to execute against regardless.
 Mirrors every prior ``run_bounded_cycle_adrXXXX.py``'s dry-run vs
 ``--execute`` split and single-gate-signature-verification structure
 (``examples/pilot-metatrainer-v2/run_bounded_cycle_adr0018.py``), adapted
-to ADR-0019's own single-gate (Maya only, no owner/dataset-rights roles --
+to ADR-0019's own single-gate (security-reviewer only, no owner/dataset-rights roles --
 see section 5: "no promotion path to authorize", "no ... host-containment
 gate ... as a *separate* signature") and eval-specific compute (no trainer
 adapter, no training contract).
@@ -42,8 +42,8 @@ this PR): read-only on both checkpoints (``model.eval()``,
 ``_choice_log_likelihood``/``_get_model`` -- no ``.train()`` call
 anywhere in this file), offline (``HF_HUB_OFFLINE``/``TRANSFORMERS_OFFLINE``
 forced before any model load), a single proportionate gate bound to this
-exact file's own content sha256 (not a git commit SHA -- Maya's binding
-condition, recorded in ADR-0019 section 5, is stricter than the
+exact file's own content sha256 (not a git commit SHA -- the
+security reviewer's binding condition, recorded in ADR-0019 section 5, is stricter than the
 three-role training-gate precedent: "the exact content hash of the
 evaluation script ... the literal hash of the file executed"), the
 sealed ``HeldOutExclusionRegistry`` entry for the held-out set, and an
@@ -51,8 +51,8 @@ independently re-measured compute ceiling for this evaluation's own
 n=20 shape.
 
 Dataset placeholder (ADR-0019 section 6, card 1 -- "the pair author and
-the eventual scoring executor must be different people ... Marcus builds
-and proposes the set; Maya independently audits and seals it"): the
+the eventual scoring executor must be different people ... the set author
+builds and proposes the set; the security reviewer independently audits and seals it"): the
 held-out pair set does not exist in this repository yet. Every constant
 below that would name its path/hash is a clearly marked placeholder that
 fails closed (refuses with an explicit, actionable message) rather than
@@ -133,7 +133,7 @@ EXPECTED_CANDIDATE_MODEL_HASH = (
 # ---------------------------------------------------------------------------
 # Held-out pair set: SEALED as of card 1 ("Build and seal the held-out
 # preference-pair set", ADR-0019 section 6 card 1), merged and
-# independently audited/approved by Maya (PR #104, origin/main
+# independently audited/approved by the security reviewer (PR #104, origin/main
 # 1d6e5704246af59bba645d4951c40e5354e2c805). The two hashes below are
 # pinned to that exact content and were computed directly from that
 # commit, not guessed or copied from an unverified source. Every entry
@@ -151,7 +151,7 @@ HELD_OUT_REGISTRY_PATH = HELD_OUT_DIR / "held_out_exclusion_registry.json"
 HELD_OUT_PACKAGE_ID = "pilot-metatrainer-v3-dpo-heldout-adr0019"
 # Sealed sha256 of examples/pilot-metatrainer-v3-dpo-heldout/held_out_pairs.jsonl
 # and held_out_exclusion_registry.json, both on origin/main at
-# 1d6e5704246af59bba645d4951c40e5354e2c805 (PR #104, Maya-approved).
+# 1d6e5704246af59bba645d4951c40e5354e2c805 (PR #104, security-reviewer-approved).
 EXPECTED_HELD_OUT_PAIRS_HASH: str | None = (
     "e48551cbbdf117b89b3e6a5a5d37c3345afd8ac161b08c288a747de96303b541"
 )
@@ -180,11 +180,11 @@ HOST_CONTAINMENT_SCOPE = "evaluator-process-containment-v1"
 HOST_CONTAINMENT_ENV = "CODEVOLT_ADR0019_HOST_CONTAINMENT"
 APPROVAL_ALLOWED_SIGNERS_PATH = HERE / "approval_allowed_signers_adr0018"
 APPROVAL_NAMESPACE = "codevolt-adr0019"
-# Single proportionate gate (ADR-0019 section 5): one role only, Maya's
-# dataset-admissibility/evaluation-scope review. No owner or
+# Single proportionate gate (ADR-0019 section 5): one role only, the
+# security reviewer's dataset-admissibility/evaluation-scope review. No owner or
 # dataset-rights role -- this evaluation has no promotion path and no
 # new dataset admission of its own to authorize (the held-out set's own
-# admission is card 1/Maya's separate contamination audit, not this
+# admission is card 1/the security reviewer's separate contamination audit, not this
 # gate). Reuses the same admitted ``security-reviewer`` public key as every
 # prior cycle (same holder, no role-holder change) rather than minting a
 # new principal for a review that is, in substance, the same reviewer.
@@ -199,7 +199,7 @@ APPROVED_EXECUTION_SCRATCH = APPROVED_SCRATCH_ROOT / RUN_ID
 MINIMUM_FREE_BYTES = 512 * 1024 * 1024
 
 # ---------------------------------------------------------------------------
-# Isolated-process resource enforcement (Maya's ADR-0019 gate requirement,
+# Isolated-process resource enforcement (the security reviewer's ADR-0019 gate requirement,
 # mirroring run_bounded_cycle_adr0018.py's own ``_budget``/
 # ``run_evaluator_in_isolated_process`` pattern): the model-load plus
 # ``compute_all_pair_margins`` work runs in a real OS child process via
@@ -216,7 +216,7 @@ ISOLATION_MAX_MEMORY_MB = 2400.0
 ISOLATION_MAX_WALL_SECONDS = 300.0
 # CPU-time ceiling for the isolated child: not a value the gate declares or
 # is checked against (the gate's own two enforced dimensions are wall-clock
-# and memory, per Maya's requirement), but ``ResourceBudget`` requires a
+# and memory, per the security reviewer's requirement), but ``ResourceBudget`` requires a
 # positive ``max_cpu_seconds`` regardless. Fixed at 2x the wall-clock
 # ceiling, the same ratio ``run_bounded_cycle_adr0018.py``'s own ``_budget``
 # uses (3600 CPU / 1800 wall) for a read-only inference workload that may
@@ -260,7 +260,7 @@ def _sha256_text(text: str) -> str:
 
 def _this_script_sha256() -> str:
     """Content hash of this exact runner file -- the "literal hash of the file
-    executed" Maya's binding condition (ADR-0019 section 5) requires the gate
+    executed" the security reviewer's binding condition (ADR-0019 section 5) requires the gate
     to be bound to, not a git commit SHA."""
     return _sha256_file(Path(__file__).resolve())
 
@@ -547,7 +547,7 @@ def _run_margin_computation(
     Runs entirely inside the isolated child process started by
     ``codevolt_mdf.process_isolation.run_callable_in_isolated_process`` (see
     ``execute_evaluation``) -- this is the "model-load plus
-    ``compute_all_pair_margins`` work" Maya's ADR-0019 gate requirement
+    ``compute_all_pair_margins`` work" the security reviewer's ADR-0019 gate requirement
     names, moved out of the parent process. A module-level function
     (picklable by reference), not a closure, so ``multiprocessing``'s
     ``spawn`` start method can hand it to the child.
@@ -869,7 +869,7 @@ def build_statistics_report(pair_results: Sequence[PairMarginResult]) -> dict[st
 
 # ---------------------------------------------------------------------------
 # Single-gate verification: bound to this file's own exact content hash
-# (Maya's binding condition, ADR-0019 section 5), the sealed registry
+# (the security reviewer's binding condition, ADR-0019 section 5), the sealed registry
 # entry, and an independently re-measured compute ceiling.
 # ---------------------------------------------------------------------------
 
@@ -1001,7 +1001,7 @@ def load_gate(path: Path) -> dict[str, Any]:
         or gate["measured_max_wall_seconds"] <= 0
     ):
         raise Adr0019Error("gate measured_max_wall_seconds must be a positive number")
-    # Enforce the ceiling, not just positivity (Maya's ADR-0019 gate
+    # Enforce the ceiling, not just positivity (the security reviewer's ADR-0019 gate
     # requirement): a gate whose own declared ceilings are looser than this
     # script's hard limits is refused outright, regardless of who signed it.
     # The isolation budget execute_evaluation later builds is set to exactly
@@ -1190,7 +1190,7 @@ def validate_plan() -> dict[str, Any]:
     if EXPECTED_HELD_OUT_PAIRS_HASH is None or EXPECTED_HELD_OUT_REGISTRY_HASH is None:
         blockers.append(
             "held-out pair set is a placeholder pending card 1 (build and seal the "
-            "held-out preference-pair set) and Maya's contamination audit"
+            "held-out preference-pair set) and the security reviewer's contamination audit"
         )
     else:
         if not HELD_OUT_PAIRS_PATH.is_file() or _sha256_file(HELD_OUT_PAIRS_PATH) != EXPECTED_HELD_OUT_PAIRS_HASH:
@@ -1201,7 +1201,7 @@ def validate_plan() -> dict[str, Any]:
         ):
             blockers.append("held-out registry file is missing or hash-mismatched")
     if not APPROVED_REVIEW_GATE_PATH.is_file():
-        blockers.append("Maya's single-gate approval (ADR-0019 section 5) has not been issued")
+        blockers.append("security-reviewer's single-gate approval (ADR-0019 section 5) has not been issued")
 
     return {
         "status": "PASS",
