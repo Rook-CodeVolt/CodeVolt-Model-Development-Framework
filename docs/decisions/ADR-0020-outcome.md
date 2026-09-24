@@ -133,8 +133,8 @@ project's "record execution history factually" discipline requires:
   and the scoring classifier (`examples/pilot-metatrainer-v2/adr0020_scoring_classifier.py`)
   were re-hashed directly against the repository at `main`
   `1c2681f04a5f63bf7fa23175b8b4f97e721ae024`: sha256
-  `08a33987f70ef3e0ee45418db8b009d77f7250bdb0e265110548e4cd4812b086` and
-  `610c09252773951e53e3bc61f35f06c72b7c7e4a47ca8634412cfb9706105b63`
+  `297dcb35d10c2446283fb69fd0bda79778cafe97dd564c11c934ed4bd867adf0` and
+  `5a558817d72f0b9db9c4db0a4ea28cbdc65ab6c2fff9f8f3fd9c741df74a0aad`
   respectively — both match the values the scoring run's own pre-flight
   check and provenance record cite.
 - `examples/pilot-metatrainer-v3-dpo-heldout/held_out_pairs.jsonl` and

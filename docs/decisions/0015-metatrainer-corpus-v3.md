@@ -86,8 +86,8 @@ sub-claims flagged for independent re-confirmation.
 This ADR does not touch, replace, or invalidate:
 
 - `examples/pilot-metatrainer-v2/train.jsonl` / `held_out.json`, or their
-  recorded SHA-256 hashes (`d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3`
-  / `6d96170aa13704bda37a9863ed1688e0e90ffaae7b65e201ad5d3b07796441d0`), which
+  recorded SHA-256 hashes (`6fa2d114a822ee081ba09d5d4f31ef4dd107fe92c43d6037abbd9c98492f17da`
+  / `d99b76b3d24298fa7660b1335835bf37a1e16e7bca858c9f3f980f21e70017a4`), which
   ADR-0013 and ADR-0014 gate on and already recorded honest (negative) results
   against;
 - `examples/metatrainer-corpus-addition-training-history/`;

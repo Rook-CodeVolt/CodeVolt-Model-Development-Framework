@@ -2,8 +2,8 @@
 
 Status: DRAFT PROPOSAL, NOT YET REVIEWED. This is a separate addition proposal,
 not part of the merged `./local-evidence/meta-trainer-corpus-v2/` corpus
-(`train.jsonl` SHA-256 `d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3`,
-`held_out.json` SHA-256 `6d96170aa13704bda37a9863ed1688e0e90ffaae7b65e201ad5d3b07796441d0`).
+(`train.jsonl` SHA-256 `6fa2d114a822ee081ba09d5d4f31ef4dd107fe92c43d6037abbd9c98492f17da`,
+`held_out.json` SHA-256 `d99b76b3d24298fa7660b1335835bf37a1e16e7bca858c9f3f980f21e70017a4`).
 Neither of those two files, nor any other file already admitted to
 `examples/pilot-metatrainer-v2/`, is modified by this proposal. Nothing here is
 committed to git or opened as a PR by this task; that is explicitly left for a

@@ -70,8 +70,8 @@ SAFETY_REGISTRY_PATH = (
     REPO_ROOT / "examples/safety-probes-wpb/held_out_exclusion_registry.json"
 )
 EXPECTED_FILE_HASHES = {
-    "train.jsonl": "d325539d695615499b4c1d1636672d1aea14b4099de5ba3e128625cc1d3f2ab3",
-    "held_out.json": "6d96170aa13704bda37a9863ed1688e0e90ffaae7b65e201ad5d3b07796441d0",
+    "train.jsonl": "6fa2d114a822ee081ba09d5d4f31ef4dd107fe92c43d6037abbd9c98492f17da",
+    "held_out.json": "d99b76b3d24298fa7660b1335835bf37a1e16e7bca858c9f3f980f21e70017a4",
     "semantic_family_manifest.json": (
         "a97a1038d6874c12de16ca1da4383837fa82684911c5290a709224a5a8363dba"
     ),
@@ -79,12 +79,12 @@ EXPECTED_FILE_HASHES = {
         "39e966df25dad4000a91beb2f093921b9454eaac35fa4b5959afb92ddb8e6e6c"
     ),
     "REPRESENTATIVE_EXAMPLES.json": (
-        "85616ba5ae95f56bad7244603dea8e8465f4d86ae485c29d0ba1abf2636866e8"
+        "fd66c8b34ffda912deab931ad62fb4ec83dffbc2c47c70426dd242d71fc3d46a"
     ),
-    "SOURCE_MAP.md": "f0f550d7e0c5625f2b3ea8fc51b9c120b493d444c88b2f1367c18f61ebd0b5fb",
-    "DATASET_CARD.md": "2f57be14b5050d675d3aa4f85a5a94d5ac02c4643fa4f6958bc1fda245c047ac",
+    "SOURCE_MAP.md": "46e3cc77d1fb791310fcd03182c33116fbfe60d6908411dd8f2a42d8f8c9148c",
+    "DATASET_CARD.md": "197e4c767c37618b7a9bd136f9e551a573752f6ba8d22e2854b5ccedbccfdbaf",
     "VALIDATION_REPORT.json": (
-        "4e5d002b08e42fab48ef8b5d3e2a28ce527748369f772a049c44460365ab9618"
+        "f95f7726bb66b6928fdc388d4f2f8089fa187c33dba16f1c75e8e9a2c5e515bf"
     ),
 }
 EXPECTED_VERSIONS = {

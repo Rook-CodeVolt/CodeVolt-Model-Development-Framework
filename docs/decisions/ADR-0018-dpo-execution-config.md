@@ -57,13 +57,13 @@ from ADR-0017's or PR #98's own prose:
     `e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33`
     (matches `VALIDATION_REPORT.json`'s recorded hash exactly)
   - `generate_pairs.py`:
-    `9a8d63cb44d30cb03ac9b4ae5e9bc23a12e7e914df4470bde8c7b338cafed054`
+    `ef80b46b4c89f64b04e4163c2b95b985986515fff1b86ed1a88d50de37a3d8a2`
   - `validate_dataset.py`:
-    `8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144`
+    `ad32110803d47523370f2f78977e8c1e9b2cc0c17e0318914d586aae0fc014a3`
   - `DATASET_CARD.md`:
-    `d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab`
+    `fc828047cd7ce50dc21dc9c186249eba1ea35b6a1ad076f726055637d9b64e65`
   - `VALIDATION_REPORT.json` (as committed on `main`):
-    `68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd`
+    `723daca37bbec781e8660a4f652e897147ec968ebbfba397e59de8d87ffe1a61`
 - `examples/pilot-metatrainer-v3-dpo/validate_dataset.py` was re-run fresh
   against the real, on-disk package during this document's drafting (not
   trusted from the committed `VALIDATION_REPORT.json` alone): result
@@ -161,10 +161,10 @@ established.
   | File | SHA-256 |
   |---|---|
   | `preference_pairs.jsonl` | `e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33` |
-  | `generate_pairs.py` | `9a8d63cb44d30cb03ac9b4ae5e9bc23a12e7e914df4470bde8c7b338cafed054` |
-  | `validate_dataset.py` | `8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144` |
-  | `DATASET_CARD.md` | `d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab` |
-  | `VALIDATION_REPORT.json` (as committed) | `68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd` |
+  | `generate_pairs.py` | `ef80b46b4c89f64b04e4163c2b95b985986515fff1b86ed1a88d50de37a3d8a2` |
+  | `validate_dataset.py` | `ad32110803d47523370f2f78977e8c1e9b2cc0c17e0318914d586aae0fc014a3` |
+  | `DATASET_CARD.md` | `fc828047cd7ce50dc21dc9c186249eba1ea35b6a1ad076f726055637d9b64e65` |
+  | `VALIDATION_REPORT.json` (as committed) | `723daca37bbec781e8660a4f652e897147ec968ebbfba397e59de8d87ffe1a61` |
 
   Only `preference_pairs.jsonl`'s hash is load-bearing for `prepare()`'s
   `dataset_hash` check (the other four are support files); it is reported

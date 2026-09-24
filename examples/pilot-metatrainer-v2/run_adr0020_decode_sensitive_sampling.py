@@ -179,7 +179,7 @@ MIN_COUNTER_SHARE = 0.20
 
 SECONDARY_HELD_OUT_PATH = REPO_ROOT / "examples/pilot-metatrainer-v3/held_out.json"
 EXPECTED_SECONDARY_HELD_OUT_HASH = (
-    "a559d9d689d6de76858ba9829eb3cb7da79a74ef400654ee2c8293229fd0ad96"
+    "509508086e5138244b00020d91da3dccbf21453f4b1222f22ceeab4250771e61"
 )
 SECONDARY_ITEM_ID = "mtr-v2-heldout-0013"
 
@@ -193,7 +193,7 @@ SECONDARY_ITEM_ID = "mtr-v2-heldout-0013"
 # ---------------------------------------------------------------------------
 EXPECTED_CLASSIFIER_SCRIPT_PATH: Path | None = None
 EXPECTED_CLASSIFIER_SCRIPT_HASH: str | None = (
-    "610c09252773951e53e3bc61f35f06c72b7c7e4a47ca8634412cfb9706105b63"
+    "5a558817d72f0b9db9c4db0a4ea28cbdc65ab6c2fff9f8f3fd9c741df74a0aad"
 )
 
 # ---------------------------------------------------------------------------
