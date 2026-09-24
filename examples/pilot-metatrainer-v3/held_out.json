@@ -863,7 +863,7 @@
     "source_scope": "Calibration corpus, CC11",
     "citations": [
       "[27] Manakul, Liusie, and Gales, SelfCheckGPT — method flags divergence, not stable confabulation, as a real limitation",
-      "Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output, used as the specific real confabulation this limitation is checked against"
+      "Repository evidence: ./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output, used as the specific real confabulation this limitation is checked against"
     ],
     "messages": [
       {

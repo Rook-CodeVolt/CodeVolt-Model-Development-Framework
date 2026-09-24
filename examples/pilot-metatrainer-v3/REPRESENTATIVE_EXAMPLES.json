@@ -63,7 +63,7 @@
     "semantic_family": "confabulated_recipe_detection",
     "source_scope": "Calibration corpus, CC5",
     "citations": [
-      "Repository evidence:./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output beginning \"Sure, I can help with that. Here's a possible synthetic answer:... The learning rate is set to 0.01.\"",
+      "Repository evidence: ./local-evidence/adr0014/scratch/adr0014-metatrainer-sft-20260922/cycle_result.json, candidate.meta_trainer.results (example_id mtr-v2-heldout-0013) raw_output beginning \"Sure, I can help with that. Here's a possible synthetic answer:... The learning rate is set to 0.01.\"",
       "[26] Kalai et al., Why Language Models Hallucinate — confident, precise-looking fabrication is the failure mode this project's training/eval procedure needs to disincentivize"
     ],
     "messages": [
