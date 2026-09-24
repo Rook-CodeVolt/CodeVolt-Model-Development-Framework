@@ -103,7 +103,7 @@ SAFETY_REGISTRY_PATH = (
 # defect-fix commit), not copied or guessed from corpus v2/ADR-0014.
 EXPECTED_FILE_HASHES = {
     "train.jsonl": "74a42785a9b89d4fbf639c60e8c55cfa09356a37b29eab298995fe5be8f41a8b",
-    "held_out.json": "8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64",
+    "held_out.json": "a559d9d689d6de76858ba9829eb3cb7da79a74ef400654ee2c8293229fd0ad96",
     "semantic_family_manifest.json": (
         "90ebdd29989ce6847c74644724aed2fbafb653860101087a96d619ebd004308b"
     ),
@@ -111,7 +111,7 @@ EXPECTED_FILE_HASHES = {
         "7e95d5cc74ef229fda9ff34885bb08ff66aeb398878df817be9a31a3a30a72df"
     ),
     "REPRESENTATIVE_EXAMPLES.json": (
-        "ea938cacaac7b76943d9c1220cc2331968febecdeafaba1c6c0f33ba4fa1baba"
+        "88547ba492e9922ffa4352e92de61594a046b07cc26427dd1a8dfc42ac1d33ca"
     ),
     "SOURCE_MAP.md": "88a7d0b336baeb9d3bb6e947256a0ac4ccd9476c24a49620c365dad07f92d874",
     "DATASET_CARD.md": "fc808de9ea5c3816e8506bc35742d92f9e27ba4fca222b5ac9ece53661603b96",

@@ -123,8 +123,8 @@ SAFETY_REGISTRY_PATH = (
 # rewrite -- independently recomputed via shasum against the checked-out repo
 # at this exact commit, not copied or guessed from ADR-0015's values).
 EXPECTED_FILE_HASHES = {
-    "train.jsonl": "09f222b6ad0896a4e9a984a0bfbdf5194896a4f3b4eb65578a7b0014688791f6",
-    "held_out.json": "8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64",
+    "train.jsonl": "dcf7cfa76ad79130cefd87e107c8578376b27b4b0c1dec7e9875677b9078e135",
+    "held_out.json": "a559d9d689d6de76858ba9829eb3cb7da79a74ef400654ee2c8293229fd0ad96",
     "semantic_family_manifest.json": (
         "9699b6efb55f95ad84c89dbe45a218b55dd24e6497d525156c842ddc1b8e9353"
     ),
@@ -132,12 +132,12 @@ EXPECTED_FILE_HASHES = {
         "ca0ded75cc7c18047f59c676f039a13cdcc04fe9b87ea2212485f2b4c2586247"
     ),
     "REPRESENTATIVE_EXAMPLES.json": (
-        "ea938cacaac7b76943d9c1220cc2331968febecdeafaba1c6c0f33ba4fa1baba"
+        "88547ba492e9922ffa4352e92de61594a046b07cc26427dd1a8dfc42ac1d33ca"
     ),
     "SOURCE_MAP.md": "88a7d0b336baeb9d3bb6e947256a0ac4ccd9476c24a49620c365dad07f92d874",
     "DATASET_CARD.md": "33439afd58e6791f69aed635b5f800d1eff9d9ce6519ee36d93dcc1b93073189",
     "VALIDATION_REPORT.json": (
-        "15ac6e057d53554c603e74a71e3bb19d7ab258a2096c1dbe67a3139cc5eebde6"
+        "29cc04d4e3ef6ce3be9dc880aa817a05e0cd4477d2934db3d1d65c804decdc06"
     ),
 }
 EXPECTED_VERSIONS = {

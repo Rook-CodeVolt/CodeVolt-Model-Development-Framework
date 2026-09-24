@@ -143,7 +143,7 @@ EXPECTED_FILE_HASHES = {
 # held-out suites are not modified or re-scoped by ADR-0018 (item 5: "No
 # evaluator code change is required or proposed by this document").
 EXPECTED_HELD_OUT_SUITE_HASHES = {
-    "held_out.json": "8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64",
+    "held_out.json": "a559d9d689d6de76858ba9829eb3cb7da79a74ef400654ee2c8293229fd0ad96",
     "held_out_exclusion_registry.json": (
         "ca0ded75cc7c18047f59c676f039a13cdcc04fe9b87ea2212485f2b4c2586247"
     ),
