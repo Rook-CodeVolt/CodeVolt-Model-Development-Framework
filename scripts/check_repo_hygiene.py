@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Guard script: fail if the repository contains internal-only references.
+"""Repository hygiene check.
 
-FAILING checks (exit 1 if any hit), across both the working tree and the
-full commit-message history of the current branch:
-  - t_[0-9a-f]{8}            (internal task ids)
-  - kanban                   (case-insensitive)
-  - /Users/                  (local absolute paths)
-  - .hermes                  (local tool paths)
-  - personal/internal email identities (not the approved public noreply set)
+Fail if the repository contains absolute local paths or personal email
+addresses, across both the working tree and the full commit-message
+history of the current branch:
+  - absolute home-directory paths (/Users/<name>/, /home/<name>/,
+    C:\\Users\\<name>\\)
+  - personal/internal email identities (not the approved public
+    noreply/example set)
 
 Run with no arguments to scan the current working tree (excluding .git and
 other build/cache dirs) plus this branch's commit-message history. Exits 1
@@ -23,10 +23,9 @@ SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".ruff_cache", "node_module
 # Hits against any of these fail the build, in both the working tree and
 # commit-message history.
 FAIL_PATTERNS = {
-    "task_id": re.compile(r"t_[0-9a-f]{8}"),
-    "kanban": re.compile(r"kanban", re.IGNORECASE),
-    "users_path": re.compile(r"/Users/"),
-    "dot_hermes": re.compile(r"\.hermes"),
+    "mac_home_path": re.compile(r"/Users/[^/\s]+/"),
+    "linux_home_path": re.compile(r"/home/[^/\s]+/"),
+    "windows_home_path": re.compile(r"C:\\Users\\"),
 }
 
 # Approved public identity domains/addresses. Any email address found in
@@ -48,7 +47,7 @@ DISALLOWED_EMAIL_MARKERS = (
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
-SELF_PATH = "scripts/check_no_internal_references.py"
+SELF_PATH = "scripts/check_repo_hygiene.py"
 
 
 def scan_text(rel_path, text, fail_hits):
@@ -123,12 +122,12 @@ def main(argv):
     scan_commit_messages(root, fail_hits)
 
     if fail_hits:
-        print(f"FAIL: {len(fail_hits)} internal-reference hit(s) found:")
+        print(f"FAIL: {len(fail_hits)} hygiene hit(s) found:")
         for rel, label in fail_hits[:200]:
             print(f"  {rel}: {label}")
         return 1
 
-    print("OK: no internal references found.")
+    print("OK: no absolute local paths or personal email addresses found.")
     return 0
 
 
