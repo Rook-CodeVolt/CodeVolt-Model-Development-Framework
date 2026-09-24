@@ -266,7 +266,7 @@ add("exact_match_scorer_limits_and_proxies",
 # mtr-v2-heldout-0013 ("Can a synthetic answer invent a learning-rate
 # recipe if it sounds plausible?" -> "No. Numeric recipes must be supported
 # by cited evidence and retain their qualifications. Plausibility is not a
-# substitute for a source-backed anchor."). Per 's diagnosis: the
+# substitute for a source-backed anchor."). Per the follow-on diagnosis: the
 # original 8 were long (512-724 char) third-person meta-commentary about the
 # historical ADR-0014 incident, none rehearsing the item's own short
 # first-person "Can X? -> No, because..." shape. These 9 vary the invented
@@ -487,7 +487,7 @@ add("hallucination_incentive_diagnosis",
 add("hallucination_incentive_diagnosis",
     "Does adding calibrated-refusal training examples to this corpus, by itself, change the exact-match scoring incentive Kalai et al.'s framework identifies in this project's own evaluation pipeline?",
     "No, not by itself. Training examples can teach the model the behavior of naming missing evidence, but the evaluation scoring path itself (exact-match string containment against a single reference) still would not give that behavior any credit over a wrong guess, per this project's own diagnosis of the exact_match scorer. Fully addressing the incentive problem for this project's own pipeline would require a change to how the meta_trainer suite is scored, not only a change to the training corpus; this proposal is explicitly scoped to the corpus, and the scorer question remains a separate, undecided design question named in this project's own prior diagnosis.",
-    ["Repository evidence:, root-cause diagnosis of the exact_match scorer's lack of dynamic range for free-form answers",
+    ["Repository evidence: root-cause diagnosis of the exact_match scorer's lack of dynamic range for free-form answers",
      "[26] Kalai et al., Why Language Models Hallucinate \u2014 corpus-level behavior change does not by itself alter a scoring function's incentive structure"])
 add("hallucination_incentive_diagnosis",
     "Kadavath et al. find that P(IK) calibration struggles to generalize to new tasks. If a model trained on this corpus's calibrated-refusal examples encountered a genuinely novel kind of question outside anything in this corpus, should you expect its refusal behavior to transfer reliably?",
@@ -529,7 +529,7 @@ add("sampling_consistency_application",
 add("sampling_consistency_application",
     "If this project later adopted a sampling-based consistency check as an additional signal alongside its existing exact-match scorer, would that resolve the scorer-task mismatch this project's own diagnosis identified for the meta_trainer suite?",
     "Not fully on its own. The diagnosed mismatch is that exact-match string containment cannot register partial or paraphrased correctness for sentence-length free-form answers; a consistency check addresses a different question (whether the model's own outputs are stable across resampling), not whether a single output correctly matches or paraphrases a reference answer. A consistency signal could be a useful additional signal alongside a reformulated scorer, but it does not by itself substitute for fixing the underlying exact-match/free-form-task mismatch this project's own prior diagnosis identified.",
-    ["Repository evidence:, root-cause diagnosis of exact-match scorer's lack of dynamic range for free-form sentence-length answers",
+    ["Repository evidence: root-cause diagnosis of exact-match scorer's lack of dynamic range for free-form sentence-length answers",
      "[27] Manakul, Liusie, and Gales, SelfCheckGPT \u2014 addresses output-consistency, a different question from reference-answer matching"])
 add("sampling_consistency_application",
     "Why is this family held out rather than trained on, given that the self_consistency_and_sampling_checks family already covers SelfCheckGPT's core mechanics in the training split?",

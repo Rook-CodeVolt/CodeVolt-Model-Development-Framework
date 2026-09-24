@@ -43,9 +43,10 @@ baseline, ADR-0013, ADR-0014, ADR-0015 candidates) so the four scores are
 directly comparable. It is a separate signal from the automated exact-match
 scorer in the adjacent column; see "ADR-0015's manual rubric result and the
 four-run trend" below for why both signals are recorded and what each does
-and does not support. Baseline/ADR-0013/ADR-0014 rubric scores are from
-ADR-0015's rubric score is from, which re-applied
-the identical standard to ADR-0015's outputs on the identical items.
+and does not support. Baseline/ADR-0013/ADR-0014 rubric scores are from the
+earlier baseline rubric review; ADR-0015's rubric score is from the
+follow-on independent rubric review, which re-applied the identical
+standard to ADR-0015's outputs on the identical items.
 
 Every numeric value above is copied verbatim from the real, hash-recorded
 evidence for each cycle: ADR-0011's `examples/pilot-adr0011/evidence/pilot-result.sanitised.json`;
@@ -57,10 +58,10 @@ results table (lines 20-24, itself sourced from the real
 15-22 and the project `CHANGELOG.md`); and ADR-0015's real re-executed run
 (`adr0015-metatrainer-sft-20260922`, commit `e19dee129310cb6a39d2b8691a0d8232a9210898`,
 `cycle_result.json` SHA-256 `7685e935634cf7dc1bbe96fb4b45b08060dfd5b128de01bb24f5c6532ac8e25f`,
-reported and independently gate-verified in). The
-manual rubric figures are from
-`(reviewer's local evidence archive)`, which itself carries forward the baseline/ADR-0013/ADR-0014
-rubric scores unchanged from 's
+reported and independently gate-verified). The
+manual rubric figures are from a reviewer's local evidence archive, which
+itself carries forward the baseline/ADR-0013/ADR-0014
+rubric scores unchanged from the earlier baseline review's
 `adr0013_adr0014_independent_rubric_sheet.json` and independently re-scores
 only the new ADR-0015 candidate on the same items and standard.
 
@@ -74,7 +75,7 @@ arc:
   final `train_loss` (mean) `3.531`, `memory_mb_peak` `12,119.7` MB
   (comfortably under the corrected `16,384` MB ceiling; the identical real
   workload had exceeded the prior `8,192` MB ceiling in the first execution
-  attempt, root-caused in to legitimate MPS caching-allocator
+  attempt, root-caused to legitimate MPS caching-allocator
   high-water-mark growth, not a leak).
 - `meta_trainer` (target task, 48 held-out items, the same suite ADR-0014 used
   scaled to the larger corpus, automated `exact_match` scorer): baseline
@@ -112,7 +113,7 @@ scorer performs whitespace/case-normalized full-string containment of the
 entire expected answer inside the model's greedy decode; `meta_trainer`'s
 reference answers are full explanatory sentences/paragraphs (462-1271
 characters for the 28 items new to corpus v3), not short factual strings.
-'s independent review confirms this scorer is structurally
+An independent review confirms this scorer is structurally
 incapable of a nonzero score on this task shape regardless of training
 quality, and that this applies at least as strongly to the v3 corpus's newer,
 more-qualified reference answers as to the original v2 ones — `exact_match`
@@ -121,8 +122,9 @@ zero progress." Because of this, an independent manual rubric review (4-axis
 0/1 human-equivalent scoring: technical_conclusion,
 reasoning_and_qualification, evidence_discipline,
 uncertainty_refusal_boundary, 0-4 scale) was run on the same fixed 20
-held-out items across all four conditions (for
-baseline/ADR-0013/ADR-0014, for ADR-0015, re-applying the
+held-out items across all four conditions (using the same baseline rubric
+review for baseline/ADR-0013/ADR-0014 and the follow-on rubric review for
+ADR-0015, re-applying the
 identical standard). That review is the real, complete picture and belongs in
 this record alongside the exact-match discussion above:
 
@@ -160,13 +162,13 @@ this record alongside the exact-match discussion above:
   same 20 items — it provides no cross-check support for the rubric trend in
   either direction.
 - This is 4 data points at 2 corpus sizes (40, 112) on one 135M-parameter
-  model — 's own analysis calls the sequence "suggestive rather
+  model — the rubric reviewer's own analysis calls the sequence "suggestive rather
   than statistically decisive," not proof that continued corpus growth will
   keep improving the rubric mean at the same rate, or at all.
 
 Full detail, per-item rationale, and the complete family-level breakdown are
-in 's artifact
-(`(reviewer's local evidence archive)`),
+in the reviewer's artifact
+(a reviewer's local evidence archive),
 independently reviewed by Maya as part of this PR's own review cycle.
 
 ## Conclusion for the record
@@ -181,7 +183,8 @@ structurally incapable of moving.** The meta-trainer target task has read
 exactly `0.0%` at four independent measurement points (untrained baseline,
 and three separately trained candidates: ADR-0013, ADR-0014, ADR-0015), each
 with a different corpus size and/or hyperparameter configuration.
-and both independently diagnose this as a structural
+Both the root-cause diagnosis and the independent rubric review
+independently diagnose this as a structural
 scorer-shape mismatch — full-sentence string containment against a 135M
 model's free-form generation — not a training-quality signal. This flat
 result is real, but per the analysis above it is not informative about
@@ -269,7 +272,7 @@ redesigning the `meta_trainer` scorer away from exact-match string-containment
 toward a rubric- or judge-based scorer suited to free-form sentence-length
 answers — non-blocking relative to the method-choice decision, and would
 additionally remove the need for manual rubric review on future runs
-('s own recommendation, still undecided); and (b) a different
+(the root-cause diagnosis's own recommendation, still undecided); and (b) a different
 training method (e.g. LoRA/PEFT) or a larger/different base model. Whichever
 path Rook selects, item `mtr-v2-heldout-0013`'s new critical error in the
 `confabulated_recipe_detection` family is a concrete, unresolved
@@ -280,7 +283,7 @@ Per this project's own `AGENTS.md` finding-category taxonomy, the correct
 category for this record is `evidence-gap`/`improvement` (mixed real signal
 requiring a human decision) rather than `negative-result` — the earlier draft
 of this record incorrectly characterized the accumulated evidence as
-uniformly negative before 's rubric review was incorporated; see
+uniformly negative before the independent rubric review was incorporated; see
 "Revision history" below.
 
 ## What this record does and does not authorize
@@ -320,10 +323,10 @@ comparison above to reflect a hypothetical or predicted outcome.
 - 2026-09-22, initial version (PR #91): drafted using only the automated
   `exact_match` scorer result (`meta_trainer` `0.0%` -> `0.0%`) and concluded
   the accumulated evidence was uniformly negative across all four cycles
-  (`negative-result`). This omitted 's independent manual rubric
+  (`negative-result`). This omitted the independent manual rubric
   review of the ADR-0015 candidate, which existed before this PR was opened
   but had not yet been incorporated.
-- 2026-09-22, this revision: incorporates 's real manual rubric
+- 2026-09-22, this revision: incorporates the independent reviewer's real manual rubric
   score for ADR-0015 (`0.65/4.0`) and the resulting strictly-monotonic 4-run
   rubric trend (`0.15 -> 0.35 -> 0.45 -> 0.65`), per Maya's review of PR #91
   (round 1). Replaces the prior uniformly-negative conclusion with the
@@ -333,8 +336,8 @@ comparison above to reflect a hypothetical or predicted outcome.
   the promotion bar, and zero exact-match corroboration. Explicitly declines
   to assert a directional recommendation ("continue corpus growth" or
   "pivot method") as this document's own conclusion, per Maya's review
-  finding that such a recommendation would go beyond what 's
+  finding that such a recommendation would go beyond what the reviewer's
   source analysis itself supports; that method-choice decision is left
   explicit and open for Rook. The scorer-replacement suggestion
-  ('s recommendation) is retained as a named, non-blocking next
+  (the root-cause diagnosis's recommendation) is retained as a named, non-blocking next
   step, consistent with the original draft.

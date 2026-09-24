@@ -98,7 +98,7 @@ this drafting session (not merely asserted):
 3. The real installed `trl==0.24.0`'s `DPOConfig.beta` default is `0.1` —
    confirmed by direct `inspect.signature()` introspection of the installed
    package in `.venv-adr0014-test`, not from documentation alone (see
-   's independent review, which confirmed the same fact
+   the ADR-0017 review's independent verification, which confirmed the same fact
    independently).
 4. LoRA's core mechanism (freeze base, learn low-rank `BA` update) per the
    LoRA paper already cited as source `[6]` in this project's own
@@ -132,7 +132,7 @@ This package does not assert:
   names — the 27.3% counter-direction share is this package's concrete
   mitigation, but its *effectiveness* is an empirical question for the
   eventual training cycle's own held-out measurement (per Marcus's
-  non-blocking recommendation on: the execution-config
+  non-blocking recommendation on the PR #97 review: the execution-config
   document should make the counter-direction share's effect an explicit
   measured post-training success/failure criterion against the
   `uncertainty_refusal_boundary` rubric axis);

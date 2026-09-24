@@ -151,23 +151,23 @@ not as this record's own conclusion.
   The target confabulation-refusal improvement this ADR stated it was aimed
   at producing did not happen.
 
-## Rubric scoring: same 20-item set, same 4-axis method, same error taxonomy as
+## Rubric scoring: same 20-item set, same 4-axis method, same error taxonomy as earlier reviews
 
 An independent manual rubric review (4-axis 0/1 scoring:
 `technical_conclusion`, `reasoning_and_qualification`, `evidence_discipline`,
 `uncertainty_refusal_boundary`, 0-4 scale per item) was performed on the
 ADR-0018 candidate's raw outputs on the same fixed 20 held-out items
-(`mtr-v2-heldout-0001`..`0020`) used by every prior rubric review
-, by the same standard. Full scoring sheet, with
-per-item rationale and reference answers:
-`(reviewer's local evidence archive)`,
-SHA-256 `9d3b842547876644a271ed7fb5a3b2919ad95b649cb9f2bfa881de730ebe7272`.
+(`mtr-v2-heldout-0001`..`0020`) used by every prior rubric review,
+by the same standard. Full scoring sheet, with
+per-item rationale and reference answers held in a reviewer's local
+evidence archive, SHA-256
+`9d3b842547876644a271ed7fb5a3b2919ad95b649cb9f2bfa881de730ebe7272`.
 
 For 18 of these 20 items, the ADR-0018 candidate's raw output is
 byte-identical to the ADR-0018 baseline's raw output on the same item, so
 those 18 items carry forward the same score the baseline scores at (the
 untrained checkpoint, which is the same checkpoint scored as "baseline" in
-every prior rubric sheet back to). The 2 items whose text
+every prior rubric sheet). The 2 items whose text
 differs (`mtr-v2-heldout-0013`, `mtr-v2-heldout-0018`) were independently
 re-scored fresh against the reference answer; both land at `0/4`, the same
 score as their own unchanged-text baseline counterpart, because the wording
@@ -183,7 +183,7 @@ change in each case did not change the underlying failure category.
   scored). **This regresses below the stated floor.**
 - **Critical errors: 3 items** (`mtr-v2-heldout-0010`, `mtr-v2-heldout-0012`,
   `mtr-v2-heldout-0017`) — the same three items the untrained baseline
-  checkpoint has always scored critical on, back to 's original
+  checkpoint has always scored critical on, back to the original
   baseline measurement. None of these three items were critical in
   ADR-0015's candidate (whose own critical set was `{mtr-v2-heldout-0003,
   mtr-v2-heldout-0013}`, a materially different pair driven by that run's
@@ -193,7 +193,9 @@ change in each case did not change the underlying failure category.
   condition is met: none of items 0010/0012/0017 were part of ADR-0015
   candidate's critical set, so each is "new" relative to that specific
   comparator, even though all three are identical in substance to the
-  original untrained baseline's own long-standing failures (present since) and are not new failures introduced by this DPO run itself.
+  original untrained baseline's own long-standing failures, present since
+  the original baseline measurement, and are not new failures introduced by
+  this DPO run itself.
   This record applies the criterion exactly as ADR-0018 wrote it, per this
   task's explicit instruction not to reinterpret it after the fact, and
   separately notes the substantive context: this DPO cycle did not newly

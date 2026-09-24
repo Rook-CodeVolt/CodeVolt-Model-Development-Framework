@@ -233,8 +233,8 @@ per this task's instruction):** the `uncertainty_refusal_boundary` rubric
 axis must not regress below its last real measured value. The only real
 measured value for this axis is **ADR-0015's: 5/20 items = 0.25/1.0 axis
 mean** (independently recomputed for this document from
-'s own artifact,
-`(reviewer's local evidence archive)`,
+the earlier rubric reviewer's own artifact,
+(a reviewer's local evidence archive),
 `part2_adr0015_candidate_rubric_scored_on_shared_20_item_set` items, summing
 the `uncertainty_refusal_boundary` field across all 20 items: baseline 2/20 =
 0.10, ADR-0013 3/20 = 0.15, ADR-0014 4/20 = 0.20, ADR-0015 5/20 = 0.25).
@@ -258,7 +258,7 @@ Numeric recipes must be supported by cited evidence...") should move away
 from ADR-0014/0015/0016's shared pattern of confidently endorsing or
 inventing the confabulated recipe, toward a correct, hedged "No" — this is
 the specific behavior the entire ADR-0015 -> ADR-0016 -> ADR-0017 chain has
-been aimed at since 's original diagnosis.
+been aimed at since the ADR-0015-regression root-cause diagnosis.
 
 **What counts as a negative outcome (stated in advance, per this project's
 own honesty discipline):** any of the following, individually, is a negative

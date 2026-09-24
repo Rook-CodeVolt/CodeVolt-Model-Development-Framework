@@ -446,7 +446,7 @@
       }
     ],
     "citations": [
-      "local evidence file./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, baseline.capability_retention.aggregate_score=0.3 (3/10 correct) vs candidate.capability_retention.aggregate_score=0.0 (0/10 correct)",
+      "local evidence at ./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, baseline.capability_retention.aggregate_score=0.3 (3/10 correct) vs candidate.capability_retention.aggregate_score=0.0 (0/10 correct)",
       "docs/decisions/0014-corrected-bounded-metatrainer-cycle.md, lines 20-24, 26-28 (results table and degeneration description), commit 48db05916a8e653a7c1d4e601ef0d8521096e2d7 (PR #86)"
     ],
     "split": "held_out",
@@ -467,7 +467,7 @@
     ],
     "citations": [
       "docs/decisions/0014-corrected-bounded-metatrainer-cycle.md, \"Rationale: fresh run id, approval namespace, and host paths\" section, lines 132-145: \"ADR-0013's existing signatures do not verify against ADR-0014's documents\"",
-      "local evidence file./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, gate.verified_approvals (security/dataset/owner) each scoped to run_id=adr0013-metatrainer-sft-20260920 and implementation_sha=13b316e6bea25d141ecf1c89284e40e68a1b3ff9"
+      "local evidence at ./local-evidence/adr0013/scratch/adr0013-metatrainer-sft-20260920/cycle_result.json, gate.verified_approvals (security/dataset/owner) each scoped to run_id=adr0013-metatrainer-sft-20260920 and implementation_sha=13b316e6bea25d141ecf1c89284e40e68a1b3ff9"
     ],
     "split": "held_out",
     "source_scope": "Repository history, governance_stop_and_reject_trigger_fires_correctly_heldout"
@@ -727,7 +727,7 @@
     "semantic_family": "hallucination_incentive_diagnosis",
     "source_scope": "Calibration corpus, CC10",
     "citations": [
-      "Repository evidence:, root-cause diagnosis of the exact_match scorer's lack of dynamic range for free-form answers",
+      "Repository evidence: root-cause diagnosis of the exact_match scorer's lack of dynamic range for free-form answers",
       "[26] Kalai et al., Why Language Models Hallucinate — corpus-level behavior change does not by itself alter a scoring function's incentive structure"
     ],
     "messages": [
@@ -902,7 +902,7 @@
     "semantic_family": "sampling_consistency_application",
     "source_scope": "Calibration corpus, CC11",
     "citations": [
-      "Repository evidence:, root-cause diagnosis of exact-match scorer's lack of dynamic range for free-form sentence-length answers",
+      "Repository evidence: root-cause diagnosis of exact-match scorer's lack of dynamic range for free-form sentence-length answers",
       "[27] Manakul, Liusie, and Gales, SelfCheckGPT — addresses output-consistency, a different question from reference-answer matching"
     ],
     "messages": [

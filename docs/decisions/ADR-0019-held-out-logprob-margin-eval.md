@@ -101,7 +101,7 @@ test, not overturn the NEGATIVE verdict already recorded.
 
 - **Size:** 20 pairs. Rationale: matches this project's own standing
   fixed-rubric-set convention (`mtr-v2-heldout-0001`..`0020`, used by every
-  manual rubric review since) for continuity of scale, and is
+  manual rubric review to date) for continuity of scale, and is
   large enough to support the paired non-parametric test in section 3 at
   the (limited) power this document states honestly below, without being so
   large that construction cost or contamination-audit burden becomes
@@ -350,7 +350,7 @@ test, not overturn the NEGATIVE verdict already recorded.
   (this is 80 forward passes, not a 22-step training loop); `max_memory_mb`
   at or below ADR-0018's own measured **evaluation-phase** peak of
   `1,052.875` MB (all three of ADR-0018's own baseline/candidate evaluation
-  phases stayed at or under that figure, per 's own reported
+  phases stayed at or under that figure, per that execution's own reported
   measurement) — this evaluation's own execution card must independently
   re-measure and confirm, not assume, this ceiling holds for 20 pairs
   instead of ADR-0018's 48+10+15-item suites.
