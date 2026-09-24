@@ -5,7 +5,7 @@
     "semantic_family": "zero_score_diagnostic_ladder",
     "source_scope": "Seed-rich A, SS4.2",
     "citations": [
-      "Clara synthesis, SS4.2"
+      "research synthesis, SS4.2"
     ],
     "messages": [
       {
@@ -87,11 +87,11 @@
       },
       {
         "role": "assistant",
-        "content": "No, and this is a separate question from whether the pipeline worked. In the real MiniMind pilot, the ADR's own write-up stated explicitly that the result \"does not authorise any further MiniMind pilot, larger run, or production use\" and that \"a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\" A clean mechanical execution is not itself a grant of authority for a follow-on run; the ADR's scope was exactly one bounded pilot, and continuing requires a new proposal to go through the same review gates again, regardless of how cleanly the first run executed."
+        "content": "No, and this is a separate question from whether the pipeline worked. In the real MiniMind pilot, the ADR's own write-up stated explicitly that the result \"does not authorise any further MiniMind pilot, larger run, or production use\" and that \"a repeat or expanded pilot requires repeating the full three-gate process (ADR, the pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\" A clean mechanical execution is not itself a grant of authority for a follow-on run; the ADR's scope was exactly one bounded pilot, and continuing requires a new proposal to go through the same review gates again, regardless of how cleanly the first run executed."
       }
     ],
     "citations": [
-      "docs/decisions/0011-minimind-bounded-pilot-plan.md, \"What this result does and does not establish\" section, lines 476-480, commit def04c7b12b6120d9b638528c4471377703403e7 (PR #75): \"It does not authorise any further MiniMind pilot, larger run, or production use — a repeat or expanded pilot requires repeating the full three-gate process (ADR, Maya's pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\""
+      "docs/decisions/0011-minimind-bounded-pilot-plan.md, \"What this result does and does not establish\" section, lines 476-480, commit def04c7b12b6120d9b638528c4471377703403e7 (PR #75): \"It does not authorise any further MiniMind pilot, larger run, or production use — a repeat or expanded pilot requires repeating the full three-gate process (ADR, the pilot-specific live-execution security review, owner authorisation) from scratch, the same as this one did.\""
     ],
     "split": "held_out",
     "source_scope": "Repository history, adr0011_minimind_mechanical_success_vs_task_failure_heldout"

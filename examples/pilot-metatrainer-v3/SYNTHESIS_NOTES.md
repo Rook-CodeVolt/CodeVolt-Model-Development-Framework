@@ -1,11 +1,11 @@
-# Synthesis notes — meta-trainer corpus v3 (`Marcus synthesis, MSx`)
+# Synthesis notes — meta-trainer corpus v3 (`research synthesis, MSx`)
 
-This is the v3 analogue of Clara's `SSX.X` synthesis-locator registry from
+This is the v3 analogue of corpus v2's `SSX.X` synthesis-locator registry from
 `examples/pilot-metatrainer-v2/SOURCE_MAP.md`. Each entry below names the
 exact record(s) in `train.jsonl` / `held_out.json` that cite it, the specific
 numbered source(s) in `SOURCE_MAP.md` (or repository evidence) the synthesis
 draws on, and the added inferential step that no single cited source states
-on its own. Per this corpus's citation policy, a `Marcus synthesis, MSx` label
+on its own. Per this corpus's citation policy, a `research synthesis, MSx` label
 is only used where the underlying claim genuinely requires combining sources
 or drawing a conclusion beyond what any one source states outright; where a
 single source directly supports the claim, the record cites that source

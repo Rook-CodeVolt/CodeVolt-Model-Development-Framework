@@ -3,8 +3,8 @@
 
 Extends corpus v2's validator with: a larger corpus size window (100-120 train
 / 40-50 held-out instead of a fixed 40/20), 23 semantic families instead of 8,
-a broader citation-locator format (numbered Clara sources [1]-[23], numbered
-new sources [24]-[30], "Marcus synthesis, MSx" labels, and free-text
+a broader citation-locator format (numbered carried-forward sources [1]-[23], numbered
+new sources [24]-[30], "research synthesis, MSx" labels, and free-text
 repository-evidence/file-path/internal-task locators for the history and
 confabulation-evidence families), and the same disjoint-split, unique-id,
 manifest-consistency, and forbidden-content checks as v2.
@@ -40,14 +40,14 @@ def main():
     check("per_example_citations", all(isinstance(r["citations"], list) and r["citations"] for r in records))
     check("message_schema", all(len(r["messages"]) == 2 and r["messages"][0]["role"] == "user" and r["messages"][1]["role"] == "assistant" for r in records))
 
-    # Citation-locator format: allow (a) numbered [1]-[30] sources, (b) "Marcus
-    # synthesis, MSx" labels, (c) "Clara synthesis, SSx.x" labels carried
+    # Citation-locator format: allow (a) numbered [1]-[30] sources, (b) "research
+    # synthesis, MSx" labels, (c) "research synthesis, SSx.x" labels carried
     # forward unchanged from v2 records, (d) free-text locators that begin
     # with one of the recognized repository-evidence prefixes used by the
     # history-addition and confabulation-evidence families.
     numbered = re.compile(r"^\[(?:[1-9]|[12]\d|30)\]")
-    marcus_synth = re.compile(r"^Marcus synthesis, MS\d+$")
-    clara_synth = re.compile(r"^Clara synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5)\b")
+    marcus_synth = re.compile(r"^research synthesis, MS\d+$")
+    clara_synth = re.compile(r"^research synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5)\b")
     repo_evidence_prefixes = (
         "docs/decisions/", "examples/pilot-adr", "internal tracking item ",
         "local evidence file ", "Repository evidence:", "src/codevolt_mdf/",

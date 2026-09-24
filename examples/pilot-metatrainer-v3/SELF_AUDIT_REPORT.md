@@ -1,12 +1,12 @@
 # Self-audit report — meta-trainer corpus v3 (ADR-0015 proposal)
 
-Author: marcus (the same task that drafted this corpus). Per this project's own
+Author: this same task that drafted this corpus. Per this project's own
 established precedent (`examples/metatrainer-corpus-addition-training-history/DATASET_CARD.md`'s
 own self-audit section, and the corpus v2 audit history — tasks), **this is a self-review, not a
 substitute for an independent audit.** A drafting task auditing its own output
 is not equivalent to an independent, no-sampling re-verification from a fresh
 session with no stake in the content being accepted. This report exists so a
-reviewer (independent audit task, then Maya) has a concrete starting checklist
+reviewer (independent audit task, then the security reviewer) has a concrete starting checklist
 and a record of what was actually checked and how, not as a claim that this
 corpus is already independently accepted.
 
@@ -229,7 +229,7 @@ Proceed to: (1) open the PR proposing this corpus for repository admission,
 documenting this self-audit's exact scope and the two flagged
 not-yet-independently-confirmed citation items; (2) request an independent
 audit of the 88 new records (same rigor as) as a
-follow-up task before any merge decision; (3) Maya's security/dataset-rights
+follow-up task before any merge decision; (3) the security/dataset-rights
 review, per this project's standing governance pattern, gates merge
 regardless of the independent-audit outcome. This self-audit alone does not
 constitute acceptance.
@@ -243,7 +243,7 @@ the 2 ORIGINAL records kept as scaffolding (`mtr-v3n-train-0033`,
 evidence in this file's "Repository-evidence verification" section above —
 unchanged, not re-audited here). Same self-review caveat as above applies:
 this is the drafting task auditing its own new output, not a substitute for
-Maya's mandatory review or an independent audit pass.
+the mandatory security review or an independent audit pass.
 
 C1/C5 (claims trace to the actual cited source; locator supports the specific
 claim): every new record's citations were checked against `SOURCE_MAP.md`'s
@@ -279,5 +279,5 @@ single memorized string.
 
 Known limitation carried forward: same as item 1 above — this addendum is
 a self-review by the same task that authored the change; it does not
-substitute for Maya's mandatory security/dataset-rights review before
+substitute for the mandatory security/dataset-rights review before
 merge, which this task explicitly requests as the next step.

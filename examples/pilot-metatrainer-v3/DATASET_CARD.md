@@ -57,8 +57,8 @@ Every record, across all three sources, contains:
 - an explicit `semantic_family`;
 - a `source_scope`;
 - a non-empty `citations` array with a locator resolvable in `SOURCE_MAP.md`,
-  a "Marcus synthesis, MSx" label resolvable in `SYNTHESIS_NOTES.md`, a
-  "Clara synthesis, SSx.x" label (carried-forward v2 records only), or a
+  a "research synthesis, MSx" label resolvable in `SYNTHESIS_NOTES.md`, a
+  "research synthesis, SSx.x" label (carried-forward v2 records only), or a
   direct repository-evidence locator (file path, internal tracking item id, or commit);
 - one user message and one assistant answer.
 
@@ -201,13 +201,13 @@ train-only and `mtr-v2-heldout-0013` remains `held_out`, both verified by
 ## Citation policy
 
 Direct factual claims use a numbered source `[N]` (`[1]`-`[23]` carried
-forward from Clara's bibliography, `[24]`-`[30]` newly added and fetched
+forward from the corpus v2 bibliography, `[24]`-`[30]` newly added and fetched
 directly during this proposal's drafting) where that source directly supports
 the statement. Cross-source or generalizing conclusions that no single
-numbered source states on its own are labeled `Marcus synthesis, MSx` and
-recorded in `SYNTHESIS_NOTES.md`, the v3 analogue of Clara's `SSX.X` locators,
+numbered source states on its own are labeled `research synthesis, MSx` and
+recorded in `SYNTHESIS_NOTES.md`, the v3 analogue of corpus v2's `SSX.X` locators,
 naming the specific source(s) the synthesis draws on and the added inferential
-step. Carried-forward v2 records retain their original `Clara synthesis,
+step. Carried-forward v2 records retain their original `research synthesis,
 SSX.X` labels unchanged. Direct repository evidence (an exact on-disk
 evidence-file field path, a internal task's recorded metadata, a specific
 commit, or a specific markdown section/line range at a specific commit) is
@@ -265,11 +265,11 @@ ADR-0013's already-consumed approvals.
 - `REPRESENTATIVE_EXAMPLES.json`: six exact records copied programmatically
   from the generated corpus, spanning all three provenance sources and the
   one audit-fixed record.
-- `SOURCE_MAP.md`: carried-forward Clara sources `[1]`-`[23]` plus newly
+- `SOURCE_MAP.md`: carried-forward sources `[1]`-`[23]` plus newly
   fetched sources `[24]`-`[30]`, each with the specific verified claim it
   supports.
-- `SYNTHESIS_NOTES.md`: the `Marcus synthesis, MSx` locator registry, the v3
-  analogue of Clara's `SSX.X` sections.
+- `SYNTHESIS_NOTES.md`: the `research synthesis, MSx` locator registry, the v3
+  analogue of corpus v2's `SSX.X` sections.
 - `generate_corpus.py`: deterministic generator; merges the two carried-forward
   sources unchanged (plus the one documented audit fix) and appends the new
   material; does not modify any file under `pilot-metatrainer-v2/` or
@@ -294,7 +294,7 @@ ADR-0013's already-consumed approvals.
    explicitly not touching `pilot-metatrainer-v2/` or
    `metatrainer-corpus-addition-training-history/`, and not changing the
    frozen ADR-0013/ADR-0014 `dataset_hash` values those ADRs gate on.
-3. Maya security/dataset-rights review of that PR, per this repository's
+3. Security/dataset-rights review of that PR, per this repository's
    existing governance pattern for anything proposed for the training corpus.
 4. Repository admission (if it happens) does not by itself authorize any
    training run; a new, separate governance decision (with its own fresh

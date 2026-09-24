@@ -1,7 +1,7 @@
 # Source map — meta-trainer corpus v3
 
 This corpus reuses sources [1]-[23] verbatim from `examples/pilot-metatrainer-v2/SOURCE_MAP.md`
-(Clara's 2026-09-20 research bibliography) for continuity of the
+(the 2026-09-20 research bibliography) for continuity of the
 established, already-independently-audited source classes, and adds sources [24]-[30], each
 directly fetched and read in full (abstract/body text, not paraphrased from a secondary summary)
 during the drafting of this corpus on 2026-09-22. No source below was reproduced verbatim in any
@@ -127,9 +127,9 @@ fewer hallucinated errors but also fewer overall correct answers than the lower-
 
 Direct factual claims use a numbered source `[N]` where that source directly supports the
 statement. Cross-source or generalizing conclusions that no single numbered source states on its
-own are labeled `Marcus synthesis, MSx` and resolved against `SYNTHESIS_NOTES.md` in this same
-directory (the v3 analogue of Clara's `SSX.X` locators) rather than being misattributed to one
-topically related source. `Marcus synthesis` labels are used only where the corresponding
+own are labeled `research synthesis, MSx` and resolved against `SYNTHESIS_NOTES.md` in this same
+directory (the v3 analogue of corpus v2's `SSX.X` locators) rather than being misattributed to one
+topically related source. `research synthesis` labels are used only where the corresponding
 `SYNTHESIS_NOTES.md` entry itself names the specific numbered source(s) the synthesis step draws
 on and states the added inferential step explicitly, so the chain from claim to source is always
 traceable.
