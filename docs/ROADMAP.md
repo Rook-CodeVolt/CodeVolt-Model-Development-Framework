@@ -6,6 +6,8 @@ For an evidence-led view of where the next real effort should go and why — inf
 
 The meta-trainer's mission, capability map, authority model, and evaluation strategy — including the sequenced roadmap of the next several ADRs, starting with a training-free baseline measurement — are recorded in [ADR-0021](decisions/ADR-0021-metatrainer-mission-and-capability-map.md), which supersedes ADR-0013's original narrower mission framing without reopening ADR-0013's own gates or recorded outcome.
 
+[ADR-0022](decisions/ADR-0022-baseline-task-outcome-eval.md) preregisters the first item on that roadmap: a training-free, mechanically-scored task-outcome baseline for the C1 (method/tool selection), C2 (procedural execution), and C4 (knowing its limits) capabilities, measured against the current candidate and reference checkpoints, with a preregistered floor-effect guard and a single independent-review gate. It builds no item set and authorizes no training, promotion, or execution by itself.
+
 ## v0.1 — Foundation
 
 - Versioned experiment contract and locked manifests.
