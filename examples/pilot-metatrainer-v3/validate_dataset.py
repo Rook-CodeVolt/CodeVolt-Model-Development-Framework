@@ -46,8 +46,8 @@ def main():
     # with one of the recognized repository-evidence prefixes used by the
     # history-addition and confabulation-evidence families.
     numbered = re.compile(r"^\[(?:[1-9]|[12]\d|30)\]")
-    marcus_synth = re.compile(r"^research synthesis, MS\d+$")
-    clara_synth = re.compile(r"^research synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5)\b")
+    engineering_synth = re.compile(r"^research synthesis, MS\d+$")
+    research_synth = re.compile(r"^research synthesis, SS(?:1\.1|1\.2|1\.3|2|3\.2|3\.3|4\.1|4\.2|5)\b")
     repo_evidence_prefixes = (
         "docs/decisions/", "examples/pilot-adr", "internal tracking item ",
         "local evidence file ", "Repository evidence:", "src/codevolt_mdf/",
@@ -57,9 +57,9 @@ def main():
     def locator_ok(c):
         if numbered.match(c):
             return True
-        if marcus_synth.match(c):
+        if engineering_synth.match(c):
             return True
-        if clara_synth.match(c):
+        if research_synth.match(c):
             return True
         return any(c.startswith(p) for p in repo_evidence_prefixes)
 

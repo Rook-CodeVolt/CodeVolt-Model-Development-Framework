@@ -38,7 +38,7 @@ def test_fabricated_legacy_approval_strings_are_rejected(runner, tmp_path):
     gate = {
         "approved": True,
         "implementation_sha": _head(runner),
-        "maya_review_ref": "approved",
+        "security_review_ref": "approved",
         "owner_authorization_ref": "yes",
         "dataset_admission_ref": "placeholder",
         "dataset_licence": "whatever",
