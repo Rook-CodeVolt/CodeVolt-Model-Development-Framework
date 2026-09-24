@@ -454,7 +454,7 @@ blocked until holder-supplied public keys are reviewed and merged. Arbitrary
 references, local booleans, placeholders, missing roles, stale signatures, or
 untrusted keys fail closed. The signed documents record:
 
-- Maya's exact-candidate decision, including both
+- the exact-candidate security decision, including both
   `evaluator-process-containment-v1` and
   `complete-cycle-host-containment-v1`;
 - the owner's confirmation for this exact implementation, dataset decision and run id;
@@ -463,8 +463,8 @@ untrusted keys fail closed. The signed documents record:
 Before execution, all of the following must be true:
 
 1. This ADR, the runner, and the live-execution plan are merged or otherwise checked
-   out at the exact SHA reviewed by Maya.
-2. Maya has approved sandbox/filesystem boundaries, offline behavior, dependency and
+   out at the exact SHA reviewed by the security reviewer.
+2. The security reviewer has approved sandbox/filesystem boundaries, offline behavior, dependency and
    model identity, evidence handling, MPS/resource limitations, safe-stop behavior,
    and the exact command. A general adapter review is insufficient.
 3. An independent rights/privacy reviewer has admitted this dataset for the declared

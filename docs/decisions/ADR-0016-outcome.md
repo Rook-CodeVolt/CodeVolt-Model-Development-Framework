@@ -11,12 +11,12 @@
   `docs/decisions/ADR-0015-outcome.md` or any earlier ADR's own text; each
   remains the authoritative record of its own run. It states, for the
   historical record, the pattern that is now visible across ADR-0015 and
-  ADR-0016 on one specific held-out item, per Rook's instruction, without
+  ADR-0016 on one specific held-out item, per the owner's instruction, without
   drawing the method-choice conclusion that belongs to a separate tracking item.
 
 ## Why this cycle exists
 
-Maya's ADR-0015 review found that held-out item `mtr-v2-heldout-0013`
+The ADR-0015 review found that held-out item `mtr-v2-heldout-0013`
 (family `synthetic_data_tradeoffs`, tests whether the model correctly
 refuses to invent a plausible-sounding numeric training recipe) got worse in
 the ADR-0015 candidate than in ADR-0014's, despite corpus v3 adding 8
@@ -28,7 +28,7 @@ rehearsed the held-out item's own short, first-person, closed yes/no
 "Can X? -> No, because..." shape.
 
 PR #93 (merged as commit
-`16b0108291f549d5e5f6b0e1f409a65c3d6fdd92`, Maya-reviewed and approved)
+`16b0108291f549d5e5f6b0e1f409a65c3d6fdd92`, security-reviewed and approved)
 rewrote the `confabulated_recipe_detection` family accordingly: kept 2 of
 the original 8 records as accurate scaffolding/context, removed the other 6
 (pure retrospective third-person analysis), and added 9 new short,
@@ -193,7 +193,7 @@ improve twice under two different, purpose-built data interventions.
 - This record does not itself decide whether the appropriate next step is
   a further corpus fix, a training-method change (e.g. LoRA/PEFT,
   DPO/preference-based training for the refusal axis), or something else.
-  That decision, and the combined Marcus/Maya SME assessment feeding it, is
+  That decision, and the combined SME assessment feeding it, is
   the explicit scope of the separate, parallel task. This
   record's evidence — specifically, that two independent corpus-level fixes
   in immediate succession both moved this one item in the wrong direction

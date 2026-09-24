@@ -21,7 +21,7 @@ on its own.
   proposes that a round's completion triggers, schedules, or
   pre-approves the next round. Every round — round 1, round 2, round
   N — requires its own ADR (mirroring ADR-0006/ADR-0011's shape), its
-  own gating sequence (ADR drafted -> Maya's pilot-specific
+  own gating sequence (ADR drafted -> the pilot-specific
   live-execution security review -> owner authorization), and its own
   resource envelope, evaluation criteria, and promotion gate. This
   document does not shorten, automate, or pre-clear any of those
@@ -48,7 +48,7 @@ scored `0.7` on 10 held-out arithmetic examples, 3 wrong) or if a
 regression comparison flags previously-passing examples now failing,
 that evidence is currently a dead end: nothing in this framework's
 existing documentation says how a human would use it to shape what
-gets tried next. Issue #46 (goal, owner via Rook, 2026-09-18) is
+gets tried next. Issue #46 (goal, owner authority, 2026-09-18) is
 explicit that the actual objective is "a real feedback loop: a
 candidate trains, is independently evaluated against held-out data,
 the result feeds an evidence-led decision about the next round — not
@@ -171,21 +171,21 @@ Per issue #46's own scope: each future round still requires its own
 ADR-authorized bounded pilot (mirroring ADR-0006/ADR-0011's exact
 structure — Context, Decision with Model/Dataset/Concurrency/Resource
 limits/Filesystem/Independent evaluation wiring/Kill criteria, Gating
-naming the same three-step sequence), its own gating (Maya's
+naming the same three-step sequence), its own gating (the security reviewer's
 live-execution review scoped to that exact run's configuration if it
 materially changed from the last cleared one — see "Recommendation"
 below for what "materially changed" might mean, proposed, not
 decided), and owner authorization. No round is authorized to modify
 its own evaluation criteria, promotion gate, or resource envelope —
 those remain drafted by a human in that round's own ADR and reviewed
-by the same independent parties (Maya, then owner) every prior round
+by the same independent parties (the security reviewer, then owner) every prior round
 went through. This document is a design for an evidence chain *across*
 authorized rounds; it is not, and does not propose to become, standing
 or unattended authority to keep training.
 
-## Recommendation (not a decision): a lighter Maya re-review path for materially-unchanged configurations
+## Recommendation (not a decision): a lighter re-review path for materially-unchanged configurations
 
-This is framed as a proposal for Maya to accept or reject, not a
+This is framed as a proposal for the security reviewer to accept or reject, not a
 fait accompli — analogous in spirit to issue #37's doc-only
 stale-review fast path, but for a *security* review, which is a
 higher-stakes class of gate than a documentation-freshness check, so
@@ -193,12 +193,12 @@ this recommendation is deliberately narrower and more conservative
 than that precedent.
 
 **The proposal**: if round N+1's configuration is *materially
-unchanged* from a configuration Maya has already cleared for live
+unchanged* from a configuration the security reviewer has already cleared for live
 execution in round N — same pinned engine commit/version, same
 resource budget table, same filesystem/network posture, same
 subprocess-invocation code path (i.e., no adapter code changed between
-round N's cleared review and round N+1's proposed run) — Maya could
-elect a **lighter-touch re-review**: re-verify the specific deltas
+round N's cleared review and round N+1's proposed run) — the security reviewer
+could elect a **lighter-touch re-review**: re-verify the specific deltas
 (new dataset content/hash, new held-out package id, the model
 checkpoint provenance if it changed) rather than repeating the full
 sandbox/egress/secrets/supply-chain/safe-stop review from scratch.
@@ -229,12 +229,12 @@ only the reviewer is positioned to make each time). This document
 takes no position on whether that judgment call should ever resolve to
 "yes, lighter review is safe here" — it names the option, scopes what
 would and would not qualify, and leaves the accept/reject call to
-Maya, per round, not as a standing policy this document establishes
+the security reviewer, per round, not as a standing policy this document establishes
 unilaterally.
 
 ## Summary: the loop, end to end
 
-1. Round N's ADR is drafted, reviewed (Maya's live-execution review,
+1. Round N's ADR is drafted, reviewed (the security reviewer's live-execution review,
    full scope, always — round N is round N's own first exercise of
    whatever configuration it proposes), authorized, and executed.
 2. Round N's trained artifact is scored via
@@ -252,8 +252,8 @@ unilaterally.
    generated from it, proposing a dataset shape/evaluation focus that
    targets step 3's findings.
 5. Round N+1's ADR goes through the same three-gate sequence round N
-   did: ADR drafted -> Maya's pilot-specific live-execution security
-   review (full scope by default; lighter-touch only if Maya
+   did: ADR drafted -> the pilot-specific live-execution security
+   review (full scope by default; lighter-touch only if the security reviewer
    affirmatively elects the recommendation above for that specific
    round) -> owner authorization.
 6. Round N+1 executes (if authorized), producing its own
@@ -261,7 +261,7 @@ unilaterally.
    incremented — each iteration a separate, fully gated decision, not
    an accumulating standing authority.
 
-No step in this sequence is unattended. No step skips Maya's review
+No step in this sequence is unattended. No step skips the security review
 by default. No step skips owner authorization. The only thing that
 repeats without renegotiation is the *mechanism* used to compare
 rounds (`regression_check.py`) and the *shape* of the ADR each round

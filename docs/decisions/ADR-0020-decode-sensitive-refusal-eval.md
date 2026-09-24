@@ -24,10 +24,10 @@
   (PR #101) — the negative decode-level (greedy-argmax) verdict this
   evaluation is a second, different attempt to probe with a decode-level
   method, this time non-greedy.
-- Owner decision (Rook), recorded here per instruction: of the two SME
-  recommendations following ADR-0019's outcome record — Maya's
-  decode-sensitive scoring method, and Marcus's targeted expansion of the
-  refusal-direction held-out subset — the next step is Maya's
+- Owner decision, recorded here per instruction: of the two SME
+  recommendations following ADR-0019's outcome record — the
+  decode-sensitive scoring method, and a targeted expansion of the
+  refusal-direction held-out subset — the next step is the
   decode-sensitive scoring, for three stated reasons: (1) it tests the
   question that matters for the project directly — does the real held-out
   probability shift ADR-0019 measured (20/20 pairs positive, Hodges–Lehmann
@@ -35,13 +35,13 @@
   neither ADR-0018's greedy-argmax evaluation nor ADR-0019's log-probability
   margin evaluation can answer by construction; (2) it reuses the existing
   checkpoint and existing held-out assets, so no new dataset construction or
-  audit cycle is required; (3) Marcus's own review of PR #107 observed that
-  both branches of his own proposed refinement (a larger refusal-only
+  audit cycle is required; (3) an independent review of PR #107 observed that
+  both branches of the proposed subset-refinement (a larger refusal-only
   held-out set, whichever way it landed) lead back toward this same
   decode-sensitive probe as the next diagnostic step regardless, and the
   refusal-direction subset it would have refined is itself a secondary,
   non-authoritative breakdown per ADR-0019 section 3, not a basis for a
-  standalone follow-on measurement. **Marcus's subset-refinement
+  standalone follow-on measurement. **The subset-refinement
   recommendation is recorded here as considered and deferred, not
   rejected** — section 6's outcome-4 row names the specific condition
   under which it becomes the live next option again.
@@ -63,9 +63,9 @@
   (`p = 9.6e-5`), refusal subset (`n=16`) CI `[0.690, 0.844]` classified
   `ambiguous_underpowered` (CI upper bound exceeds `θ` by ~`0.001`),
   counter subset (`n=4`) CI `[0.032, 0.046]` classified
-  `no_shift_of_training_set_magnitude`. Maya's recommendation (pursue a
-  decode-sensitive scoring method) and Marcus's independent recommendation
-  (expand the refusal-direction held-out subset) are both recorded in that
+  `no_shift_of_training_set_magnitude`. The recommendation to pursue a
+  decode-sensitive scoring method and the independent recommendation
+  to expand the refusal-direction held-out subset are both recorded in that
   document exactly as summarized above.
 - Candidate checkpoint content hash `8e424bfb4a1cdfc49ab182f0c2d003cb5d83b3685e4d7f0da05167e2fa9390fd`
   and reference checkpoint content hash
@@ -107,7 +107,7 @@
   and `src/codevolt_mdf/trainer_contract.py`'s `ResourceBudget` re-read
   fresh: the same isolation mechanism `execute_evaluation()` in the
   ADR-0019 runner already routes the model-load-plus-scoring work through
-  (Maya's ADR-0019 gate requirement, PR #106) — this document's own
+  (the ADR-0019 gate requirement, PR #106) — this document's own
   execution envelope (section 7) specifies this mechanism from the start,
   not as a later hardening pass, per this task's explicit instruction to
   apply the PR #106 pattern from the outset.
@@ -121,7 +121,7 @@
   two earlier attempts to run the ADR-0019 evaluation from ordinary
   worker-level confinement stopped before any model load, because nested
   `sandbox-exec` is denied inside that confinement (tracked as a platform
-  defect). The successful ADR-0019 run executed from a Rook-session
+  defect). The successful ADR-0019 run executed from an owner-session
   executor under the identical containment profile and gate. This
   document's own section 7 states the same constraint applies here and
   execution must be routed the same way until that platform defect is
@@ -188,7 +188,7 @@ Justification for this as the primary set, not a newly built one:
    `HeldOutExclusionRegistry` (package id
    `pilot-metatrainer-v3-dpo-heldout-adr0019`) against the ADR-0017
    training pairs, the 48-item suite, and `mtr-v2-heldout-0013`
-   specifically (ADR-0019 section 2's five-part audit, performed by Maya).
+   specifically (ADR-0019 section 2's five-part audit, performed by the security reviewer).
    No fresh audit cycle is required to reuse it for a different
    measurement of the same underlying model artifacts.
 
@@ -325,8 +325,8 @@ follow-up card (section 8) — not this document, and not the same
 person/session that authors the sampling-and-generation script or executes
 the run. Per this document's own instruction and the same
 separation-of-duties logic ADR-0019 section 2 already established for its
-pair-author/audit/executor roles: **Maya** builds and owns the classifier
-(distinct from Marcus, this document's author, and distinct from whoever
+pair-author/audit/executor roles: the **security reviewer** builds and owns the classifier
+(distinct from this document's author, and distinct from whoever
 eventually executes the sampling run, per section 8 card 4's own
 executor-distinct-from-author requirement carried forward from ADR-0019).
 
@@ -455,7 +455,7 @@ improves the *precision of each prompt's own rate estimate* but does
 by itself relieve this document's stated power limit — a genuine power
 increase requires more held-out prompts, which is exactly the option
 section 6's outcome-4 row names as the specific condition reviving
-Marcus's deferred recommendation.
+the deferred subset-refinement recommendation.
 
 ## 6. What each outcome implies for the next decision
 
@@ -465,7 +465,7 @@ Marcus's deferred recommendation.
 | **1b. Shift present, disqualified by the over-refusal counter-check** (`lo > δ` on the primary set, and the mean of the 4 counter-direction `delta_i` (ANSWER-rate) values is `≤ −δ_over`; the counter-direction subset's own CI is reported alongside as corroborating context only) | The apparent refusal-rate gain is reflexive over-refusal, not calibration — the model refuses more broadly, not more accurately. This must be reported as its own distinct finding, not folded into outcome 1. Next step (separate, not authorized here): before any training-strength or training-size change, review whether the ADR-0017 training package's own counter-direction share (27.27%, still above its own 20% floor) is nonetheless producing a training-side incentive toward general refusal rather than calibrated refusal specifically — a data-composition question, not a strength question. |
 | **2. Wrong-direction shift** (`hi < −δ`) | The candidate is measurably *less* calibrated under non-greedy decoding than the reference — a materially more concerning finding than no effect, mirroring ADR-0019 section 4's own outcome-2 framing. Next step (separate, not authorized here): a priority root-cause review before any further training-config change, independent of whether the ADR-0019 probability-space shift itself was positive. |
 | **3. No shift of meaningful magnitude** (`−δ ≤ lo` and `hi ≤ δ`) | An effect at least as large as `δ` is positively ruled out in decode-space at this sample's power; a smaller real decode-level effect remains possible and is not addressed by this outcome. This does not by itself decide between the training-strength and training-data-size questions, but it does add evidence that ADR-0019's sub-`θ` probability shift, whatever its cause, does not reliably surface even under repeated non-greedy sampling — weakly favouring a **strength** explanation (hypothesis (a): the signal exists but is too weak to cross into generation reliably) over further doubting hypothesis (c) purely on this evidence, since a larger dataset would be expected to move the underlying probability margin further from the boundary in a way sampling could in principle have caught here. |
-| **4. Ambiguous / underpowered** | Neither hypothesis is meaningfully favoured, nor is an effect of magnitude `≥δ` ruled out. Report the CI, point estimate, and direction honestly. Next step (separate, not authorized here) is a power discussion with two live, non-exclusive options: (a) increase `k` (more samples per existing prompt — cheaper, does not add `n`, only sharpens each prompt's own rate estimate, per section 5's own honest-power caveat); or (b) **Marcus's deferred recommendation from the ADR-0019 review becomes the live option here**: a larger refusal-direction held-out prompt set, scored with this same preregistered sampling protocol and decision rule, to increase `n` itself rather than `k`. This document takes no position on which of (a)/(b) is preferable if outcome 4 fires; that choice is for whoever holds the decision at that time. |
+| **4. Ambiguous / underpowered** | Neither hypothesis is meaningfully favoured, nor is an effect of magnitude `≥δ` ruled out. Report the CI, point estimate, and direction honestly. Next step (separate, not authorized here) is a power discussion with two live, non-exclusive options: (a) increase `k` (more samples per existing prompt — cheaper, does not add `n`, only sharpens each prompt's own rate estimate, per section 5's own honest-power caveat); or (b) **the deferred subset-refinement recommendation from the ADR-0019 review becomes the live option here**: a larger refusal-direction held-out prompt set, scored with this same preregistered sampling protocol and decision rule, to increase `n` itself rather than `k`. This document takes no position on which of (a)/(b) is preferable if outcome 4 fires; that choice is for whoever holds the decision at that time. |
 
 ## 7. Execution envelope
 
@@ -539,13 +539,13 @@ Marcus's deferred recommendation.
   result, and a `sha256` of the results file for independent
   re-verification — the same evidence-hashing discipline every prior
   ADR-0013 through ADR-0019 cycle has used.
-- **A single signed gate (Maya), not the full three-role training-
+- **A single signed gate (security reviewer), not the full three-role training-
   authorization pattern**, for the same reasons ADR-0019 section 5 gave
   and re-verified here as still true: no gradient computation, no weight
   update, no new model artifact, no promotion path. The gate must be bound
   to: (a) the exact content hash of the sampling/generation script that
   will exist by the time it is reviewed; (b) the exact content hash of the
-  classifier script (section 4, Maya's own separate build); (c) the sealed
+  classifier script (section 4, the security reviewer's own separate build); (c) the sealed
   `HeldOutExclusionRegistry` entry this evaluation reuses (already sealed,
   unmodified by this document); (d) an independently re-measured compute
   ceiling for this evaluation's actual shape (420-call-order, not
@@ -561,7 +561,7 @@ Marcus's deferred recommendation.
   expected to stop before any model load, exactly as it did for the two
   earlier ADR-0019 attempts. Until that platform defect is resolved, this
   evaluation's actual execution must be run the same way ADR-0019's
-  successful run was: from a Rook-session executor, under the identical
+  successful run was: from an owner-session executor, under the identical
   containment profile, gate, and sealed-asset manifest a worker attempt
   would have used had the restriction not applied.
 
@@ -592,25 +592,25 @@ Marcus's deferred recommendation.
    greedy contract, routed through `run_callable_in_isolated_process` from
    its first version, gated, no execution — mirroring every prior
    `run_bounded_cycle_adrXXXX.py`/`run_adr0019_logprob_margin_eval.py`'s
-   own "write-only, no execution" PR pattern. Suggested owner: **Marcus**.
+   own "write-only, no execution" PR pattern. Suggested owner: **backend/dataset-construction specialist**.
 2. **Build the deterministic scoring classifier** (section 4) — the fixed
    pattern list, the per-item `content_class`-driven fabrication-shape
    check, and the blinding/shuffle mechanism — independently from the
    sampling-script author and this document's author. Suggested owner:
-   **Maya**.
-3. **Maya's gate review** of section 7's proposed single-gate scope,
+   **security reviewer**.
+3. **The security reviewer's gate review** of section 7's proposed single-gate scope,
    against the real scripts from cards 1–2 and an independently re-
    measured compute ceiling for this evaluation's actual shape — approve,
    require a broader gate pattern, or require changes; issue it as a
    signed artifact per section 7's binding requirements. Suggested owner:
-   **Maya**.
+   **security reviewer**.
 4. **Execute the evaluation exactly once** (per section 7's envelope, once
    card 3's gate clears, run from outside execution-worker confinement per
    section 7's own stated constraint) and report the result against
    section 5's pre-fixed decision rule and section 6's outcome table,
    honestly, including the over-refusal counter-check result and if the
    result lands in the "ambiguous / underpowered" row. Owner decision to
-   be confirmed by Rook at that time: the executor should be a different
+   be confirmed by the owner at that time: the executor should be a different
    specialist than both the sampling-script author (card 1) and the
    classifier author (card 2), continuing this project's established
    separation-of-duties discipline.
@@ -635,7 +635,7 @@ or path; the sealed ADR-0019 held-out pair set's or `mtr-v2-heldout-0013`'s
 own hash; the chosen decoding parameters, `k`, `max_new_tokens`, or seeds
 in section 3; the classifier's labelling categories or blinding mechanism
 in section 4; the chosen statistic, `δ`, or decision-rule thresholds in
-section 5; the proposed gate scope in section 7 (Maya's review is
+section 5; the proposed gate scope in section 7 (the security reviewer's review is
 authoritative here, not this document's own proposal). After the one
 evaluation runs (once both scripts exist, a gate clears, and it executes),
 append only verified result/evidence references to a companion outcome

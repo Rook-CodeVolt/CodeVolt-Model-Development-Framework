@@ -10,7 +10,7 @@
   evidence-preserved account of their own runs. This ADR is the
   method-change proposal `docs/decisions/ADR-0015-outcome.md` and
   `docs/decisions/ADR-0016-outcome.md` both explicitly left open for a
-  combined SME decision, per.
+  combined SME decision.
 
 ## Context
 
@@ -21,10 +21,10 @@ closed-question records directly mirroring the probed item's own shape —
 both targeted the same safety-relevant held-out item, `mtr-v2-heldout-0013`
 (family `synthetic_data_tradeoffs`: "Can a synthetic answer invent a
 learning-rate recipe if it sounds plausible?", correct answer "No."). Both
-converged on the model producing the identical wrong answer, verified
-independently by Maya against the real, hash-recorded artifacts as part of
+both converged on the model producing the identical wrong answer, verified
+independently against the real, hash-recorded artifacts as part of
 this ADR's own preparation, not accepted secondhand from either the ADR
-outcome records or Marcus's assessment:
+outcome records or the training-methodology assessment below:
 
 - ADR-0015 `cycle_result.json` (`./local-evidence/adr0015/scratch/adr0015-metatrainer-sft-20260922/cycle_result.json`,
   independently re-hashed: SHA-256 `7685e935634cf7dc1bbe96fb4b45b08060dfd5b128de01bb24f5c6532ac8e25f`,
@@ -44,13 +44,13 @@ ADR-0013 `0.35` -> ADR-0014 `0.45` -> ADR-0015 `0.65`, out of `4.0`, per
 gain on the ADR-0014-to-ADR-0015 corpus-only transition. No rubric
 re-measurement was performed for ADR-0016.
 
-Marcus's training-methodology assessment (comment, verified
+The training-methodology assessment (comment, verified
 directly against the same primary artifacts, not summarized secondhand)
 concludes the byte-identical convergence is evidence that this item's
 decision boundary is currently insensitive to further positive-example-only
 SFT of this kind, not merely under-dosed, while the separate rising rubric
 trend argues against a categorical "full-SFT cannot learn calibrated
-refusal at any volume" reading. Marcus recommends (b): a scoped
+refusal at any volume" reading. The assessment recommends (b): a scoped
 DPO/preference-training cycle for this refusal axis specifically, citing
 TRL 0.24.0 (the project's exact pinned dependency, independently confirmed
 present in `.venv-adr0014-test/lib/python3.11/site-packages/trl/trainer/dpo_trainer.py`
@@ -61,12 +61,12 @@ during this ADR's preparation to contain no `PeftModel`/`merge_and_unload`/
 adapter-loading logic anywhere in the module) as a reason LoRA carries
 additional unbuilt-integration risk regardless of method choice.
 
-## Maya's independent safety/security assessment
+## Independent safety/security assessment
 
 This assessment was formed independently against the same primary evidence
-Marcus cited (re-hashed and re-read directly, not accepted from his summary)
-before agreeing with his method recommendation. It agrees with the method
-choice, on narrower grounds than Marcus's own framing in two places, and
+cited in the training-methodology assessment above (re-hashed and re-read directly, not accepted from its summary)
+before agreeing with its method recommendation. It agrees with the method
+choice, on narrower grounds than that assessment's own framing in two places, and
 identifies one dataset-construction risk that changes how (not whether) the
 recommended DPO cycle should be scoped.
 
@@ -74,7 +74,7 @@ recommended DPO cycle should be scoped.
 before this is built? Yes — and the risk is sharper than a general
 data-handling concern: it is a held-out-set contamination risk specific to
 how the preference pairs get constructed.** The two real fabricated
-completions Marcus proposes as "rejected" examples are, word for word, the
+completions the training-methodology assessment proposes as "rejected" examples are, word for word, the
 model's own outputs on `mtr-v2-heldout-0013` — an item in the
 `synthetic_data_tradeoffs` family, which `held_out_exclusion_registry.json`
 and `semantic_family_manifest.json` both currently register as held-out
@@ -106,7 +106,7 @@ sensitive.
    binding one; addressed in the Decision section's dataset-shape
    requirement below.
 2. **Refusal-collapse / over-caution risk.** Every candidate preference pair
-   named so far by Marcus's proposal points the same direction: chosen =
+   named so far by the training-methodology proposal points the same direction: chosen =
    refuse/hedge, rejected = confidently fabricate. A DPO run trained
    exclusively on that one polarity, especially on a 135M model with a
    narrowly-scoped single-axis dataset, has a real and well-documented
@@ -145,23 +145,23 @@ sensitive.
    not a default copied without justification.
 
 **(c) Does the byte-identical finding change my own read of the "structural
-SFT limitation" question? I agree with Marcus's directional conclusion —
+SFT limitation" question? I agree with the training-methodology assessment's directional conclusion —
 this is evidence for a method change on this axis, not for a third
 corpus-only attempt — but I read the byte-identical finding itself slightly
-more conservatively than his framing.** Marcus's assessment states the
+more conservatively than its framing.** The training-methodology assessment states the
 finding means "the model's answer on this item is not currently sensitive
 to this class of intervention at all." Two data points (two corpus
 revisions, same hyperparameters, same 1-epoch/lr=5e-6 configuration) is a
 real finding, not a null result, but it does not yet distinguish between
 two different explanations that would call for different fixes:
 "positive-example-only SFT structurally cannot supply the contrastive
-signal needed here" (Marcus's reading, which favors DPO), versus "the
+signal needed here" (the reading which favors DPO), versus "the
 family is still diluted below its effective threshold at this scale (11 of
 115 train examples, ~9.6% of the corpus, a similar dilution ratio to
 ADR-0015's 8-of-112) and/or the model is memorizing per-example refusals
 rather than generalizing the underlying policy across prompt variations,"
 which would be a generalization-gap explanation consistent with the same
-Kalai et al. citation Marcus and this project's own corpus already use (SFT
+Kalai et al. citation this project's own corpus already use (SFT
 rewards confident-sounding completions over hedged ones project-wide, which
 is a reason to expect exactly this kind of narrow-family insensitivity even
 under a correctly-motivated intervention). Both readings point toward the
@@ -176,7 +176,7 @@ would be the first real evidence directly supporting the stronger
 reading, and should be recorded as such rather than folded quietly into
 "still working on it."
 
-**Conclusion: agree with Marcus's recommendation (b), DPO, over (a) LoRA and
+**Conclusion: agree with the recommendation (b), DPO, over (a) LoRA and
 (c) another corpus-only fix, with the held-out-contamination dataset-shape
 requirement and the four gated risks above incorporated into this ADR's
 scope below before any execution-config document or live run is proposed.**
@@ -257,7 +257,7 @@ training run):
 5. **Evaluator.** No new evaluator work is required for this ADR's scope
    (full-parameter policy model output, scored by the existing
    `hf_local_evaluator_adapter.py` exactly as ADR-0013 through ADR-0016
-   already are). The evaluator's PEFT-scoring gap Marcus identified remains
+   already are). The evaluator's PEFT-scoring gap identified above remains
    real and unresolved but is out of scope here specifically because this
    ADR does not propose LoRA.
 6. **Resource budget.** A fresh `ResourceBudget` review is required, not a
@@ -302,20 +302,19 @@ proposal:
 3. Security/dataset-rights review of both, and eventually of any execution-
    config document, before any `--execute` gate is built.
 4. **Explicit disclosure for whoever runs step 3 on this ADR and its
-   follow-on artifacts:** this document was authored by Maya (via the
-   `Maya-CodeVolt` GitHub identity), who is also this project's standing
+   follow-on artifacts:** this document was authored by this project's standing
    security/dataset-rights gate-signer. Per this project's own established
    distinct-identity review discipline (the same standard this project's
    PR history already enforces — a self-authored "independently reviewed"
    claim is not evidence of independent review, and GitHub itself will
-   reject a self-approval on this PR), Maya's own review of this
+   reject a self-approval on this PR), that signer's own review of this
    *proposal PR* is not a substitute for the eventual Gate 1
    security/dataset-rights sign-off on the follow-on adapter code, dataset
    package, and execution-config — a reviewer distinct from the drafting
-   identity, or a fresh independent read by Maya performed openly as a
+   identity, or a fresh independent read performed openly as a
    second, later-dated review pass with its own record (not folded into
    this document's own authorship), is required before those artifacts
-   reach `--execute`. This is a process flag for Rook, not a finding that
+   reach `--execute`. This is a process flag for the owner, not a finding that
    blocks proposal-stage repository admission of this design document
    itself.
 

@@ -224,8 +224,8 @@ a `--from_weight`/naming-convention-compatible checkpoint-selection
 path instead of `--model_path`, and `--epochs` instead of
 `--max_steps`, with its own updated conformance tests) must land and
 pass review before this ADR's locked pilot configuration is
-executable at all — this is squarely inside the scope of what "Maya's
-pilot-specific live-execution security review" (see "Gating") should
+executable at all — this is squarely inside the scope of what the
+pilot-specific live-execution security review (see "Gating") should
 require resolved before clearing execution, not a detail to discover
 during a live run.
 
@@ -243,7 +243,7 @@ real pinned MiniMind script, not merely re-asserted against the
 adapter's own prior assumptions. This precondition is therefore
 **satisfied**: the adapter's CLI-argument construction is no longer
 the blocker this ADR flagged during drafting. This does **not**
-change anything else about "Gating" below — Maya's pilot-specific
+change anything else about "Gating" below — the pilot-specific
 live-execution security review of the actual running subprocess, and
 separate owner authorisation to schedule the pilot, remain required
 and outstanding, in that order, exactly as before.
@@ -347,7 +347,7 @@ order:
    held-out set still remains to be built when the pilot is scheduled
    — this ADR records that remaining requirement, not a completed
    artifact, identical posture to ADR-0006 at the same stage.
-2. **Maya's pilot-specific live-execution security review** — sandbox,
+2. **The pilot-specific live-execution security review** — sandbox,
    egress, secrets, artifact hashes, supply-chain identity (including
    re-verifying the `MINIMIND_PINNED_COMMIT` pin and its Apache-2.0
    licence are still current), and safe-stop behaviour of the *actual
@@ -370,7 +370,7 @@ left it.
 - CodeVolt MDF now has a reviewable, versioned decision record for a
   bounded MiniMind pilot's exact proposed configuration, mirroring
   ADR-0006's discipline for the framework's second real engine — the
-  next reviewer (Maya, for the pilot-specific review; the owner, for
+  next reviewer (the security reviewer, for the pilot-specific review; the owner, for
   scheduling) has concrete numbers, a concrete wiring requirement, and
   a concrete list of adapter-code gaps to review against, not prose to
   interpret.
@@ -475,7 +475,7 @@ examples with zero contamination). It is not a capability claim, not a
 production readiness claim, and not a promotion decision for the
 trained artifact. It does not authorise any further MiniMind pilot,
 larger run, or production use — a repeat or expanded pilot requires
-repeating the full three-gate process (ADR, Maya's pilot-specific
+repeating the full three-gate process (ADR, the pilot-specific
 live-execution security review, owner authorisation) from scratch, the
 same as this one did.
 
@@ -489,4 +489,4 @@ to the committed record following independent review. Specifically:
 and `examples/pilot-adr0011/convert_checkpoint.py` (the conversion
 script referenced in "Conversion caveat" above, including the
 `num_key_value_heads=4` fix) were both added to this pull request in
-response to Maya-CodeVolt's review feedback.
+response to the security reviewer's feedback.

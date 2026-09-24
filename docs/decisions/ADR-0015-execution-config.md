@@ -28,7 +28,7 @@
   full-parameter SFT driven by corpus v3's larger/higher-variance per-example
   sequence length, not a leak or eager dataset loading. PR #89, merged as
   `85c1b0f705cfa222fc49cb8b51130a3268c31c9c`, raised the ceiling to 16384 —
-  ~35% headroom over the measured peak — reviewed and approved by Maya under
+  ~35% headroom over the measured peak — reviewed and approved under
   the same governed pattern), `max_wall_seconds=1800`, `max_cpu_seconds=3600`,
   `network_policy=offline`. `max_wall_seconds`/`max_cpu_seconds`/
   `network_policy` remain unchanged from ADR-0013/0014 — no evidence

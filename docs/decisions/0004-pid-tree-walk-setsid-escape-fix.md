@@ -144,12 +144,12 @@ All checks passed!
   change. No real training engine is imported, called, or integrated by
   this decision, and it does not authorize engine integration, Test 2
   porting, or a training pilot — issue #7 steps 4 (independent
-  evaluation) and 5 (Maya's independent security review) remain
+  evaluation) and 5 (the independent security review) remain
   separately gated.
 
-## Addendum: failure/exhaustion observability (Maya's PR #14 review)
+## Addendum: failure/exhaustion observability (independent PR #14 review)
 
-Maya's independent review of the PR implementing this ADR (PR #14,
+An independent review of the PR implementing this ADR (PR #14,
 review comment
 https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/pull/14#issuecomment-5683138092)
 issued REQUEST CHANGES on exactly one required item: the design in the
@@ -205,11 +205,11 @@ clean.
 This addendum does not change the Decision, the closed literal gap, or
 the explicitly-out-of-scope double-fork/orphan-adoption case above; it
 only adds the observability the original design specified for the
-walk's own failure/exhaustion, per Maya's required remediation.
+walk's own failure/exhaustion, per the required remediation.
 
-## Addendum 2: cancellation hard-kill parity (Maya's 2nd PR #14 review)
+## Addendum 2: cancellation hard-kill parity (2nd PR #14 review)
 
-Maya's re-review of the addendum above (PR #14, review comment
+The re-review of the addendum above (PR #14, review comment
 https://github.com/Rook-CodeVolt/CodeVolt-Model-Development-Framework/pull/14#issuecomment-5683727075)
 issued REQUEST CHANGES again, narrowly scoped to one remaining call
 site: `_kill_group()` runs at three places in
@@ -224,7 +224,7 @@ module logger (Addendum 1's logging is call-site-agnostic), but its
 result fell through into the generic
 `exc_payload`/`RuntimeError("child process exited without reporting a
 result")` branch in `trainer_contract.run_trainer_contract()`, which
-discards the signal before it reaches the evidence bundle. Maya
+discards the signal before it reaches the evidence bundle. The reviewer
 independently reproduced this with a real `cancel_token` fire against
 a monkeypatched failing `subprocess.run`.
 

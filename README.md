@@ -2,7 +2,7 @@
 
 An evidence-led framework for developing, training, evaluating, and safely evolving language models.
 
-> **Project status:** early foundation (`v0.1`). The contracts and contribution model are usable. A real (non-fake) trainer adapter for TRL and a real (non-fake) evaluator adapter backed by local Hugging Face inference are both merged — see [Real adapters](docs/REAL_ADAPTERS.md) for what that does and does not mean. A real bounded training pilot has **run**: after Maya's pilot-specific live-execution security review cleared it, the bounded pilot planned in `docs/decisions/0006-bounded-real-trl-pilot-plan.md` executed (PR #22) with `TrainingOutput.status=ACCEPTED` (wall time 15.7s of a 1800s budget, well within all resource limits) and `EvaluationOutput.status=SCORED`, `aggregate_score=0.7` (7/10) on the real registered synthetic held-out arithmetic set, with zero contamination flagged. This is a single bounded exploratory result, not a capability, promotion, or production claim, and it does not authorise any further or larger pilot — see ADR-0006's "What this result does and does not establish" section. This project does not claim autonomous or production-safe self-improvement.
+> **Project status:** early foundation (`v0.1`). The contracts and contribution model are usable. A real (non-fake) trainer adapter for TRL and a real (non-fake) evaluator adapter backed by local Hugging Face inference are both merged — see [Real adapters](docs/REAL_ADAPTERS.md) for what that does and does not mean. A real bounded training pilot has **run**: after the pilot-specific live-execution security review cleared it, the bounded pilot planned in `docs/decisions/0006-bounded-real-trl-pilot-plan.md` executed (PR #22) with `TrainingOutput.status=ACCEPTED` (wall time 15.7s of a 1800s budget, well within all resource limits) and `EvaluationOutput.status=SCORED`, `aggregate_score=0.7` (7/10) on the real registered synthetic held-out arithmetic set, with zero contamination flagged. This is a single bounded exploratory result, not a capability, promotion, or production claim, and it does not authorise any further or larger pilot — see ADR-0006's "What this result does and does not establish" section. This project does not claim autonomous or production-safe self-improvement.
 
 ## Why this exists
 
@@ -66,7 +66,7 @@ For a concrete, link-by-link worked example of this project's evidence-over-theo
 
 Ordinary customization belongs in experiment manifests. New training engines, evaluators, data sources, and learning strategies belong in adapters. Organisations needing different governance can fork the project while retaining the same evidence contract.
 
-CodeVolt MDF is a CodeVolt project led by Rook. Decisions and evidence remain reviewable by people.
+CodeVolt MDF is maintained by CodeVolt. Decisions and evidence remain reviewable by people.
 
 ## License
 

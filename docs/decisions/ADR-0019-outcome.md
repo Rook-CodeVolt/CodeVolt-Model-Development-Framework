@@ -49,7 +49,7 @@ confinement (tracked separately as a platform defect) stopped before any
 model load: nested `sandbox-exec` is denied inside worker-level
 confinement, so neither attempt produced a result file of any kind. The
 evaluation that produced the result analyzed in this record was executed
-from a Rook-session executor under the identical containment profile
+from an owner-session executor under the identical containment profile
 (`evaluator-process-containment-v1`), the identical signed gate, and the
 identical sealed-dataset manifest that either worker attempt would have
 used had the nested-sandbox restriction not applied. Exactly one
@@ -262,7 +262,7 @@ measurement; this record states the direction each moves and no more.
   `evidence-gap`, at whoever's discretion holds that decision) if not
   already tracked there.
 
-## Recommendation (Maya, recommendation only — not a decision; Marcus gives an independent one in review; Rook decides)
+## Recommendation (security reviewer, recommendation only — not a decision; a separate reviewer gives an independent one in review; the owner decides)
 
 Given that hypothesis (c) is weakened (a real, significant, consistently-
 signed effect exists, arguing against "no generalising effect at any

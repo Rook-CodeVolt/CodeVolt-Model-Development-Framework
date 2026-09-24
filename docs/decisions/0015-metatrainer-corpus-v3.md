@@ -39,7 +39,7 @@ own reviewed hyperparameter guidance. This is a materially worse failure mode
 than a merely wrong or degenerate answer, because a confident, precise-looking
 fabrication is easy to mistake for a validated recommendation.
 
-Rook's decision (recorded in this ADR's commissioning task):
+The owner's decision (recorded in this ADR's commissioning task):
 grow the training corpus, keeping the existing full-SFT pipeline and
 exact-match scorer unchanged for now. Architecture change and eval-methodology
 change are explicitly out of scope for this ADR and are separate future
@@ -103,8 +103,8 @@ extended from corpus v2's validator for the larger size window (100-120
 train / 40-50 held-out), the larger family count (32 families total: 8
 v2-train + 3 v2-held-out unchanged, 4 history-train + 4 history-held-out, 8
 new-train + 3 new-held-out), and a broader recognized citation-locator format
-(numbered `[1]`-`[30]` sources, `Marcus synthesis, MSx` labels, carried-forward
-`Clara synthesis, SSx.x` labels, and free-text repository-evidence locators).
+(numbered `[1]`-`[30]` sources, `research synthesis, MSx` labels, carried-forward
+`research synthesis, SSx.x` labels, and free-text repository-evidence locators).
 A fresh run of `validate_dataset.py` in this proposal's own session reports
 `{"status": "PASS", "checks": 16, "counts": {"total": 160, "train": 112,
 "held_out": 48}}`; this record is written to
@@ -139,7 +139,7 @@ training corpus:
    independent semantic-split content review — not a self-report). The 72
    carried-forward records already have this independent audit history
     and are not re-audited here.
-2. Maya security/dataset-rights review of this PR, per this repository's
+2. Security/dataset-rights review of this PR, per this repository's
    existing governance pattern for training-corpus proposals.
 3. Repository admission, if both above clear. This does not by itself
    authorize training (see above).

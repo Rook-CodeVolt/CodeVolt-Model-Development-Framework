@@ -9,9 +9,9 @@
 #   <principal> ssh-ed25519 <base64-public-key> <optional-comment>
 #
 # Required role-specific principals (one independently controlled key per role):
-#   security-reviewer       — Maya's Gate 1 security approval
-#   dataset-rights-reviewer — Maya's already-admitted single-run dataset decision
-#   project-owner           — Rook's authorization for the exact single run
+#   security-reviewer       — the standing security reviewer's Gate 1 approval
+#   dataset-rights-reviewer — the standing dataset-rights reviewer's already-admitted single-run decision
+#   project-owner           — the owner's authorization for the exact single run
 #
 # Private keys must remain solely with each holder and must never be committed,
 # copied into a review gate, or shared with the runner. Public-key admission is a

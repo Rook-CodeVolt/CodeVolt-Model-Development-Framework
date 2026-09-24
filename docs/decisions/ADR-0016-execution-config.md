@@ -15,7 +15,7 @@
 
 ## Background: why this cycle exists
 
-Maya's ADR-0015 review found that held-out item `mtr-v2-heldout-0013`
+The ADR-0015 review found that held-out item `mtr-v2-heldout-0013`
 (family `synthetic_data_tradeoffs`, tests whether the model correctly
 refuses to invent a plausible-sounding numeric training recipe) got *worse*
 in the ADR-0015 candidate than in ADR-0014's, despite corpus v3 adding 8
@@ -30,8 +30,8 @@ regression (the ADR-0015 candidate went from merely *demonstrating* the
 fabrication to explicitly *endorsing* it as normative policy).
 
 PR #93 (task, merged as commit
-`16b0108291f549d5e5f6b0e1f409a65c3d6fdd92`, Maya-reviewed and approved,
-independently re-verified by Rook) rewrote the `confabulated_recipe_detection`
+`16b0108291f549d5e5f6b0e1f409a65c3d6fdd92`, security-reviewed and approved,
+independently re-verified by the owner) rewrote the `confabulated_recipe_detection`
 family: kept 2 of the original 8 records as accurate scaffolding/context,
 removed the other 6 (pure retrospective third-person analysis), and added 9
 new short, first-person, closed-question-shaped records directly mirroring

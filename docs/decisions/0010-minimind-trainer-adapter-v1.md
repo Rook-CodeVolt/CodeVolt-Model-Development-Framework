@@ -303,7 +303,7 @@ established for the TRL adapter.
   installed by this package.
 - Real pilot execution remains blocked for both adapters, unchanged from
   ADR-0005/ADR-0006: independent evaluation against a hidden held-out
-  set and Maya's engine-specific live-execution security review are
+  set and an engine-specific live-execution security review are
   still required before any real training run, for MiniMind exactly as
   for TRL. This ADR does not authorise scheduling a MiniMind pilot.
 - Adding a third training method to either adapter (e.g. MiniMind's

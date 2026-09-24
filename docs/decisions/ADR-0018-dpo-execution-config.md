@@ -12,7 +12,7 @@
   authorize").
 - Date: 2026-09-23
 - Tracking: (this drafting task, commissioned by
-  Rook). Upstream: ADR-0017 (`docs/decisions/ADR-0017-dpo-preference-refusal-axis.md`,
+  the owner). Upstream: ADR-0017 (`docs/decisions/ADR-0017-dpo-preference-refusal-axis.md`,
   PR #97, squash commit `8a0c4309cf510cfd0f7028ba019add921c769804`), PR #98
   (`src/codevolt_mdf/dpo_adapter.py` + `examples/pilot-metatrainer-v3-dpo/`,
   squash commit `2bb55c066013e1ddbf3cf416e562723d68228565`), both independently
@@ -70,7 +70,7 @@ from ADR-0017's or PR #98's own prose:
   `{"status": "PASS", "checks": 14, "counts": {"total": 22, "refusal": 16,
   "counter": 6, "counter_share": 0.2727}}`, identical to the committed
   report's counts and check statuses. **Counter-direction share, computed,
-  not asserted: 6/22 = 0.2727 (27.27%), above Maya's >=20% over-refusal-guard
+  not asserted: 6/22 = 0.2727 (27.27%), above the >=20% over-refusal-guard
   minimum from ADR-0017.**
 - Held-out contamination re-verified as part of the same re-run: zero exact
   reuse hits, zero near-paraphrase hits against `mtr-v2-heldout-0013`, and a
@@ -84,9 +84,9 @@ from ADR-0017's or PR #98's own prose:
   re-read in full: confirmed it requires `model_path`, `dataset_path`,
   `reference_model_path`, `reference_model_hash`, `max_steps`, `beta`, and
   `reference_free` all explicitly (no bare defaults for `beta`/
-  `reference_free`, matching Maya's ADR-0017 gate (b)(4)); confirmed it
+  `reference_free`, matching the ADR-0017 gate (b)(4)); confirmed it
   rejects `use_lora`; confirmed it independently content-hashes and verifies
-  the reference-model path exactly as the policy model, per Maya's gate
+  the reference-model path exactly as the policy model, per the gate
   (b)(3).
 - `trl==0.24.0`'s real, installed `DPOConfig` defaults were re-confirmed by
   direct `inspect.signature()` introspection of the exact pinned environment
@@ -174,7 +174,7 @@ established.
   22 total = **0.2727 (27.27%)**, re-verified by re-running
   `validate_dataset.py` fresh against the real on-disk file during this
   document's drafting (`counts.counter_share: 0.2727`, `checks: 14`, all
-  `PASS`) — above Maya's ADR-0017 gate (b)(2) minimum of >=20%.
+  `PASS`) — above the ADR-0017 gate (b)(2) minimum of >=20%.
 - **Contamination check proving no held-out prompt is reused:**
   `validate_dataset.py`'s three programmatic checks (re-run fresh, not
   trusted from the committed report): (a) normalized-string exact-match
@@ -197,7 +197,7 @@ established.
 
 | Parameter | Value | Library/adapter default | Justification |
 |---|---|---|---|
-| `beta` | **0.3** | `0.1` (TRL `DPOConfig` default, confirmed by introspection above) | **Not a bare default, per Maya's ADR-0017 gate (b)(4).** The original DPO paper's own tested range is `0.1`-`0.5`; lower `beta` permits larger per-step divergence from the reference policy (more aggressive optimization, less KL regularization pressure), higher `beta` constrains divergence more tightly per update. This is the **first** DPO run on this project, against a **22-record** preference-pair package (the smallest labeled-signal dataset of any real cycle to date; ADR-0013's rejected 40-example full-SFT corpus and its degenerate-repetition-loop failure remain this project's own cautionary evidence for what happens under too little regularization pressure relative to update strength on a small dataset for this exact 135M model). Choosing a value from the upper-middle of the paper's own tested range, rather than TRL's lower-end library default, directly targets Maya's named risk (b)(4) ("too low a beta risks the same kind of degenerate drift ADR-0013's full-SFT run showed") without moving so high that it risks the opposite named risk (reproducing the ADR-0015/0016 insensitivity this whole DPO cycle exists to fix) — `0.3` is the paper's own tested midpoint-to-upper value, not an untested extreme in either direction. |
+| `beta` | **0.3** | `0.1` (TRL `DPOConfig` default, confirmed by introspection above) | **Not a bare default, per the ADR-0017 gate (b)(4).** The original DPO paper's own tested range is `0.1`-`0.5`; lower `beta` permits larger per-step divergence from the reference policy (more aggressive optimization, less KL regularization pressure), higher `beta` constrains divergence more tightly per update. This is the **first** DPO run on this project, against a **22-record** preference-pair package (the smallest labeled-signal dataset of any real cycle to date; ADR-0013's rejected 40-example full-SFT corpus and its degenerate-repetition-loop failure remain this project's own cautionary evidence for what happens under too little regularization pressure relative to update strength on a small dataset for this exact 135M model). Choosing a value from the upper-middle of the paper's own tested range, rather than TRL's lower-end library default, directly targets the named risk (b)(4) ("too low a beta risks the same kind of degenerate drift ADR-0013's full-SFT run showed") without moving so high that it risks the opposite named risk (reproducing the ADR-0015/0016 insensitivity this whole DPO cycle exists to fix) — `0.3` is the paper's own tested midpoint-to-upper value, not an untested extreme in either direction. |
 | `reference_free` | **`False`** | `False` (matches default) | Explicit, not inherited silently: a real frozen reference model (the same base checkpoint, hash-verified per item 1 above) is used for KL-anchoring, which is the entire point of choosing DPO over a from-scratch/reference-free variant for this narrow-axis correction — `reference_free=True` would compare the policy only against itself pre-update, discarding the reference-provenance verification work item 1 already requires regardless of this flag (per the adapter's own documented design: `reference_model_path`/`reference_model_hash` stay required even when `reference_free=True`). |
 | LoRA vs full | **Full-parameter DPO** | N/A (`use_lora` unsupported) | Per ADR-0017 Decision item 1: keeps this cycle to exactly one new variable (the training objective) relative to every prior full-parameter cycle (ADR-0013 through ADR-0016), and avoids compounding an unproven new trainer path with the evaluator's known PEFT-scoring gap (see item 5 below). `DPOTrainerAdapter.prepare()` itself rejects `use_lora` with `RejectedInputError`, so this is enforced by code, not by convention alone. |
 | `learning_rate` | **`5e-7`** (adapter/library default) | `5e-7` is `DPOTrainerAdapter`'s own documented default (TRL's own `DPOConfig` library default is `1e-6`; the adapter's module docstring states its chosen default of `5e-7` explicitly, "notably far lower than `TRLTrainerAdapter`'s SFT default of `2e-5`, since DPO gradients are typically much larger per step") | Kept at the adapter's own stated default: unlike SFT's `1e-5` (ADR-0013, rejected after a real degenerate-drift failure) -> `5e-6` (ADR-0014, corrected with direct evidence), there is no real prior DPO run on this project yet to motivate a deviation from the adapter author's own documented, reasoned default in either direction. If this first real run shows degenerate drift or under-training at this rate, that becomes the evidence basis for a corrected value in a fresh ADR, exactly as ADR-0013 -> ADR-0014's own precedent. |
@@ -272,7 +272,7 @@ result that must be reported as such, not rounded into a partial success:
    today, not evidence the cycle "mostly worked."
 2. The `uncertainty_refusal_boundary` rubric axis regresses below `0.25/1.0`
    (ADR-0015's real baseline) — this is the calibration-collapse/
-   over-refusal risk Maya's ADR-0017 gate (b)(2) named, and the 27.27%
+   over-refusal risk the ADR-0017 gate (b)(2) named, and the 27.27%
    counter-direction share was this package's concrete, and only,
    mitigation for it; if the axis regresses anyway, that is direct evidence
    the counter-direction pairs did not prevent the failure mode they were
@@ -358,20 +358,20 @@ into this document's own follow-on runner PR.
 ### 7. Gate blocks (all three UNSIGNED — this document signs none of them)
 
 ```
-GATE 1 — SECURITY (Maya)
+GATE 1 — SECURITY
   Role: security-reviewer
   Scope required: evaluator-process-containment-v1, complete-cycle-host-containment-v1
-  Decision: UNSIGNED — pending Maya's independent review of this exact
-    document (config identity, beta/KL-strength justification per her own
-    ADR-0017 gate (b)(4), reference-model provenance handling per her own
+  Decision: UNSIGNED — pending independent review of this exact
+    document (config identity, beta/KL-strength justification per the
+    ADR-0017 gate (b)(4), reference-model provenance handling per the
     gate (b)(3), sandbox/offline posture, and the resource-budget increase
     above) at this exact commit SHA. This document explicitly discloses
-    that its drafting author (Marcus profile) also authored ADR-0017's own
+    that its drafting author also authored ADR-0017's own
     training-methodology assessment and PR #98's adapter/dataset code, so
-    this Gate 1 review must come from Maya independently, not be inferred
+    this Gate 1 review must come from an independent reviewer, not be inferred
     from any prior review of related but distinct artifacts.
 
-GATE 2 — DATASET-RIGHTS (Maya)
+GATE 2 — DATASET-RIGHTS
   Role: dataset-rights-reviewer
   Decision: UNSIGNED — pending independent confirmation that the
     `examples/pilot-metatrainer-v3-dpo/` package (already PR #98-merged, not
@@ -380,9 +380,9 @@ GATE 2 — DATASET-RIGHTS (Maya)
     per this project's standing practice of never treating a prior
     admission's sign-off as automatically covering a new proposed run.
 
-GATE 3 — OWNER (Rook)
+GATE 3 — OWNER
   Role: project-owner
-  Decision: UNSIGNED — pending Rook's confirmation of this document's exact
+  Decision: UNSIGNED — pending the owner's confirmation of this document's exact
     hyperparameter choices, resource-budget increase, and the explicit
     ADR-0016-rubric-baseline gap named in "Promotion/failure criteria" above,
     and authorization to proceed to writing (not executing) a gated runner

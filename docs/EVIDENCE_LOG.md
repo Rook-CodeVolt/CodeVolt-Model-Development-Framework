@@ -153,10 +153,10 @@ a newly built synthetic 2-digit-addition dataset (40 train / 10
 held-out records, numeric-pair-disjoint, not merely id-disjoint), and
 an unchanged resource budget (30 min wall / 60 min CPU / 8 GB memory /
 0 GPU / 2 GB storage / offline network / `max_steps=50`) — specifically
-so Maya could review a concrete spec instead of prose. **This PR did
+so the security review could cover a concrete spec instead of prose. **This PR did
 not authorise execution.**
 
-Maya's pilot-specific live-execution security review of that spec —
+The pilot-specific live-execution security review of that spec —
 a distinct, broader scope than PR #15's code review, which had
 explicitly not covered live execution — found three real, reproducible
 HIGH-severity defects by actually running `TRLTrainerAdapter.train()`,
@@ -176,7 +176,7 @@ intercepts writes only, not reads, outside `filesystem_root`; the
 `SFTConfig` bound was added; and `_safe_halt_output` now persists full
 checkpoint state. All three were self-verified with real
 `train()`/kill/resume execution against the pinned checkpoint before
-re-review. Maya's re-review returned **CLEAR TO EXECUTE**, with one
+re-review. The re-review returned **CLEAR TO EXECUTE**, with one
 residual note explicitly logged as LOW/non-blocking (a pre-existing
 macOS `ps`-timing quirk, no action needed) — this is the review
 finding a real problem, blocking on it, and then clearing the
@@ -257,8 +257,8 @@ merge into `main` is outstanding.
 
 ### 7. Independent evidence review — PASS
 
-Maya independently reviewed PR #22's evidence rather than trusting its
-prose. Concretely, she:
+The independent security review reviewed PR #22's evidence rather than trusting its
+prose. Concretely, the review:
 
 - recomputed the held-out set's content hash and the training dataset's
   content hash directly from the committed files and confirmed both
@@ -310,7 +310,7 @@ recipe is good at anything beyond this exact narrow task, is not an
 accept or promotion decision, and does not authorise any further,
 larger, or different pilot. `EvaluationOutput` has no field to hold an
 accept/promote/production-readiness verdict — this is a structural
-fact, independently confirmed by Maya's review above, not a policy
+fact, independently confirmed by the review above, not a policy
 this document is merely asserting. Three of ten answers were wrong,
 each by a genuine arithmetic miss (off by 10, 10, and 90 respectively)
 rather than a formatting or harness failure — this is exploratory

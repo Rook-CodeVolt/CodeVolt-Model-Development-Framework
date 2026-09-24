@@ -116,7 +116,7 @@ test, not overturn the NEGATIVE verdict already recorded.
      load-bearing for the contamination registry in the next bullet).
   2. **Counter-direction share ≥ 20%**, computed and reported the same way
      ADR-0017's training package reports it (`counts.counter_share`), not
-     merely asserted — the same over-refusal-guard minimum Maya's ADR-0017
+     merely asserted — the same over-refusal-guard minimum the ADR-0017
      gate (b)(2) imposed on the training set, applied identically here so
      the held-out set cannot itself introduce a one-sided bias into the
      margin measurement.
@@ -130,11 +130,11 @@ test, not overturn the NEGATIVE verdict already recorded.
      the 22 training prompts' specific scenarios.
 - **Who builds it:** a separate, explicitly scoped follow-up card (section
   6) — not this document, and not the same task/session that will later run
-  the scoring pass. Owner decision (Rook, accepting Maya's review of this
+  the scoring pass. Owner decision (accepting the review of this
   PR): the pair author and the eventual scoring executor (section 6, card 4)
   must be different people, so a result cannot be shaped, even
   unintentionally, by whoever built the test; and the contamination audit
-  below is performed by **Maya** specifically, not merely "a reviewer
+  below is performed by a **security reviewer** specifically, not merely "a reviewer
   distinct from the constructor" — the same separation-of-duties logic
   extended to the audit role, not just the execution role.
 - **Contamination audit it must pass, before it is used for anything:**
@@ -160,7 +160,7 @@ test, not overturn the NEGATIVE verdict already recorded.
      check, not a duplicate of the same heuristic.
   5. **Counter-direction share** re-verified programmatically (bullet 2
      above) as part of the same audit run, not asserted separately.
-  All five checks must be re-run and pass by **Maya**, distinct from
+  All five checks must be re-run and pass by the **security reviewer**, distinct from
   whoever constructed the set (per the owner decision above), immediately
   before the set is used for scoring — the same "re-verify fresh, never
   trust the committed report alone" discipline every prior ADR on this
@@ -249,7 +249,7 @@ test, not overturn the NEGATIVE verdict already recorded.
   natural point-estimate companion to the Wilcoxon signed-rank test this
   document already commits to computing) with a **95% confidence interval
   via percentile bootstrap** (10,000 resamples of the 20 `delta_i` values,
-  with replacement; the same bootstrap-CI mechanism Maya's review names as
+  with replacement; the same bootstrap-CI mechanism the review names as
   an acceptable alternative to the Hodges–Lehmann estimate is used here to
   build the interval *around* that estimate, not as a separate competing
   method). Denote the interval `[lo, hi]`.
@@ -365,7 +365,7 @@ test, not overturn the NEGATIVE verdict already recorded.
   cycle has used.
 - **Does the three-gate signing apply?** **Partially — one proportionate
   gate, not the full three-gate training-authorization pattern, with
-  justification below; Maya reviews this specific choice before the
+  justification below; the security reviewer reviews this specific choice before the
   follow-up execution card runs anything.**
   - This is **not** a training run: no gradient computation, no weight
     update, no new model artifact produced, no promotion path exercised or
@@ -384,12 +384,12 @@ test, not overturn the NEGATIVE verdict already recorded.
     review before execution, even without a training component — the
     precedent is the same reasoning `evaluator-process-containment-v1`
     itself already codifies for every baseline/candidate evaluation phase
-    in every prior real cycle (Maya's security review of the containment
+    in every prior real cycle (the security review of the containment
     profile already covers *how* an evaluation-only inference pass is
     contained; it does not by itself cover *what specific new data* is fed
     into it).
   - **Proposed proportionate gate:** a single **Gate — dataset admissibility
-    and evaluation-scope review (Maya)**, covering: (a) the sealed 20-pair
+    and evaluation-scope review (security reviewer)**, covering: (a) the sealed 20-pair
     held-out set's contamination-audit results (section 2) and its
     counter-direction share; (b) confirmation that the evaluation script
     changes nothing about `hf_local_evaluator_adapter.py`'s existing,
@@ -397,7 +397,7 @@ test, not overturn the NEGATIVE verdict already recorded.
     `_choice_log_likelihood`; (c) the compute-budget ceiling proposed above.
     **No `project-owner` promotion-authorization gate is proposed**, because
     this evaluation has no promotion path to authorize (identical fact
-    to every prior cycle's own `promotion_decision: null` design) — Rook's
+    to every prior cycle's own `promotion_decision: null` design) — the owner's
     role here is the ordinary PR-merge/task-acceptance authority this
     document already operates under, not a fourth signed document. **No
     `security-reviewer` host-containment gate is proposed as a *separate*
@@ -408,14 +408,14 @@ test, not overturn the NEGATIVE verdict already recorded.
     would be gate-fatigue without a corresponding safety gain; the single
     proposed gate folds the "is this containment profile still the right
     one for this new use" question into the same dataset-admissibility
-    review Maya performs, rather than manufacturing a duplicate signature
+    review the security reviewer performs, rather than manufacturing a duplicate signature
     over an artifact that has not changed. This is a proposal, not a
-    self-certification — **Maya makes the final call on whether one gate
+    self-certification — **the security reviewer makes the final call on whether one gate
     is sufficient or whether this in fact warrants the full three-role
-    pattern**, and no execution proceeds until she has reviewed this exact
-    section against the actual held-out set and evaluation script that
+    pattern**, and no execution proceeds until that review has covered
+    this exact section against the actual held-out set and evaluation script that
     will exist by then.
-  - **Maya's binding condition on this gate (recorded here per her
+  - **The security reviewer's binding condition on this gate (recorded here per that reviewer's
     CHANGES_REQUESTED review of this PR, `PRR_kwDOUT4pss8AAAABOz7iAg`):**
     the eventual single gate (follow-up card 3) must be issued as a real
     **signed artifact**, mirroring the form of the ADR-0018 Gate 1/Gate 2
@@ -432,7 +432,7 @@ test, not overturn the NEGATIVE verdict already recorded.
     follow-up execution card must measure this evaluation's own peak
     memory/wall-time freshly and the gate must be bound to that
     independently-measured figure, not to ADR-0018's. This condition is
-    binding on follow-up card 3 (Maya's gate review) and card 4 (the
+    binding on follow-up card 3 (the security reviewer's gate review) and card 4 (the
     single execution); it does not block merging this document.
 
 ## 6. Explicitly out of scope
@@ -458,11 +458,11 @@ test, not overturn the NEGATIVE verdict already recorded.
 
 1. **Build and seal the held-out preference-pair set** (section 2) —
    author 20 new pairs, register via `HeldOutExclusionRegistry`, report
-   counter-direction share. Suggested owner: **Marcus** (backend/
-   dataset-construction depth, continuing this same evaluation thread).
+   counter-direction share. Suggested owner: **backend/dataset-construction specialist**
+   (dataset-construction depth, continuing this same evaluation thread).
    The five-part contamination audit (section 2) is performed separately
-   by **Maya**, not by Marcus, per the owner decision recorded in section
-   2 — Marcus builds and proposes the set; Maya independently audits and
+   by the **security reviewer**, not by the dataset-construction specialist, per the owner decision recorded in section
+   2 — the dataset-construction specialist builds and proposes the set; the security reviewer independently audits and
    seals it.
 2. **Write the held-out log-prob margin evaluation script** (section 3),
    reusing `hf_local_evaluator_adapter.py`'s existing
@@ -471,21 +471,21 @@ test, not overturn the NEGATIVE verdict already recorded.
    against `θ = 0.843` nats, the Wilcoxon corroborating statistic, and the
    full/subset breakdowns — gated, no execution, mirroring every prior
    `run_bounded_cycle_adrXXXX.py`'s own "write-only, no execution" PR
-   pattern. Suggested owner: **Marcus**.
-3. **Maya's gate review** of section 5's proposed proportionate gate
+   pattern. Suggested owner: **backend/dataset-construction specialist**.
+3. **The security reviewer's gate review** of section 5's proposed proportionate gate
    (against the real script and sealed dataset from cards 1–2) — approve
    the one-gate proposal, require the full three-role pattern instead, or
    require a different scope; issue it as the signed artifact bound to the
    eval-script hash, the sealed registry entry, and the independently
-   re-measured `n=20` compute ceiling, per Maya's binding condition
-   recorded in section 5. Suggested owner: **Maya**.
+   re-measured `n=20` compute ceiling, per the security reviewer's binding condition
+   recorded in section 5. Suggested owner: **security reviewer**.
 4. **Execute the evaluation exactly once** (read-only, offline, per
    section 5's envelope, once card 3's gate clears) and report the result
    against section 3's pre-fixed CI-vs-`θ` decision rule and section 4's
    four-outcome table, honestly, including if the result lands in the
-   "ambiguous / underpowered" row. Owner decision (Rook, accepting Maya's
+   "ambiguous / underpowered" row. Owner decision (accepting the security
    review of this PR): the single execution must be run by a **different
-   specialist than the pair author of card 1** — Rook will assign the
+   specialist than the pair author of card 1** — the owner will assign the
    executor at that time — so the person who built the held-out set does
    not also control the one scoring pass measured against it. Same
    "report a negative/ambiguous result as a valid result" discipline every
@@ -505,7 +505,7 @@ following changes: the candidate/reference checkpoint's content hash or
 path; `hf_local_evaluator_adapter.py`'s `_choice_log_likelihood`
 implementation or contract version; the chosen statistic, decision-rule
 thresholds, or sample size in section 3; the proposed gate scope in section
-5 (Maya's review is authoritative here, not this document's own proposal);
+5 (the security reviewer's review is authoritative here, not this document's own proposal);
 or the held-out set's construction rules in section 2. After the one
 evaluation runs (once a script exists, a gate clears, and it executes),
 append only verified result/evidence references to a companion outcome

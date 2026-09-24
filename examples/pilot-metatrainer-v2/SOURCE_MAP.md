@@ -1,6 +1,6 @@
 # Source map
 
-This preserves the numbered bibliography from Clara's 2026-09-20 research comment in. Example records cite these ids and/or explicit `Clara synthesis, SSX.X` section locators.
+This preserves the numbered bibliography from the source research's 2026-09-20 research comment. Example records cite these ids and/or explicit `research synthesis, SSX.X` section locators.
 
 [1] Hugging Face, “SFT Trainer,” TRL v0.21.0 documentation. https://huggingface.co/docs/trl/v0.21.0/sft_trainer
 

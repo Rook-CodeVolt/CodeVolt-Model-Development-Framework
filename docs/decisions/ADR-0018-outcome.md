@@ -18,7 +18,7 @@ case-study examples, ADR-0016's short first-person behavioral-rehearsal
 rewrite) both converged on the model confidently endorsing a confabulated
 numeric recipe on held-out item `mtr-v2-heldout-0013`, rather than refusing
 it. `docs/decisions/ADR-0017-dpo-preference-refusal-axis.md` recorded the
-combined Marcus/Maya SME decision to switch training mechanism (SFT
+combined SME decision to switch training mechanism (SFT
 corpus rewrite -> DPO/preference training) for this one narrow axis rather
 than attempt a third differently-shaped SFT rewrite.
 `docs/decisions/ADR-0018-dpo-execution-config.md` pinned every hyperparameter
@@ -36,7 +36,7 @@ root at implementation SHA `5adc324fe619d24841359ad7bafaf97310395424`,
 `cycle_result.json` SHA-256
 `e09f75c46c567c718b633e078685f49b7666a09db6765f4fbaeb9f18bb70e634`,
 independently re-hashed for this record, byte-for-byte match against
-Marcus's execution card):
+the execution card):
 
 - `training.status`: `accepted` — full 22-step DPO pass completed,
   `memory_mb_peak` `2,344.4` MB (comfortably under the `20,480` MB ceiling;

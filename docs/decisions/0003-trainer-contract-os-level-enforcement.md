@@ -157,7 +157,7 @@ None of this is a substitute for genuine OS-level sandboxing
 (containers, gVisor, seccomp profiles, network namespaces), which
 would need elevated privileges or platform-specific tooling this
 project does not assume are present, and remains explicitly out of
-scope for this change. That is precisely the kind of control Maya's
+scope for this change. That is precisely the kind of control the
 independent security review (issue #7 step 5) is expected to require
 before any real training engine is admitted to run under this
 contract.
@@ -174,7 +174,7 @@ contract.
   training engine is imported, called, or integrated by this decision.
   The real bounded pilot described in `docs/TRAINER_ADAPTER_CONTRACT.md`
   ("Real bounded pilot plan") remains gated on independent evaluation
-  (issue #7 step 4) and Maya's independent security review (issue #7
+  (issue #7 step 4) and the independent security review (issue #7
   step 5); this ADR and its PR do not authorize that pilot.
 - Future contract changes remain diffable: bump `CONTRACT_VERSION`, add
   an ADR, keep `SUPPORTED_CONTRACT_VERSIONS` accurate — this ADR follows

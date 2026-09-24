@@ -78,7 +78,7 @@ without a new review of the changed candidate.
   complete-cycle host-containment Seatbelt mechanism, and the fail-closed
   four-probe containment self-test.
 - Role-aligned rubric, capability-retention methodology, and the requirement for
-  independent Maya security review plus independent dataset-rights admission plus
+  independent security review plus independent dataset-rights admission plus
   owner confirmation before `--execute`.
 
 ### Changed: bounded training configuration
@@ -214,8 +214,8 @@ same three people ADR-0013 admitted (PRs #82/#83) — but no fresh signature exi
 against ADR-0014's exact SHA/run_id/namespace, so execution remains fail-closed until:
 
 1. This ADR, the runner, and the live-execution plan are merged or otherwise checked
-   out at the exact SHA reviewed by Maya.
-2. Maya has approved the sandbox/filesystem boundaries, offline behavior, dependency
+   out at the exact SHA reviewed by the security reviewer.
+2. The security reviewer has approved the sandbox/filesystem boundaries, offline behavior, dependency
    and model identity, evidence handling, MPS/resource limitations, safe-stop
    behavior, and the exact command — including the two changed hyperparameters and
    their rationale above. A general adapter review or ADR-0013's prior approval is
@@ -267,7 +267,7 @@ versions: {torch: 2.8.0, transformers: 4.56.1, datasets: 3.0.0,
   accelerate: 1.4.0, trl: 0.24.0}
 execution_blockers:
   - role-specific public signer keys are not yet admitted in the trust root
-  - Maya exact-candidate live-execution approval
+  - exact-candidate live-execution approval
   - owner confirmation for this one run
 ```
 

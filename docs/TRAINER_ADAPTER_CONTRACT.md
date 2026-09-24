@@ -272,7 +272,7 @@ from outside using kernel-level facilities:
 None of this is a substitute for genuine OS-level sandboxing
 (containers, gVisor, seccomp, network namespaces), which needs elevated
 privileges or platform-specific tooling this project does not assume
-are present. That gap is exactly what Maya's independent security
+are present. That gap is exactly what the independent security
 review (issue #7 step 5) is expected to close or explicitly accept
 before any real training engine is admitted to run under this contract.
 
@@ -332,7 +332,7 @@ This contract governs only `TrainerAdapterV1`. It intentionally:
 - Does not implement or simulate independent evaluation, security review,
   or promotion — those remain the separate gated steps in
   `docs/ARCHITECTURE.md`'s capability lifecycle and issue #7's evidence
-  plan steps 4-5, owned by an independent evaluator and by Maya's security
+  plan steps 4-5, owned by an independent evaluator and by the security
   review, not by this PR.
 
 ## Rollback / cleanup after failure
@@ -380,8 +380,8 @@ is now implemented — see `src/codevolt_mdf/trl_adapter.py`
 (`TRLTrainerAdapter`) and
 `docs/decisions/0005-trl-trainer-adapter-v1.md` (engine choice: TRL,
 `UpstreamRequirement` bounds pinned to the exact verified version
-`0.24.0` — originally a range `[0.20.0, 0.24.0)`, narrowed per Maya's
-PR #15 review; see ADR-0005's "Exact pin, not a range" amendment). Its
+`0.24.0` — originally a range `[0.20.0, 0.24.0)`, narrowed per the
+independent security review of PR #15; see ADR-0005's "Exact pin, not a range" amendment). Its
 contract tests (`tests/test_trl_adapter.py`, 28 cases) reuse the
 fake-adapter-style
 conformance pattern wherever the contract allows proving behaviour
@@ -395,7 +395,7 @@ unmet and are the explicit condition for any pilot run.
 `trl-adapter` extra and `TRLTrainerAdapter`'s `UpstreamRequirement` are
 now pinned to the exact verified version `trl==0.24.0` (previously a
 range) — see ADR-0005's "Exact pin, not a range" amendment, addressing
-a medium finding from Maya's PR #15 review. Issue #7 step 4
+a medium finding from the independent security review of PR #15. Issue #7 step 4
 (independent evaluation) now has a separate, contract-tested harness:
 `src/codevolt_mdf/evaluator_contract.py`
 (`EvaluatorAdapterV1`/`run_evaluator_contract`) and
@@ -407,7 +407,7 @@ direction, enforced by a structural test
 (`tests/test_evaluator_contract.py`).
 `docs/decisions/0006-bounded-real-trl-pilot-plan.md` drafts (does not
 authorise execution of) the bounded pilot's exact configuration. No
-pilot has run; a real (non-fake) scoring adapter and Maya's
+pilot has run; a real (non-fake) scoring adapter and the
 pilot-specific review of the live TRL process (step (c) below) remain
 unmet and are the explicit condition for any pilot run.
 
@@ -437,10 +437,10 @@ unmet and are the explicit condition for any pilot run.
   contract-tested harness (`evaluator_contract.py`/
   `held_out_registry.py`) is done; a real (non-fake) scoring adapter
   and an actual pilot-specific held-out set are not yet built; and
-  (c) Maya's independent security review of sandbox, egress, secrets,
+  (c) an independent security review of sandbox, egress, secrets,
   artifact hashes, supply-chain identity, and safe-stop behaviour of
   the live TRL process is complete (issue #7 step 5) — not started,
-  distinct from her PR #15 code review of the adapter itself.
+  distinct from the earlier PR #15 code review of the adapter itself.
   `docs/decisions/0006-bounded-real-trl-pilot-plan.md` drafts the
   bounded pilot's exact configuration for that review to evaluate; it
   does not itself authorise execution.

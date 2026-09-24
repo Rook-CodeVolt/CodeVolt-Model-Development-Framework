@@ -56,7 +56,7 @@ decision. The nine (pre-existing) tests in `tests/test_core.py` and the
   ADR, keep `SUPPORTED_CONTRACT_VERSIONS` accurate.
 - A real engine integration is now a bounded, reviewable follow-up: wire
   one adapter to `TrainerAdapterV1`, document it in a new ADR, then route
-  it through independent evaluation (issue #7 step 4) and Maya's security
+  it through independent evaluation (issue #7 step 4) and the security
   review (issue #7 step 5) before any pilot run, per the bounded pilot
   plan in `docs/TRAINER_ADAPTER_CONTRACT.md`.
 - The stdlib-only timeout mechanism cannot force-terminate a

@@ -1,7 +1,7 @@
 # ADR-0006: Bounded real TRL pilot plan (drafted, then executed per gating)
 
 - Status: accepted — drafted per issue #7 step 4/5 sequencing; execution
-  was gated on Maya's pilot-specific live-execution security review and
+  was gated on the pilot-specific live-execution security review and
   owner authorisation (see "Gating" below), both of which cleared, and
   the single bounded pilot run this ADR planned has since executed
   (PR #22; see "Pilot execution result" below for the outcome and its
@@ -32,8 +32,8 @@ requested work package: "draft (do not execute) the bounded real pilot
 ADR ... Stop there. Do NOT execute a real pilot run yet." Its own
 `Status` field reflects that: `proposed`, not `accepted`, because
 acceptance of a *pilot-execution* decision is not this ADR's call to
-make alone — it requires the pilot-specific Maya review named in
-"Gating" below, distinct from her PR #15 code review of the adapter
+make alone — it requires the pilot-specific security review named in
+"Gating" below, distinct from the earlier PR #15 code review of the adapter
 itself.
 
 ## Decision (the bounded configuration this ADR proposes, if approved)
@@ -150,7 +150,7 @@ This ADR does not authorise the pilot to run. Before execution:
    the *contract-and-tests* half of issue #7 step 4. A real (non-fake)
    evaluator adapter and an actual `HeldOutSet` for this specific
    pilot's task remain to be built when the pilot is scheduled.
-2. **Maya's pilot-specific security review** (issue #7 step 5) —
+2. **The pilot-specific security review** (issue #7 step 5) —
    sandbox, egress, secrets, artifact hashes, supply-chain identity,
    and safe-stop behaviour of the *actual live TRL process*, not the
    adapter code review already completed in PR #15. This is a
@@ -170,7 +170,7 @@ untested by any run in this repository, exactly as ADR-0005 left it.
 
 - CodeVolt MDF now has a reviewable, versioned decision record for the
   bounded pilot's exact configuration, closing the "formalize what's
-  currently just pilot-plan prose" gap — the next reviewer (Maya, for
+  currently just pilot-plan prose" gap — the next reviewer (for
   the pilot-specific review; the owner, for scheduling) has concrete
   numbers and a concrete wiring requirement to review against, not
   prose to interpret.
@@ -184,7 +184,7 @@ untested by any run in this repository, exactly as ADR-0005 left it.
 ## Locked pilot parameters (2026-09-17, dataset built + dry-validated, NOT executed)
 
 Per owner instruction to finalise this ADR's proposed configuration
-into a concrete, ready-to-run spec for Maya's pilot-specific
+into a concrete, ready-to-run spec for the pilot-specific
 live-execution security review (issue #7 step 5) — **this section
 records that concrete spec. It does not authorise execution.** No
 `adapter.train()` call has occurred; only `TrainingInputs.validate()`,
@@ -304,13 +304,13 @@ ADR-drafting session's own dataset-generation output has occurred as a
 result of this section. This section only confirms the pilot's inputs
 are well-formed and accepted by the existing, previously-reviewed
 validation code — it is not, and does not claim to be, pilot execution
-or pilot evidence. Gating (see above) is unchanged: Maya's pilot-specific
+or pilot evidence. Gating (see above) is unchanged: the pilot-specific
 live-execution review and separate owner authorisation to schedule
 remain required before `train()` is ever called.
 
 ## Pilot execution result (2026-09-17, REAL, EXECUTED)
 
-Gating cleared: Maya's pilot-specific live-execution security review
+Gating cleared: the pilot-specific live-execution security review
 (issue #7 step 5, PR #18 review) returned CLEAR TO EXECUTE on findings
 1-3, all three fixed and merged (PR #21,
 `c3cbc5513fff8fc78526403ea75513c43229c1b8`), residual note LOW/

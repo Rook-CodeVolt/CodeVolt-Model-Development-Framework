@@ -24,7 +24,7 @@ pattern across all four, because ADR-0011 predates the meta-trainer target
 task entirely and each of ADR-0013/0014/0015 was explicitly scoped to test
 exactly one variable change against the one immediately prior. This record is
 the first place that pattern is stated together, for the historical record,
-per Rook's explicit instruction.
+per the owner's explicit instruction.
 
 ## The four cycles, side by side
 
@@ -169,7 +169,7 @@ this record alongside the exact-match discussion above:
 Full detail, per-item rationale, and the complete family-level breakdown are
 in the reviewer's artifact
 (a reviewer's local evidence archive),
-independently reviewed by Maya as part of this PR's own review cycle.
+independently reviewed as part of this PR's own review cycle.
 
 ## Conclusion for the record
 
@@ -248,7 +248,7 @@ four cycles**: real training subprocesses ran to completion or failed
 transparently (the ADR-0015 memory overshoot was diagnosed, evidenced, fixed
 under its own reviewed PR, and re-verified, not silently patched); real
 OS-level sandboxing (`macOS Seatbelt`) contained every run; real independent
-Maya security/dataset-rights review gated every execution; real
+security/dataset-rights review gated every execution; real
 signature-verified three-gate authorization (`ssh-keygen -Y verify` against a
 live trust root) preceded every `--execute`; real, hash-recorded, honestly
 reported evaluation ran before and after every training call; and every
@@ -259,7 +259,7 @@ four ADRs.
 
 **The method-choice decision — continue growing the corpus within the same
 full-SFT method, versus pivot to a design-level change — is an open decision
-point for Rook, not a conclusion this record asserts.** Per the mixed
+point for the owner, not a conclusion this record asserts.** Per the mixed
 evidence above, both readings are defensible from the real data: growing the
 corpus further is not shown to be futile (the rubric trend argues against
 that), and a design-level change is not shown to be necessary before trying
@@ -274,7 +274,7 @@ answers — non-blocking relative to the method-choice decision, and would
 additionally remove the need for manual rubric review on future runs
 (the root-cause diagnosis's own recommendation, still undecided); and (b) a different
 training method (e.g. LoRA/PEFT) or a larger/different base model. Whichever
-path Rook selects, item `mtr-v2-heldout-0013`'s new critical error in the
+path the owner selects, item `mtr-v2-heldout-0013`'s new critical error in the
 `confabulated_recipe_detection` family is a concrete, unresolved
 safety-relevant finding that any follow-up proposal — corpus growth or
 method change — should explicitly account for, since the most directly
@@ -300,7 +300,7 @@ uniformly negative before the independent rubric review was incorporated; see
 - The companion corpus addition below (`examples/metatrainer-corpus-addition-four-cycle-lesson/`)
   is a separate, explicitly-labeled draft proposal for a possible future
   corpus version. Per this project's standing pattern, its own admission
-  requires an independent content/citation audit and Maya's security/
+  requires an independent content/citation audit and a security/
   dataset-rights review before any merge, and merging it (if it happens) does
   not by itself authorize any training run.
 
@@ -328,16 +328,16 @@ comparison above to reflect a hypothetical or predicted outcome.
   but had not yet been incorporated.
 - 2026-09-22, this revision: incorporates the independent reviewer's real manual rubric
   score for ADR-0015 (`0.65/4.0`) and the resulting strictly-monotonic 4-run
-  rubric trend (`0.15 -> 0.35 -> 0.45 -> 0.65`), per Maya's review of PR #91
+  rubric trend (`0.15 -> 0.35 -> 0.45 -> 0.65`), per the review of PR #91
   (round 1). Replaces the prior uniformly-negative conclusion with the
   complete, mixed-evidence picture: real monotonic rubric improvement,
   alongside a real new/sharper safety-relevant critical error on item
   `mtr-v2-heldout-0013`, an absolute rubric level still roughly one-fifth of
   the promotion bar, and zero exact-match corroboration. Explicitly declines
   to assert a directional recommendation ("continue corpus growth" or
-  "pivot method") as this document's own conclusion, per Maya's review
+  "pivot method") as this document's own conclusion, per the review
   finding that such a recommendation would go beyond what the reviewer's
   source analysis itself supports; that method-choice decision is left
-  explicit and open for Rook. The scorer-replacement suggestion
+  explicit and open for the owner. The scorer-replacement suggestion
   (the root-cause diagnosis's recommendation) is retained as a named, non-blocking next
   step, consistent with the original draft.

@@ -4,14 +4,14 @@ Status: independently audited and accepted for repository inclusion. On 2026-09-
 
 ## Scope
 
-This corpus contains 60 reasoning-oriented examples derived only from Clara's designated Seed-rich A and Seed-rich B sections in (comment by Clara on 2026-09-20). It intentionally excludes section 3.1 and all other non-designated material.
+This corpus contains 60 reasoning-oriented examples derived only from the designated Seed-rich A and Seed-rich B sections of the source research synthesis (research synthesis comment, 2026-09-20). It intentionally excludes section 3.1 and all other non-designated material.
 
 Every record contains:
 
 - a stable `example_id`;
 - an explicit `semantic_family`;
-- a `source_scope` naming the authorized Clara section;
-- a non-empty `citations` array with direct source ids `[N]` and/or an explicit `Clara synthesis, SSX.X` locator;
+- a `source_scope` naming the authorized source-research section;
+- a non-empty `citations` array with direct source ids `[N]` and/or an explicit `research synthesis, SSX.X` locator;
 - one user message and one assistant answer.
 
 ## Split construction
@@ -36,9 +36,9 @@ Held-out-only families (20 examples):
 
 ## Citation policy
 
-Direct factual claims use Clara's numbered sources where those sources directly support the statement. Operational recommendations or cross-source conclusions are labeled `Clara synthesis, SSX.X` rather than being misattributed to a topically related external source. A corpus-level bibliography is not used as a substitute for per-example locators.
+Direct factual claims use the source research's numbered sources where those sources directly support the statement. Operational recommendations or cross-source conclusions are labeled `research synthesis, SSX.X` rather than being misattributed to a topically related external source. A corpus-level bibliography is not used as a substitute for per-example locators.
 
-The source of truth remains Clara's research comment and its 23-source bibliography. No additional repository incident, issue id, or implementation-specific narrative was introduced.
+The source of truth remains the source research comment and its 23-source bibliography. No additional repository incident, issue id, or implementation-specific narrative was introduced.
 
 ## Explicit exclusions and cautions
 
@@ -63,7 +63,7 @@ The corpus is admitted as one independently reviewed, incremental component of a
 - `semantic_family_manifest.json`: family-to-split and family-to-id mapping.
 - `held_out_exclusion_registry.json`: held-out family and id registry.
 - `REPRESENTATIVE_EXAMPLES.json`: five exact records copied programmatically from the generated corpus.
-- `SOURCE_MAP.md`: Clara's numbered source bibliography, preserved for locator resolution.
+- `SOURCE_MAP.md`: the source research's numbered source bibliography, preserved for locator resolution.
 - `generate_corpus.py`: deterministic generator.
 - `validate_dataset.py`: structural and policy validator.
 - `VALIDATION_REPORT.json`: validator output, written after validation.

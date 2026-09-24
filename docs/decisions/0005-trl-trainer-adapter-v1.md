@@ -4,7 +4,7 @@
 - Date: 2026-09-17
 - Amended: 2026-09-17 — `UpstreamRequirement`/`pyproject.toml` bound
   narrowed from range `[0.20.0, 0.24.0)` to exact pin `0.24.0`, per
-  Maya's PR #15 independent review (medium finding, required before any
+  the independent security review of PR #15 (medium finding, required before any
   pilot). See "Exact pin, not a range" under "UpstreamRequirement version
   bounds" below for the full rationale; every other part of this ADR is
   unchanged.
@@ -21,7 +21,7 @@ new, separately gated work package (owner-confirmed 2026-09-17): the
 adapter, its contract tests, and this ADR are authorised; **the real
 pilot run itself is not** and remains gated exactly as the pilot plan
 already requires (independent evaluation against a hidden held-out set,
-and Maya's independent security review of the real engine specifically —
+and an independent security review of the real engine specifically —
 sandbox, egress, secrets, artifact hashes, supply-chain identity,
 safe-stop). Nothing in this ADR or its PR authorises that pilot run.
 
@@ -66,8 +66,8 @@ UpstreamRequirement(
   this ADR originally declared `min_version="0.20.0"`,
   `max_version="0.24.0"` (an inclusive range spanning five minor
   releases) while only independently verifying the API surface and
-  Python-compatibility claims at the upper end, `0.24.0`. Maya's PR #15
-  independent review flagged this as a **medium-severity finding
+  Python-compatibility claims at the upper end, `0.24.0`. The independent PR #15
+  review flagged this as a **medium-severity finding
   required before any pilot**: `pyproject.toml`'s
   `trl>=0.20.0,<0.25.0` constraint let `pip` resolve anywhere in that
   range depending on the installing environment, but only `0.24.0` had
@@ -297,7 +297,7 @@ GitHub side only if and when the owner directs it.
   `docs/TRAINER_ADAPTER_CONTRACT.md`'s pilot plan step "(a) an ADR
   records the chosen engine and its `UpstreamRequirement` bounds" asked
   for. Steps (b) (independent evaluation against a hidden held-out set)
-  and (c) (Maya's security review of the real engine specifically) are
+  and (c) (the security review of the real engine specifically) are
   **not** satisfied by this ADR and remain the explicit blocking
   conditions before any pilot run, unchanged from ADR-0002.
 - The `trl-adapter` extra keeps `trl`/`transformers`/`datasets`/

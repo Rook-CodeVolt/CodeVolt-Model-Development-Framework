@@ -100,7 +100,7 @@ authorise, schedule, or execute any training run.
 - Building or registering this dataset does not authorise, and must
   not be treated as authorising, any live MiniMind training run or the
   evaluator adapter's real inference — that remains gated per
-  ADR-0011's "Gating" section (Maya's pilot-specific live-execution
+  ADR-0011's "Gating" section (the pilot-specific live-execution
   security review, then separate owner authorisation).
 
 ## Transformations / filters
