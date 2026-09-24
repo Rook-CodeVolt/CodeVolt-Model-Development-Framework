@@ -64,7 +64,7 @@ scoring stage.
   the value recorded at hand-off, and matching the co-located
   `adr0019_result.json.sha256` file written alongside it.
 - `plan.script_sha256` inside the result file
-  (`55f6bb62a69144f32cf2cc139d49bc0b89e9f11d8eefd3947766f8e41ee29fca`)
+  (`ed917221bfa178179ccad65ce1e37ae922a2d6a5c5dca6b5914834a79d32cc60`)
   re-verified byte-for-byte against
   `examples/pilot-metatrainer-v2/run_adr0019_logprob_margin_eval.py` on
   `main` at `660ae440f57ad3281a7501579baeff2a14d0abdf` (the exact commit

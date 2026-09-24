@@ -145,11 +145,11 @@
     "30": 4
   },
   "sha256": {
-    "train.jsonl": "76b6e897949c89c3db72f2fd4dbe9aa035049b6d5dd37b76ee7e44516dd6d166",
-    "held_out.json": "c0799d7032f7182d42edf0e87085786a6589d1709ba9bf2ced8f661f9ab79806",
+    "train.jsonl": "9a029f412568843c6635a2e66677c143432cf6460cda6eb5f1285cb5d1ae7482",
+    "held_out.json": "f42805ff421fc8d044f2aacff1dc5eb57423f62c593801539e9a400c56ff60b7",
     "held_out_exclusion_registry.json": "ca0ded75cc7c18047f59c676f039a13cdcc04fe9b87ea2212485f2b4c2586247",
     "semantic_family_manifest.json": "9699b6efb55f95ad84c89dbe45a218b55dd24e6497d525156c842ddc1b8e9353",
-    "REPRESENTATIVE_EXAMPLES.json": "9394835ada2ad496527cf9223e7a2be37289fabc147125bc26a09a92f548fd33"
+    "REPRESENTATIVE_EXAMPLES.json": "ea938cacaac7b76943d9c1220cc2331968febecdeafaba1c6c0f33ba4fa1baba"
   },
   "limitations": [
     "This validator proves exact family-key disjointness and structural citation-format presence; it does not replace an independent claim-support audit.",

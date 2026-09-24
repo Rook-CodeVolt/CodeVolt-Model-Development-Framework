@@ -82,7 +82,7 @@
     }
   ],
   "sha256": {
-    "preference_pairs.jsonl": "a4f9499dd2cbb16f410ce44020e6ef69012e710bae0543ac86cde36fb520c040"
+    "preference_pairs.jsonl": "e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33"
   },
   "held_out_contamination_check": {
     "compared_against": "./examples/pilot-metatrainer-v3/held_out.json",

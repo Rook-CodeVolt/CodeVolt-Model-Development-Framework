@@ -141,8 +141,8 @@ checkpoint selection, or training-time logging.
 | `semantic_family_manifest.json` | n/a | `a97a1038d6874c12de16ca1da4383837fa82684911c5290a709224a5a8363dba` |
 | `held_out_exclusion_registry.json` | n/a | `39e966df25dad4000a91beb2f093921b9454eaac35fa4b5959afb92ddb8e6e6c` |
 | `REPRESENTATIVE_EXAMPLES.json` | 5 | `85616ba5ae95f56bad7244603dea8e8465f4d86ae485c29d0ba1abf2636866e8` |
-| `SOURCE_MAP.md` | n/a | `8d199b33983e19a41d182c6e61f36b00f3ea362bd708147f6952755c33f08cb4` |
-| `DATASET_CARD.md` | n/a | `79ce57e6294a697ab94aaea168636f0a4d2d664f95aad4c94b3890866ac8f5c5` |
+| `SOURCE_MAP.md` | n/a | `f0f550d7e0c5625f2b3ea8fc51b9c120b493d444c88b2f1367c18f61ebd0b5fb` |
+| `DATASET_CARD.md` | n/a | `2f57be14b5050d675d3aa4f85a5a94d5ac02c4643fa4f6958bc1fda245c047ac` |
 | `VALIDATION_REPORT.json` | n/a | `4e5d002b08e42fab48ef8b5d3e2a28ce527748369f772a049c44460365ab9618` |
 
 The executable plan reconstructs a real `HeldOutExclusionRegistry` from the locked

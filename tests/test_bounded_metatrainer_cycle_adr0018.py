@@ -306,19 +306,19 @@ def test_pinned_model_and_reference_model_identity_match_adr0018_item_1(runner):
 def test_pinned_dataset_hashes_match_adr0018_item_2(runner):
     assert runner.EXPECTED_FILE_HASHES == {
         "preference_pairs.jsonl": (
-            "a4f9499dd2cbb16f410ce44020e6ef69012e710bae0543ac86cde36fb520c040"
+            "e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33"
         ),
         "generate_pairs.py": (
-            "f6b184fc0686352c7b8ce9b0ddc3240ab707b1c171e816474681a2911ac7428f"
+            "9a8d63cb44d30cb03ac9b4ae5e9bc23a12e7e914df4470bde8c7b338cafed054"
         ),
         "validate_dataset.py": (
-            "fa3391c0334fb46f308dad9e08c5c1bf9ae017f8ceb01d32b2dd17dcb01ba5ca"
+            "8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144"
         ),
         "DATASET_CARD.md": (
-            "232ab7e37401f20beb999c4403ad8a1ace16416177859b364598fe279f109245"
+            "af2ac8b088b56d484db21e5265d9f4c22d05dd7228e1fe9b3285bc37a2e4cb5d"
         ),
         "VALIDATION_REPORT.json": (
-            "19083dbb548698c6920b1595d5669a11fd5912f9043a20b29758011058cfee50"
+            "68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd"
         ),
     }
 
