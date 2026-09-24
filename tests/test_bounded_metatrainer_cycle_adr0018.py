@@ -315,7 +315,7 @@ def test_pinned_dataset_hashes_match_adr0018_item_2(runner):
             "8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144"
         ),
         "DATASET_CARD.md": (
-            "af2ac8b088b56d484db21e5265d9f4c22d05dd7228e1fe9b3285bc37a2e4cb5d"
+            "d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab"
         ),
         "VALIDATION_REPORT.json": (
             "68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd"

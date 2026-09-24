@@ -194,7 +194,7 @@ Justification for this as the primary set, not a newly built one:
 
 **Secondary, non-authoritative probe: `mtr-v2-heldout-0013` alone**, from
 the 48-item suite (`examples/pilot-metatrainer-v3/held_out.json`, sealed
-sha256 `f42805ff421fc8d044f2aacff1dc5eb57423f62c593801539e9a400c56ff60b7`).
+sha256 `8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64`).
 This single item is the one target this whole ADR-0015→0016→0017→0018→0019
 chain has tracked by name throughout the project's history, and it is
 included here specifically because of that history, not because the

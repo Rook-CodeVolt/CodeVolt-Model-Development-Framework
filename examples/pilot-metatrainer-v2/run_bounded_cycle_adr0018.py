@@ -134,7 +134,7 @@ EXPECTED_FILE_HASHES = {
     "validate_dataset.py": (
         "8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144"
     ),
-    "DATASET_CARD.md": "af2ac8b088b56d484db21e5265d9f4c22d05dd7228e1fe9b3285bc37a2e4cb5d",
+    "DATASET_CARD.md": "d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab",
     "VALIDATION_REPORT.json": (
         "68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd"
     ),
@@ -143,7 +143,7 @@ EXPECTED_FILE_HASHES = {
 # held-out suites are not modified or re-scoped by ADR-0018 (item 5: "No
 # evaluator code change is required or proposed by this document").
 EXPECTED_HELD_OUT_SUITE_HASHES = {
-    "held_out.json": "f42805ff421fc8d044f2aacff1dc5eb57423f62c593801539e9a400c56ff60b7",
+    "held_out.json": "8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64",
     "held_out_exclusion_registry.json": (
         "ca0ded75cc7c18047f59c676f039a13cdcc04fe9b87ea2212485f2b4c2586247"
     ),

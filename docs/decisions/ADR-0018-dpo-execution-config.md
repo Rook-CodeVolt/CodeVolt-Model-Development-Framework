@@ -61,7 +61,7 @@ from ADR-0017's or PR #98's own prose:
   - `validate_dataset.py`:
     `8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144`
   - `DATASET_CARD.md`:
-    `af2ac8b088b56d484db21e5265d9f4c22d05dd7228e1fe9b3285bc37a2e4cb5d`
+    `d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab`
   - `VALIDATION_REPORT.json` (as committed on `main`):
     `68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd`
 - `examples/pilot-metatrainer-v3-dpo/validate_dataset.py` was re-run fresh
@@ -163,7 +163,7 @@ established.
   | `preference_pairs.jsonl` | `e6c1d20884eda08aac354a49ba4514ec44adfe565bb70e03bd9526a3f8da5b33` |
   | `generate_pairs.py` | `9a8d63cb44d30cb03ac9b4ae5e9bc23a12e7e914df4470bde8c7b338cafed054` |
   | `validate_dataset.py` | `8b352dd666d4cf42a101833af4bec775f47ae3be5d4e611c16f317b246216144` |
-  | `DATASET_CARD.md` | `af2ac8b088b56d484db21e5265d9f4c22d05dd7228e1fe9b3285bc37a2e4cb5d` |
+  | `DATASET_CARD.md` | `d9e371a3a59a78a1e5c0691ae207a9327c6a064e815d1730a701ceccc97dadab` |
   | `VALIDATION_REPORT.json` (as committed) | `68059d3f5c7b558b5821de66aa620df17024448aee6e22689fd2dd81678967fd` |
 
   Only `preference_pairs.jsonl`'s hash is load-bearing for `prepare()`'s

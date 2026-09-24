@@ -179,7 +179,7 @@ MIN_COUNTER_SHARE = 0.20
 
 SECONDARY_HELD_OUT_PATH = REPO_ROOT / "examples/pilot-metatrainer-v3/held_out.json"
 EXPECTED_SECONDARY_HELD_OUT_HASH = (
-    "f42805ff421fc8d044f2aacff1dc5eb57423f62c593801539e9a400c56ff60b7"
+    "8cdbd5cc56b6104ee2388d637c89ec5336d7adde23e5b6bd7e439267d4e4ab64"
 )
 SECONDARY_ITEM_ID = "mtr-v2-heldout-0013"
 
