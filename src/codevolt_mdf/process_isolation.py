@@ -118,6 +118,7 @@ import builtins
 import logging
 import multiprocessing
 import os
+import queue
 import re
 import resource
 import signal
@@ -1048,6 +1049,31 @@ def _directory_size_mb(root: str) -> float:
     return total / (1024.0 * 1024.0)
 
 
+def _drain_result(
+    result_queue: multiprocessing.Queue[Any], timeout: float
+) -> tuple[str, Any] | None:
+    """Try to read one ``(kind, payload)`` item from the child's result queue.
+
+    Blocks up to ``timeout`` seconds. This is used both as the poll loop's
+    sleep (so it doubles as the interval between liveness/resource checks)
+    and, with a short bounded timeout, as a final drain after the loop has
+    exited for another reason.
+
+    Calling this *before* ever checking ``process.is_alive()`` matters: a
+    child whose queued payload is larger than the pipe buffer blocks inside
+    its own ``Queue`` feeder thread at interpreter exit and therefore never
+    becomes not-alive -- the documented "joining processes that use queues"
+    deadlock in ``multiprocessing``. Draining first means a large result is
+    read off the pipe (unblocking the feeder thread so the child can exit)
+    instead of the parent waiting forever for a liveness signal that will
+    never come.
+    """
+    try:
+        return result_queue.get(timeout=timeout)
+    except queue.Empty:
+        return None
+
+
 def run_in_isolated_process(
     adapter: Any,
     inputs: Any,
@@ -1094,8 +1120,20 @@ def run_in_isolated_process(
     killed_for_cancellation = False
     pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
 
+    drained_result: tuple[str, Any] | None = None
+
     while True:
         elapsed = time.monotonic() - start
+
+        # Drain (with the poll interval as the wait/sleep) BEFORE checking
+        # is_alive(): a child whose queued payload is bigger than the pipe
+        # buffer blocks in its own Queue feeder thread at interpreter exit
+        # and never becomes not-alive, so checking is_alive() first can
+        # deadlock forever on a large result. See _drain_result docstring.
+        drained_result = _drain_result(result_queue, poll_interval)
+        if drained_result is not None:
+            break
+
         if not process.is_alive():
             break
 
@@ -1129,8 +1167,6 @@ def run_in_isolated_process(
                 pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
             break
-
-        time.sleep(poll_interval)
 
     # Process has exited (or was just killed and reaped above). Join once
     # more defensively so RUSAGE_CHILDREN below reflects a reaped child.
@@ -1166,11 +1202,14 @@ def run_in_isolated_process(
     if killed_for_overrun or killed_for_timeout or killed_for_cancellation:
         return None, None, measured
 
-    try:
-        kind, payload = result_queue.get_nowait()
-    except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
+    if drained_result is None:
+        # Bounded final drain in case the child put its result and exited
+        # between the last loop check and process.join() above.
+        drained_result = _drain_result(result_queue, poll_interval)
+    if drained_result is None:
         return None, RuntimeError("child process exited without reporting a result"), measured
 
+    kind, payload = drained_result
     if kind == "output":
         return payload, None, measured
     return None, _reconstruct_exception(payload), measured
@@ -1225,9 +1264,18 @@ def run_callable_in_isolated_process(
     killed_for_overrun = False
     killed_for_timeout = False
     pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
+    drained_result: tuple[str, Any] | None = None
 
-    while process.is_alive():
+    while True:
         elapsed = time.monotonic() - start
+
+        drained_result = _drain_result(result_queue, poll_interval)
+        if drained_result is not None:
+            break
+
+        if not process.is_alive():
+            break
+
         live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
         if live is not None:
             memory_mb, cpu_seconds = live
@@ -1243,7 +1291,6 @@ def run_callable_in_isolated_process(
             pid_tree_walk_outcome = _kill_group(process)
             process.join(timeout=5)
             break
-        time.sleep(poll_interval)
 
     process.join(timeout=5)
     wall_seconds = round(time.monotonic() - start, 6)
@@ -1269,10 +1316,11 @@ def run_callable_in_isolated_process(
         return None, None, measured
     if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
         return None, RuntimeError("isolated callable exceeded max_storage_mb"), measured
-    try:
-        kind, payload = result_queue.get_nowait()
-    except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
+    if drained_result is None:
+        drained_result = _drain_result(result_queue, poll_interval)
+    if drained_result is None:
         return None, RuntimeError("isolated callable process exited without reporting a result"), measured
+    kind, payload = drained_result
     if kind == "output":
         return payload, None, measured
     return None, _reconstruct_exception(payload), measured
@@ -1313,9 +1361,18 @@ def run_evaluator_in_isolated_process(
     killed_for_overrun = False
     killed_for_timeout = False
     pid_tree_walk_outcome: PidTreeWalkOutcome | None = None
+    drained_result: tuple[str, Any] | None = None
 
-    while process.is_alive():
+    while True:
         elapsed = time.monotonic() - start
+
+        drained_result = _drain_result(result_queue, poll_interval)
+        if drained_result is not None:
+            break
+
+        if not process.is_alive():
+            break
+
         live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
         if live is not None:
             memory_mb, cpu_seconds = live
@@ -1331,7 +1388,6 @@ def run_evaluator_in_isolated_process(
             pid_tree_walk_outcome = _kill_group(process)
             process.join(timeout=5)
             break
-        time.sleep(poll_interval)
 
     process.join(timeout=5)
     wall_seconds = round(time.monotonic() - start, 6)
@@ -1357,10 +1413,11 @@ def run_evaluator_in_isolated_process(
         return None, None, measured
     if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
         return None, RuntimeError("evaluator exceeded max_storage_mb"), measured
-    try:
-        kind, payload = result_queue.get_nowait()
-    except Exception:  # noqa: BLE001 - empty queue (child died without reporting)
+    if drained_result is None:
+        drained_result = _drain_result(result_queue, poll_interval)
+    if drained_result is None:
         return None, RuntimeError("evaluator process exited without reporting a result"), measured
+    kind, payload = drained_result
     if kind == "output":
         return payload, None, measured
     return None, _reconstruct_exception(payload), measured
