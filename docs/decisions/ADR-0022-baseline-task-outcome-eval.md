@@ -729,12 +729,18 @@ compute-ceiling re-measurement or review can be meaningful:
   alternative (loading the safetensors checkpoint directly through this
   project's existing local Hugging Face causal-LM evaluator path) because
   the Vulkan/GGUF toolchain at this exact release is already installed
-  and independently verified on the designated evaluation host, requiring
-  no new runtime installation and no new dependency surface; the
-  safetensors path would additionally require holding this model's full
-  BF16 weights resident at once, a materially larger memory footprint for
-  no task-outcome benefit this document's own scoring rules (sections
-  2-4, exact-match/schema-conformance/participation, none of which need
+  and independently verified on a machine of the same hardware class as
+  the host pinned below, proving the binary distribution and its
+  dependency surface work on this hardware family; the host pinned for
+  this document's own execution requires its own fresh extraction of the
+  identical release and its own device-detection verification (see
+  "Host", below) before first use — a same-release installation step on
+  this specific host, not a runtime re-selection, and no new dependency
+  surface beyond that one-time extraction. The safetensors path would
+  additionally require holding this model's full BF16 weights resident at
+  once, a materially larger memory footprint for no task-outcome benefit
+  this document's own scoring rules (sections 2-4,
+  exact-match/schema-conformance/participation, none of which need
   token-level log-probabilities) require. If a later execution card finds
   the GGUF/CLI interface cannot supply something section 2-4's scoring
   actually needs, switching to the safetensors path is a fresh,
@@ -742,16 +748,25 @@ compute-ceiling re-measurement or review can be meaningful:
   at run time.
 - **Host, described by class, not by internal designation:** a
   single-host machine with an AMD Ryzen AI Max-class APU and an
-  integrated Radeon 8060S-class GPU, running Windows, with
-  Vulkan-addressable memory independently measured at approximately 111.6
-  GB free — comfortably sufficient for a roughly 4.7 GB resident model
-  plus key-value cache, with no capacity risk. This is the same host
-  class already used for this project's file-artifact rollback
-  convention (13.2 rollback, below) and the same class this project's own
-  independent security review process has already cleared for a general
-  training role under its own prior, unwaived conditions; this amendment
-  does not reopen or restate those unrelated conditions, only the ones
-  specific to running this model (below).
+  integrated Radeon 8060S-class GPU, running Windows. This document pins
+  a training/evaluation-class host, under this project's own host-role
+  split between hosts dedicated to training, evaluation, and trials and
+  the separate host class this project reserves exclusively for
+  production serving of already-promoted models — this measurement is
+  training-side work and never runs on the production-serving host class.
+  Vulkan-addressable memory on a machine of this same hardware class was
+  independently measured at approximately 111.6 GB free — comfortably
+  sufficient for a roughly 4.7 GB resident model plus key-value cache,
+  with no capacity risk expected on the pinned host given the identical
+  hardware class; this document requires the same device-detection check
+  to be re-run and recorded against the actual pinned host before the
+  first load, rather than assuming the figure transfers unverified. This
+  is the same host class already used for this project's file-artifact
+  rollback convention (13.2 rollback, below) and a host class this
+  project's own independent security review process has already cleared
+  for a general training role under its own prior, unwaived conditions;
+  this amendment does not reopen or restate those unrelated conditions,
+  only the ones specific to running this model (below).
 - **Checksum verification, mandatory, before load:** both pinned GGUF
   shard sha256 values in 13.1 must be independently recomputed against
   the on-disk files immediately after download and before either file is
@@ -760,10 +775,11 @@ compute-ceiling re-measurement or review can be meaningful:
   hash that does not match this document's own pin.
 - **Storage separation:** the downloaded model files are stored under a
   path reserved exclusively for evaluation-only model artifacts,
-  structurally separate from any path used for this project's serving
-  binaries and separate from any path used for training data or training
-  checkpoints on the same host, following this project's existing
-  directory-separation discipline for hosts that serve more than one role.
+  structurally separate from any path used for this project's
+  inference-runtime installation and separate from any path used for
+  training data or training checkpoints belonging to any other track on
+  the same host, following this project's existing directory-separation
+  discipline for hosts that carry more than one track.
 - **Network:** the one-time pinned-revision download is the only network
   activity; the evaluation itself runs with no network access
   (`HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` equivalent enforcement,
@@ -782,8 +798,8 @@ compute-ceiling re-measurement or review can be meaningful:
   project's own file-artifact convention — delete the downloaded model
   files from the reserved evaluation-artifacts path. No registry or
   service state is created, no software is left installed beyond the
-  already-present, already-verified runtime, and no other host role is
-  touched.
+  pinned runtime release this document's own execution installs and
+  verifies, and no other track on this host is touched.
 - **Residual, accepted risk:** as with every other model measured under
   this project's own process to date, there is no cryptographic signature
   or attestation on the downloaded artifact beyond content-addressed
