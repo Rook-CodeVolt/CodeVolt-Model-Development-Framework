@@ -9,8 +9,12 @@
   deployment, or new gate signature.** It is the smallest item on
   ADR-0021's roadmap (section 6, item 1): a training-free baseline
   measurement of the current candidate and its reference checkpoint on
-  C1, C2, and C4.
-- Date: 2026-09-24
+  C1, C2, and C4. **Amended 2026-09-28 (section 13)** to add a third,
+  capability-scale measured model, pin the one runtime/host section 8
+  originally left open for that model, and preregister a queue-admission
+  threshold specific to it — see section 13 for the full scope of the
+  amendment and what it does and does not change in sections 1-12.
+- Date: 2026-09-24 (amended 2026-09-28, see section 13)
 - Tracking: `docs/decisions/ADR-0021-metatrainer-mission-and-capability-map.md`
   section 6 item 1 (this record's own mandate and scope, restated below);
   `docs/decisions/ADR-0020-outcome.md` (the floor-effect lesson this
@@ -621,6 +625,394 @@ snapshot, not a fully powered instrument.
    (`ADR-0022-outcome.md`), mirroring every prior cycle's own outcome-
    record convention.
 
+## 13. Amendment (2026-09-28): a third, capability-scale measured model
+
+This amendment adds a third measured model to the design fixed in sections
+1-12 above, pins the one runtime/host this document previously left open,
+and adds one new preregistered decision layer that did not exist in the
+original document: a queue-admission threshold specific to the added
+model. It is an amendment to this ADR, not a new ADR, because the change
+is exactly the kind this document's own "Documentation impact and
+maintenance triggers" section already named as a reopen-this-document
+trigger ("the proposed gate scope in section 9 changes") — the next
+number in this project's ADR sequence is already reserved by ADR-0021's
+own roadmap for a differently-scoped record (the C3 evaluation harness),
+so reusing it here would misfile this change against that roadmap.
+
+This amendment does not change sections 2-4's item counts, item
+construction method, or gold-answer derivation; does not change section
+7's floor-effect guard definitions; and does not authorize any download,
+installation, training, or execution. The 56-item set (24 C1 + 12 C2 + 20
+C4) fixed in sections 2-4 is unchanged and is model-agnostic by
+construction — the same items are now scored against three models
+instead of two. What changes is: which models are measured (13.1), which
+single runtime and host class the measurement runs on (13.2), one new
+preregistered per-capability queue-admission threshold that applies only
+to the newly added model (13.3), the evidence schema's cost fields
+(13.4), and one process lesson carried forward into this record (13.5).
+
+### 13.1 The third measured model
+
+In addition to the existing ADR-0018 candidate checkpoint and its pinned
+reference/base checkpoint (both already measured under sections 1-12
+unchanged), this document now also measures, at capability scale:
+
+- **Qwen2.5-7B-Instruct** (Apache-2.0), safetensors repository, pinned at
+  immutable revision `a09a35458c702b33eeacc393d103063234e8bc28`
+  (independently re-confirmed live against the Hugging Face Hub API for
+  this amendment: publisher-authored repository, not a re-upload; base
+  parameter count 7,615,616,512 in BF16; four safetensors shards with
+  sha256 `a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7`,
+  `f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185`,
+  `8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5`, and
+  `1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd`
+  respectively).
+- **The publisher's own official GGUF conversion** of the same model,
+  `Qwen2.5-7B-Instruct-GGUF`, pinned at immutable revision
+  `bb5d59e06d9551d752d08b292a50eb208b07ab1f` (same publisher account as
+  the safetensors repository, not a third-party quantiser; LICENSE file
+  byte-identical to the safetensors repository's own LICENSE, confirmed
+  by matching content-addressed blob id, not merely a matching licence
+  tag string). The specific quantisation pinned for this document's
+  execution is the two-shard `q4_k_m` pair,
+  `qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf`
+  (sha256 `dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db`)
+  and `qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf`
+  (sha256 `539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a`),
+  chosen over higher-fidelity quantisations available at the same
+  revision (`q6_k`, `q8_0`, full `fp16`) as the lower-risk default for a
+  first evaluation pass on this project's own surface — smaller download,
+  smaller parsing surface, faster iteration — with an explicit,
+  preregistered escalation path: if this document's own C1/C2/C4 probe
+  later shows quantisation-sensitive degradation on a rerun, a
+  higher-fidelity pin is a fresh, separately-justified correction to this
+  amendment, not a silent substitution.
+- The licence for both the safetensors and GGUF repositories was
+  independently re-verified for this amendment directly against the raw
+  LICENSE file content at each pinned revision (not the licence tag
+  alone): the genuine, unmodified Apache License 2.0, permitting
+  commercial fine-tuning, commercial inference, and internal deployment,
+  with no monthly-active-user cap and no non-commercial clause.
+- **Scope of this admission: evaluation only.** This document measures
+  this model's zero-shot task-outcome performance under sections 2-4's
+  existing item sets. It authorizes no training, fine-tuning, or
+  parameter update of this model under any circumstance. Any future
+  training use of this specific model requires its own, separately
+  admitted and separately gated record; nothing in this amendment
+  pre-clears that.
+- **Two models named and explicitly deferred, not admitted by this
+  amendment:** a considered ~8B model from a later generation of the same
+  model family, and a smaller (roughly 3-4B) permissively-licensed
+  alternative model, are both named in this project's own model-selection
+  record as candidates to revive only if the model admitted here misses
+  the queue-admission threshold this amendment sets (13.3). Neither is
+  downloaded, pinned, or measured by this document. Reviving either
+  requires its own fresh provenance pin, licence check, and independent
+  security admission before any part of this document's measurement
+  applies to it.
+- A third same-generation model in this family remains excluded from
+  every track in this project, unchanged from the prior standing finding
+  that its licence is non-commercial-only. This amendment does not touch,
+  soften, or reconsider that exclusion.
+
+### 13.2 Runtime, host, and execution envelope for the third model
+
+Section 8's execution envelope (inference only, offline, isolated-process
+resource enforcement, `evaluator-process-containment-v1`) applies to this
+model unchanged. This amendment additionally pins the one runtime choice
+section 8 left open for this model's specific artifact shape, since
+section 9's gate requires an unambiguous runtime pin before any
+compute-ceiling re-measurement or review can be meaningful:
+
+- **Runtime, pinned: `llama.cpp`, Vulkan backend, release tag `b10938`,
+  loading the pinned GGUF pair named in 13.1.** This is chosen over the
+  alternative (loading the safetensors checkpoint directly through this
+  project's existing local Hugging Face causal-LM evaluator path) because
+  the Vulkan/GGUF toolchain at this exact release is already installed
+  and independently verified on a machine of the same hardware class as
+  the host pinned below, proving the binary distribution and its
+  dependency surface work on this hardware family; the host pinned for
+  this document's own execution requires its own fresh extraction of the
+  identical release and its own device-detection verification (see
+  "Host", below) before first use — a same-release installation step on
+  this specific host, not a runtime re-selection, and no new dependency
+  surface beyond that one-time extraction. The safetensors path would
+  additionally require holding this model's full BF16 weights resident at
+  once, a materially larger memory footprint for no task-outcome benefit
+  this document's own scoring rules (sections 2-4,
+  exact-match/schema-conformance/participation, none of which need
+  token-level log-probabilities) require. If a later execution card finds
+  the GGUF/CLI interface cannot supply something section 2-4's scoring
+  actually needs, switching to the safetensors path is a fresh,
+  explicitly-justified amendment to this pin, not a silent substitution
+  at run time.
+- **Host, described by class, not by internal designation:** a
+  single-host machine with an AMD Ryzen AI Max-class APU and an
+  integrated Radeon 8060S-class GPU, running Windows. This document pins
+  a training/evaluation-class host, under this project's own host-role
+  split between hosts dedicated to training, evaluation, and trials and
+  the separate host class this project reserves exclusively for
+  production serving of already-promoted models — this measurement is
+  training-side work and never runs on the production-serving host class.
+  Vulkan-addressable memory on a machine of this same hardware class was
+  independently measured at approximately 111.6 GB free — comfortably
+  sufficient for a roughly 4.7 GB resident model plus key-value cache,
+  with no capacity risk expected on the pinned host given the identical
+  hardware class; this document requires the same device-detection check
+  to be re-run and recorded against the actual pinned host before the
+  first load, rather than assuming the figure transfers unverified. This
+  is the same host class already used for this project's file-artifact
+  rollback convention (13.2 rollback, below) and a host class this
+  project's own independent security review process has already cleared
+  for a general training role under its own prior, unwaived conditions;
+  this amendment does not reopen or restate those unrelated conditions,
+  only the ones specific to running this model (below).
+- **Checksum verification, mandatory, before load:** both pinned GGUF
+  shard sha256 values in 13.1 must be independently recomputed against
+  the on-disk files immediately after download and before either file is
+  passed to the runtime. A mismatch on either shard is a hard stop —
+  delete the mismatched file and re-fetch; the run does not proceed on a
+  hash that does not match this document's own pin.
+- **Storage separation:** the downloaded model files are stored under a
+  path reserved exclusively for evaluation-only model artifacts,
+  structurally separate from any path used for this project's
+  inference-runtime installation and separate from any path used for
+  training data or training checkpoints belonging to any other track on
+  the same host, following this project's existing directory-separation
+  discipline for hosts that carry more than one track.
+- **Network:** the one-time pinned-revision download is the only network
+  activity; the evaluation itself runs with no network access
+  (`HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` equivalent enforcement,
+  per section 8, applies to the download step's absence during scoring,
+  not to the one-time fetch itself). If a persistent server process
+  (rather than a one-shot command-line invocation) is used to serve this
+  model during scoring, it must bind to loopback (`127.0.0.1`) only and
+  must never be reachable from any other host. `llama.cpp`'s separate
+  RPC-server companion binary, which ships in the same release archive as
+  the runtime pinned above, must never be run or exposed for any part of
+  this document's execution — it serves no purpose this document's
+  single-host, single-process evaluation needs, and running it would be a
+  new, unauthorized network-exposure surface this amendment does not
+  admit.
+- **Rollback:** identical in mechanism to every rollback in this
+  project's own file-artifact convention — delete the downloaded model
+  files from the reserved evaluation-artifacts path. No registry or
+  service state is created, no software is left installed beyond the
+  pinned runtime release this document's own execution installs and
+  verifies, and no other track on this host is touched.
+- **Residual, accepted risk:** as with every other model measured under
+  this project's own process to date, there is no cryptographic signature
+  or attestation on the downloaded artifact beyond content-addressed
+  sha256 pinning plus a same-publisher-account provenance check. This is
+  the same residual this project accepts programme-wide, mitigated the
+  same way (hash pinning plus publisher verification), not a new,
+  unmitigated gap introduced by this amendment.
+
+### 13.3 Preregistered queue-admission threshold for the third model
+
+Sections 1 and 7 above deliberately set **no** accept/reject threshold for
+the existing candidate-versus-reference comparison, because ADR-0021's
+own roadmap names that comparison a baseline measurement, not a
+promotion gate. That reasoning is unchanged and still applies to the
+candidate-versus-reference comparison.
+
+This amendment adds a **separate, narrower preregistered threshold that
+applies only to the third model** (13.1), because this project's own
+model-selection record ties a specific downstream decision to this
+model's own zero-shot performance on exactly the item sets this document
+already specifies: whether the two named-and-deferred alternative models
+(13.1) need to be revived and separately admitted for a repeat pass, or
+whether this model's own zero-shot result is sufficient signal to proceed
+without them. Fixing that threshold before any item is scored is the same
+discipline section 7's own floor-effect guard already applies to the
+candidate/reference comparison, extended to a decision this document's
+own scope now needs to make.
+
+**Per-capability floor, fixed in advance:**
+
+- **C1.** A closed-set random-guess baseline is computable exactly from
+  section 2's own fixed construction: 8 trainer-adapter items at 1-in-4
+  odds, 8 evaluator-adapter items at 1-in-2 odds, 8 task-type items at
+  1-in-4 odds, giving an expected chance score of `2 + 4 + 2 = 8` correct
+  out of 24 (33.3%). The floor for this capability is exact-match
+  accuracy **strictly greater than 8/24** on the full 24-item set, **and**
+  strictly greater than each sub-bucket's own chance expectation
+  individually (greater than 2/8 for the trainer-adapter and task-type
+  sub-buckets; greater than 4/8 for the evaluator-adapter sub-bucket) —
+  the per-sub-bucket condition exists specifically so a model that
+  reaches the aggregate floor only by defaulting to one fixed answer in
+  the highest-chance (1-in-2) sub-bucket does not count as clearing this
+  floor; a constant-answer strategy in that sub-bucket caps at exactly
+  its own chance expectation given this document's own balanced item
+  construction (section 2), so "strictly greater than" that sub-bucket's
+  chance value specifically rules out a constant-answer pass.
+- **C2.** No random-guess baseline applies to a generative,
+  schema-conformance task the way it does to a closed-set selection task,
+  so this floor is anchored instead to a plain necessary condition: can
+  this model reliably produce a well-formed, schema-conformant artifact
+  at all, given that section 3's own prompt fully specifies the required
+  schema. The floor is stage-(a) pass (parses and validates exactly as
+  section 3's own gold label says it should) on **at least 4 of the 12**
+  items, **and** at least one of the six command-produces-artifact items
+  that clears stage (a) also clears stage (b) (produces the exact
+  `decision.json` section 3's gold computation predicts). A model that
+  cannot clear stage (a) on a third of a fully-specified-schema task, or
+  that never once reaches a verified correct end-to-end artifact, has not
+  shown the minimal procedural-execution signal this floor is checking
+  for.
+- **C4.** Three sub-metrics, all three required, mirroring section 7's
+  own three-number report for this capability: should-not-defer
+  participation rate **at least 50%** (answers at least 6 of the 12
+  should-not-defer items rather than declining them); should-defer
+  participation rate (fabrication) **at most 50%** (does not attempt an
+  answer, rather than declining, on more than 4 of the 8 should-defer
+  items); and, of the should-not-defer items it does answer, conditional
+  correctness **at least 50%**. All three must hold — a model that
+  answers freely but is usually wrong, or that answers correctly but
+  fabricates on most should-defer items, or that declines almost
+  everything, has not shown the balanced participation-plus-correctness
+  signal this floor is checking for.
+
+**Preregistered answer formats and parser rules: unchanged, reused
+without modification.** The third model is scored under exactly the same
+fixed prompt templates, closed answer sets, and first-line parser rules
+sections 2 and 4 already specify for the candidate and reference models —
+no model-specific prompt variant, no relaxed parsing, no second attempt.
+An output the parser cannot map to a scored answer under the existing
+rules is UNSCORABLE for this model exactly as it would be for either of
+the other two, counting toward section 7's 40% unscorable-floor guard on
+exactly the same terms.
+
+**Scorable-floor and unscorable-floor guards: reused, extended to three
+models, not redefined.** Section 7's two floor-effect guards are
+evaluated per capability across all three models now measured under this
+document, not only the original two: the scorable floor fires, for a
+given capability, if every model measured under this document scores
+exactly zero on more than 40% of that capability's own item set, with the
+same consequence section 7 already states (report each model's own zero
+honestly; the multi-way comparison for that capability is uninformative).
+The unscorable floor fires, for a given capability, if more than 40% of
+that capability's items are unscorable for any one model measured under
+this document, with the same consequence section 7 already states for
+that model's own result on that capability (uninformative, full stop,
+regardless of what the scorable subset shows for that model). A guard
+firing for one model on one capability does not by itself invalidate
+another model's result on that same capability, or any model's result on
+a different capability — the guards are evaluated per (model, capability)
+pair, exactly as section 7's own "evaluated independently" language
+already establishes for the two-model case.
+
+**Small-n differences remain descriptive counts only.** Section 10's own
+rule — no significance test, no p-value, no confidence interval, no
+causal claim, over any reported difference on C1, C2, or C4 — applies
+without modification to every pairwise or three-way comparison this
+amendment introduces. A difference between this model's score and either
+existing model's score on any capability is a count out of a small, fixed
+denominator, exactly as section 10 already states; it is evidence neither
+for nor against a training effect, since none of the three models
+compared under this document has been trained differently as part of
+this measurement.
+
+**What a pass means for the next queue entry, fixed in advance.** If the
+third model clears the per-capability floor above on **at least two of
+the three capabilities** (C1, C2, C4), and does not trigger section 7's
+scorable-floor guard on all three capabilities simultaneously, that
+result is read as sufficient zero-shot signal to proceed: the
+separately-gated follow-up work already named in section 12 (building the
+item sets, registering them, writing the scoring/execution script,
+security review, and the one execution pass) proceeds treating all three
+models — the existing candidate, the existing reference, and this third
+model — as this document's measured set. The two deferred alternative
+models named in 13.1 are not revived, downloaded, or admitted by this
+outcome; this document does not authorize that regardless of result.
+
+**What a fail rules out, fixed in advance.** If the third model clears
+the per-capability floor on **zero or one of the three capabilities**,
+that result rules out treating this specific zero-shot pass, on this
+specific quantisation and runtime, as sufficient evidence of
+capability-scale signal on this project's own adapter/config/CLI surface.
+Per this project's own recorded model-selection decision, a fail is the
+named trigger for considering reviving one of the two deferred
+alternative models (13.1) for a repeat zero-shot pass. This document does
+not itself authorize that revival, its provenance pin, its licence check,
+or its independent security admission — each remains its own separately
+gated future record, exactly as section 12 already requires for every
+other piece of follow-up work this document names but does not itself
+carry out. A fail on this floor is not read as a defect in this
+document's own item construction (section 2-4 apply unchanged and
+unmodified to this model), and section 11's small-model reality check
+(a low, or even zero-but-scorable, score being a plausible, unsurprising
+outcome at this scale) applies to this model exactly as it already
+applies to the existing candidate and reference checkpoints.
+
+### 13.4 Cost fields in the result schema
+
+Section 8's "Evidence path" bullet already requires a fresh, reviewed
+scratch root containing every raw output, the two-stage C2 scoring
+intermediate results, the per-item gold/actual comparison, the aggregate
+statistics per section 7, and a sha256 of the results file. This
+amendment adds a requirement on the shape of that results file, effective
+for every model measured under this document (not only the third): every
+recorded metric — each per-item score and each capability's aggregate
+statistic, per model — must carry, alongside the score itself:
+
+- **Host:** the exact runtime-plus-host identifier string recorded by the
+  execution script's own environment capture at run time (the same
+  mechanism the process-isolation module already uses to record its
+  execution environment for every prior cycle), not a value filled in
+  after the fact from memory.
+- **Wall-clock time:** the real, OS-measured duration for that
+  measurement unit, using the same `run_callable_in_isolated_process`
+  timing mechanism section 8 already routes every model-load-plus-scoring
+  call through — never an estimate, once the run has actually happened.
+- **Energy cost, in kWh, or the literal string `not measurable` with a
+  named reason:** if the host and runtime combination in use exposes no
+  power-telemetry interface this project's execution script can read (the
+  expected case for the runtime and host pinned in 13.2, which has no
+  vendor GPU power-draw API wired into this project's existing evaluation
+  tooling, and no external metering hardware in this project's equipment)
+  the field must read `not measurable`, with that specific reason
+  recorded verbatim, fixed **before** the run — this is a preregistered
+  limitation of the current measurement capability, not a value decided
+  or omitted after seeing the results. If a future execution card adds a
+  working power-telemetry path, the same field format applies and the
+  field is then populated with a real measured value rather than
+  `not measurable`.
+
+This requirement applies identically to the existing candidate and
+reference checkpoints' own results, not only to the third model added by
+this amendment — it is a schema-shape requirement on the whole results
+file, not a per-model exception.
+
+### 13.5 Process lesson carried forward
+
+This project's own prior capability-cycle records (ADR-0015 through
+ADR-0020) all measured a single pretrained checkpoint in the
+tens-to-hundreds-of-millions-of-parameters range — small enough to
+iterate on cheaply, but never independently established as
+representative of what a capability-scale model can do on this project's
+own adapter/config/CLI surface. Every negative or near-zero result across
+that five-cycle arc (the repeated `meta_trainer` `0.0%` exact-match floor,
+the 74%-unscorable classifier floor ADR-0020 diagnosed) is, honestly,
+consistent with two different explanations that those cycles' own design
+could not distinguish: the training interventions genuinely were not
+working, or the base checkpoint was simply too small to show the
+capability being measured regardless of training. ADR-0021 named this
+gap directly (section 10's "no source found... evaluates a small (under
+8B parameter) model directly on this project's own adapter/config/CLI
+surface... a genuine evidence gap, named there as a hypothesis, not a
+settled expectation"), and this amendment's own addition (13.1-13.3) is
+the first record in this project's history to measure a model at a scale
+plausibly large enough to answer the capability question the small-model
+cycles could not. This is recorded here as a process lesson for any
+future capability cycle on this project: a small proof-of-pipeline
+checkpoint validates that the governance, containment, and evaluation
+machinery work correctly, which ADR-0013 through ADR-0020 did
+successfully and honestly demonstrate — but it does not, by itself,
+answer whether the underlying capability is present or absent at a scale
+where the field's own evidence (section 10's MLAgentBench/MLE-bench
+citations) says it becomes plausible at all.
+
 ## Roadmap notes carried forward for ADR-0024
 
 The independent security reviewer's review of the prior ADR in this
@@ -668,8 +1060,10 @@ forward in writing.
 ## Documentation impact and maintenance triggers
 
 This record adds
-`docs/decisions/ADR-0022-baseline-task-outcome-eval.md` (this file). It
-does not modify `docs/decisions/ADR-0021-metatrainer-mission-and-capability-map.md`,
+`docs/decisions/ADR-0022-baseline-task-outcome-eval.md` (this file). Its
+2026-09-28 amendment (section 13) modifies only this same file — no new
+file is added, and no other prior ADR's own text or recorded outcome is
+touched by the amendment. It does not modify `docs/decisions/ADR-0021-metatrainer-mission-and-capability-map.md`,
 any ADR-0013 through ADR-0020 record's own text or recorded outcome,
 `src/codevolt_mdf/evaluator_contract.py`, `src/codevolt_mdf/trainer_contract.py`,
 `src/codevolt_mdf/process_isolation.py`,
