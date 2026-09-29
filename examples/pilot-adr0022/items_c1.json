@@ -1,0 +1,398 @@
+{
+  "capability": "C1",
+  "count": 24,
+  "items": [
+    {
+      "example_id": "adr0022-c1-trainer-001",
+      "expected": "trl-sft-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You have an existing supervised (single correct completion per prompt) instruction-tuning dataset already on local disk, and TRL is already installed and importable in this environment. You want to fine-tune a causal LM on it with no preference pairs involved.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-002",
+      "expected": "trl-sft-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: Your dataset is a supervised single-completion-per-prompt set, TRL is importable at a version inside its declared compatibility bound, and you want the training run to use TRL's SFTTrainer/SFTConfig directly rather than any subprocess-based script.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-003",
+      "expected": "trl-dpo-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: Your dataset is shaped as (prompt, chosen, rejected) preference pairs, you want full-parameter DPO (not LoRA+DPO), and you must supply both a required beta and a required reference_free flag as explicit, reviewed training_params rather than relying on any library default.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-004",
+      "expected": "trl-dpo-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You have a preference-pair dataset and need the trainer to load a SECOND checkpoint (the reference model) in addition to the policy model, with identical content-hash verification and offline enforcement applied to that second path too.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-005",
+      "expected": "minimind-sft-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You have a checkout directory of a script repository with no importable Python package and no version string at all; the adapter you pick must verify its pin via `git rev-parse HEAD` against that checkout rather than an importable __version__.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-006",
+      "expected": "minimind-sft-adapter-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You need full-parameter supervised fine-tuning invoked as a subprocess call to `trainer/train_full_sft.py` inside a pinned commit checkout, with no pretraining, LoRA, RLHF, or distillation script involved.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-007",
+      "expected": "fake-deterministic-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You explicitly need a safe, no-real-training demonstration path that never imports or calls a real training engine, is deterministic given a seed and a named scenario parameter, and only accepts model revisions from a small fixed demo set.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-trainer-008",
+      "expected": "fake-deterministic-v1",
+      "input": "You are choosing which CodeVolt MDF trainer adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: trl-sft-adapter-v1, trl-dpo-adapter-v1, minimind-sft-adapter-v1, fake-deterministic-v1.\n\nSituation: You are exercising the TrainerAdapterContract's own boundary behaviour (timeout, cancellation, resource-overrun, checkpoint-resume, tamper-detection scenarios) and need an adapter with built-in deterministic scenario handlers for exactly those cases, granting no real training authority.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "trl-sft-adapter-v1",
+          "trl-dpo-adapter-v1",
+          "minimind-sft-adapter-v1",
+          "fake-deterministic-v1"
+        ],
+        "source": "src/codevolt_mdf/trl_adapter.py / dpo_adapter.py / minimind_adapter.py / fake_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "trainer_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-001",
+      "expected": "hf-local-causal-lm-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: You need to score a held-out example against a real local model checkpoint's actual greedy-decoded generation behaviour, reading the checkpoint directory directly from disk.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-002",
+      "expected": "hf-local-causal-lm-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: The held-out example's scoring must reflect a real forward pass through an AutoModelForCausalLM-compatible checkpoint under torch.no_grad(), with the model's content hash verified against a declared value before any example is scored.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-003",
+      "expected": "hf-local-causal-lm-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: You are scoring a multiple_choice held-out item and need the evaluator to compute each candidate choice's real length-normalized log-likelihood from an actual model, picking the highest-likelihood choice.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-004",
+      "expected": "hf-local-causal-lm-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: The scoring task requires rendering the prompt through the tokenizer's own real chat_template when one is present, falling back to bare-text tokenization automatically for a non-chat checkpoint.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-005",
+      "expected": "fake-deterministic-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: You need to exercise EvaluatorAdapterContract's own scoring logic using a deterministic in-process JSON \"artifact\" of {example_id: predicted_value} pairs, with no real model-inference engine imported anywhere.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-006",
+      "expected": "fake-deterministic-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: The evaluation is scoped strictly to the `deterministic-demo` CLI path (`codevolt-mdf run`), which is the only evaluator `run_experiment` currently accepts, and needs no real inference at all.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-007",
+      "expected": "fake-deterministic-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: You are writing a contract-conformance test for a new TaskType and need a safe, stdlib-only test double that reads a baked-in responses map rather than calling any inference engine.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-evaluator-008",
+      "expected": "fake-deterministic-evaluator-v1",
+      "input": "You are choosing which CodeVolt MDF evaluator adapter to use for the project situation below. Answer with exactly one identifier from this list, and nothing else: hf-local-causal-lm-evaluator-v1, fake-deterministic-evaluator-v1.\n\nSituation: A missing example_id in an artifact's declared responses map must score 0.0/incorrect rather than raise, and no real checkpoint or torch/transformers dependency should be involved in proving that behaviour.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "hf-local-causal-lm-evaluator-v1",
+          "fake-deterministic-evaluator-v1"
+        ],
+        "source": "src/codevolt_mdf/hf_local_evaluator_adapter.py / fake_evaluator_adapter.py module docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "evaluator_adapter_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-001",
+      "expected": "exact_match",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: \"What is the required top-level key in an experiment manifest that names the training adapter?\" Expected answer: a short free-form string (\"training\") checked by case-insensitive, whitespace-normalized containment in the model's output; there is no fixed list of options.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-002",
+      "expected": "exact_match",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: \"Name the module that defines TrainerAdapterV1.\" Expected answer is a short free-form string checked by containment, not selection from a fixed option list.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-003",
+      "expected": "multiple_choice",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: A fixed set of candidate continuations is presented for the same prompt, and the correct one must be identified by picking the option with the highest model-assigned likelihood among that fixed set -- e.g. \"Which of these best completes the sentence: (a) ...; (b) ...; (c) ...?\"",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-004",
+      "expected": "multiple_choice",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: The example presents four named training adapters as options and asks the model to pick the one adapter that matches a stated project situation, scored by picking the highest-likelihood option among that fixed set.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-005",
+      "expected": "format_conformance",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: The example asks the model to produce a JSON object with specific required keys, and correctness is checked by whether the raw text output conforms to that structural shape -- not by comparing it to one specific string value.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-006",
+      "expected": "format_conformance",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: The example asks the model to emit output matching a fixed regular expression shape (e.g. an ISO-8601 timestamp), and correctness is purely a structural-conformance check against that spec, not a string-equality check.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-007",
+      "expected": "safety_probe",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: The example is a synthetic, fixed probe prompt whose spec names a probe_type of harmful_instruction_compliance and an expected-refusal flag, scored via scoring_modes.check_safety_probe against the model's raw text output.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    },
+    {
+      "example_id": "adr0022-c1-tasktype-008",
+      "expected": "safety_probe",
+      "input": "You are choosing which CodeVolt MDF evaluator TaskType scoring mode applies to the held-out example below. Answer with exactly one identifier from this list, and nothing else: exact_match, multiple_choice, format_conformance, safety_probe.\n\nExample: The example's expected spec names probe_type pii_leakage plus a set of disallowed-content patterns, and the model's raw output is checked against that spec for refusal-appropriateness and leakage, never scored as a free-text judgement.",
+      "metadata": {
+        "answer_format": "first_line_exact_identifier",
+        "closed_set": [
+          "exact_match",
+          "multiple_choice",
+          "format_conformance",
+          "safety_probe"
+        ],
+        "source": "src/codevolt_mdf/evaluator_contract.py TaskType docstrings, re-read at this document's own base commit",
+        "task_type": "multiple_choice"
+      },
+      "sub_bucket": "task_type_selection"
+    }
+  ]
+}
