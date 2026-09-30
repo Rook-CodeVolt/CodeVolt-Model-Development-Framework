@@ -1,0 +1,593 @@
+{
+  "capability": "C2",
+  "count": 12,
+  "items": [
+    {
+      "example_id": "adr0022-c2-config-001",
+      "expected": {
+        "gold_detail": "pass",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.2,
+            "candidate": 0.55
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.2,
+              "minimum_score": 0.4
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-valid-01",
+            "owner": "adr0022-c2-author",
+            "seed": 201
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "pass",
+        "violated_check": null
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.2,\n    \"candidate\": 0.55\n  },\n  \"evaluation\": {\n    \"acceptance\": {\n      \"minimum_improvement\": 0.2,\n      \"minimum_score\": 0.4\n    },\n    \"adapter\": \"deterministic-demo\"\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-valid-01\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 201\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-config-002",
+      "expected": {
+        "gold_detail": "pass",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.3,
+            "candidate": 0.9
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.5,
+              "minimum_score": 0.5
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-valid-02",
+            "owner": "adr0022-c2-author",
+            "seed": 202
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "pass",
+        "violated_check": null
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.3,\n    \"candidate\": 0.9\n  },\n  \"evaluation\": {\n    \"acceptance\": {\n      \"minimum_improvement\": 0.5,\n      \"minimum_score\": 0.5\n    },\n    \"adapter\": \"deterministic-demo\"\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-valid-02\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 202\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-config-003",
+      "expected": {
+        "gold_detail": "pass",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.5,
+            "candidate": 0.5
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.0,
+              "minimum_score": 0.5
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-valid-03",
+            "owner": "adr0022-c2-author",
+            "seed": 203
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "pass",
+        "violated_check": null
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.5,\n    \"candidate\": 0.5\n  },\n  \"evaluation\": {\n    \"acceptance\": {\n      \"minimum_improvement\": 0.0,\n      \"minimum_score\": 0.5\n    },\n    \"adapter\": \"deterministic-demo\"\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-valid-03\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 203\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-config-004",
+      "expected": {
+        "gold_detail": "'manifest' is missing required field(s): evaluation",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.2,
+            "candidate": 0.55
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-fail-missing-evaluation",
+            "owner": "adr0022-c2-author",
+            "seed": 204
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "fail",
+        "violated_check": "missing_required_key"
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.2,\n    \"candidate\": 0.55\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-fail-missing-evaluation\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 204\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-config-005",
+      "expected": {
+        "gold_detail": "Demo scores must be between 0 and 1",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.5,
+            "candidate": 1.5
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.2,
+              "minimum_score": 0.4
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-fail-demo-score-out-of-range",
+            "owner": "adr0022-c2-author",
+            "seed": 205
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "fail",
+        "violated_check": "demo_score_out_of_range"
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.5,\n    \"candidate\": 1.5\n  },\n  \"evaluation\": {\n    \"acceptance\": {\n      \"minimum_improvement\": 0.2,\n      \"minimum_score\": 0.4\n    },\n    \"adapter\": \"deterministic-demo\"\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-fail-demo-score-out-of-range\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 205\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-config-006",
+      "expected": {
+        "gold_detail": "Minimum improvement cannot be negative",
+        "manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.4,
+            "candidate": 0.55
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": -0.1,
+              "minimum_score": 0.4
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-fail-negative-min-improvement",
+            "owner": "adr0022-c2-author",
+            "seed": 206
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        },
+        "outcome": "fail",
+        "violated_check": "negative_minimum_improvement"
+      },
+      "input": "You are checking a CodeVolt experiment manifest against this repository's own real contract checks (schemas/experiment.schema.json plus Experiment.validate()). Manifest:\n\n{\n  \"dataset\": {\n    \"name\": \"adr0022-c2-demo-dataset\",\n    \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"demo_scores\": {\n    \"baseline\": 0.4,\n    \"candidate\": 0.55\n  },\n  \"evaluation\": {\n    \"acceptance\": {\n      \"minimum_improvement\": -0.1,\n      \"minimum_score\": 0.4\n    },\n    \"adapter\": \"deterministic-demo\"\n  },\n  \"experiment\": {\n    \"budget\": {\n      \"max_runs\": 1\n    },\n    \"name\": \"adr0022-c2-fail-negative-min-improvement\",\n    \"owner\": \"adr0022-c2-author\",\n    \"seed\": 206\n  },\n  \"model\": {\n    \"base\": \"deterministic-demo\",\n    \"revision\": \"n/a\"\n  },\n  \"training\": {\n    \"adapter\": \"deterministic-demo\",\n    \"parameters\": {}\n  }\n}\n\nOn the first line, answer with exactly one of: PASS, or FAIL followed by a colon and the single specific violated-check name (one of: missing_required_key, demo_score_out_of_range, negative_minimum_improvement). Nothing else on the first line.",
+      "metadata": {
+        "answer_format": "first_line_PASS_or_FAIL_colon_check",
+        "source": "src/codevolt_mdf/core.py validate_manifest_schema/Experiment.validate, re-run against this exact manifest to derive gold_detail",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "config_validity"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-accept-001",
+      "expected": {
+        "decision_baseline_score": 0.2,
+        "decision_candidate_score": 0.55,
+        "decision_improvement": 0.35,
+        "decision_status": "accepted",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.2,
+            "candidate": 0.55
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.2,
+              "minimum_score": 0.4
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-accept-001",
+            "owner": "adr0022-c2-author",
+            "seed": 301
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-accept-001\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 301\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.4\n- evaluation.acceptance.minimum_improvement: 0.2\n- demo_scores.baseline: 0.2\n- demo_scores.candidate: 0.55",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-accept-002",
+      "expected": {
+        "decision_baseline_score": 0.3,
+        "decision_candidate_score": 0.9,
+        "decision_improvement": 0.6,
+        "decision_status": "accepted",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.3,
+            "candidate": 0.9
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.5,
+              "minimum_score": 0.5
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-accept-002",
+            "owner": "adr0022-c2-author",
+            "seed": 302
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-accept-002\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 302\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.5\n- evaluation.acceptance.minimum_improvement: 0.5\n- demo_scores.baseline: 0.3\n- demo_scores.candidate: 0.9",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-accept-boundary-003",
+      "expected": {
+        "decision_baseline_score": 0.3,
+        "decision_candidate_score": 0.6,
+        "decision_improvement": 0.3,
+        "decision_status": "accepted",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.3,
+            "candidate": 0.6
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.1,
+              "minimum_score": 0.6
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-accept-boundary-003",
+            "owner": "adr0022-c2-author",
+            "seed": 303
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-accept-boundary-003\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 303\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.6\n- evaluation.acceptance.minimum_improvement: 0.1\n- demo_scores.baseline: 0.3\n- demo_scores.candidate: 0.6",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-reject-004",
+      "expected": {
+        "decision_baseline_score": 0.5,
+        "decision_candidate_score": 0.55,
+        "decision_improvement": 0.05,
+        "decision_status": "rejected",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.5,
+            "candidate": 0.55
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.1,
+              "minimum_score": 0.6
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-reject-004",
+            "owner": "adr0022-c2-author",
+            "seed": 304
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-reject-004\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 304\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.6\n- evaluation.acceptance.minimum_improvement: 0.1\n- demo_scores.baseline: 0.5\n- demo_scores.candidate: 0.55",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-reject-005",
+      "expected": {
+        "decision_baseline_score": 0.5,
+        "decision_candidate_score": 0.6,
+        "decision_improvement": 0.1,
+        "decision_status": "rejected",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.5,
+            "candidate": 0.6
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.3,
+              "minimum_score": 0.5
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-reject-005",
+            "owner": "adr0022-c2-author",
+            "seed": 305
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-reject-005\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 305\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.5\n- evaluation.acceptance.minimum_improvement: 0.3\n- demo_scores.baseline: 0.5\n- demo_scores.candidate: 0.6",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    },
+    {
+      "example_id": "adr0022-c2-cmd-reject-boundary-006",
+      "expected": {
+        "decision_baseline_score": 0.5,
+        "decision_candidate_score": 0.55,
+        "decision_improvement": 0.05,
+        "decision_status": "rejected",
+        "reference_manifest": {
+          "dataset": {
+            "name": "adr0022-c2-demo-dataset",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "demo_scores": {
+            "baseline": 0.5,
+            "candidate": 0.55
+          },
+          "evaluation": {
+            "acceptance": {
+              "minimum_improvement": 0.05,
+              "minimum_score": 0.6
+            },
+            "adapter": "deterministic-demo"
+          },
+          "experiment": {
+            "budget": {
+              "max_runs": 1
+            },
+            "name": "adr0022-c2-cmd-reject-boundary-006",
+            "owner": "adr0022-c2-author",
+            "seed": 306
+          },
+          "model": {
+            "base": "deterministic-demo",
+            "revision": "n/a"
+          },
+          "training": {
+            "adapter": "deterministic-demo",
+            "parameters": {}
+          }
+        }
+      },
+      "input": "Author a CodeVolt experiment manifest (JSON, matching schemas/experiment.schema.json) for the following experiment, and respond with exactly one fenced code block (```json ... ``` or ``` ... ```) containing that manifest and nothing else outside the fence:\n\n- experiment.name: \"adr0022-c2-cmd-reject-boundary-006\"\n- experiment.owner: \"adr0022-c2-author\"\n- experiment.seed: 306\n- experiment.budget: any object (e.g. {\"max_runs\": 1})\n- model.base: \"deterministic-demo\", model.revision: \"n/a\"\n- dataset.name: \"adr0022-c2-demo-dataset\", dataset.sha256: \"0000000000000000000000000000000000000000000000000000000000000000\"\n- training.adapter: \"deterministic-demo\", training.parameters: {}\n- evaluation.adapter: \"deterministic-demo\"\n- evaluation.acceptance.minimum_score: 0.6\n- evaluation.acceptance.minimum_improvement: 0.05\n- demo_scores.baseline: 0.5\n- demo_scores.candidate: 0.55",
+      "metadata": {
+        "answer_format": "single_fenced_json_manifest",
+        "manifest_extraction": "first fenced code block (```json or bare ```) in raw model output",
+        "scoring": "two_stage_parse_then_cli_dry_run",
+        "source": "codevolt_mdf.core.decide(), independently reproduced by actually running run_experiment against a manifest built from this item's own declared target values",
+        "task_type": "format_conformance"
+      },
+      "sub_bucket": "command_produces_expected_artifact"
+    }
+  ]
+}
