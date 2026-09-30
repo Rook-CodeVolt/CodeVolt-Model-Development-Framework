@@ -38,9 +38,16 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 import sys
+
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from codevolt_mdf.core import Experiment, ContractError, validate_manifest_schema, decide, run_experiment
+from codevolt_mdf.core import (
+    ContractError,
+    Experiment,
+    decide,
+    run_experiment,
+    validate_manifest_schema,
+)
 
 OUT = Path(__file__).resolve().parent / "items_c2.json"
 

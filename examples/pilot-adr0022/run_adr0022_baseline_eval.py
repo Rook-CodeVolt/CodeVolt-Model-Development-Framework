@@ -55,8 +55,7 @@ sys.path.insert(0, str(REPO_ROOT / "packages/held-out-eval/src"))
 
 from held_out_eval import HeldOutExclusionRegistry
 
-from codevolt_mdf.core import ContractError, Experiment, decide, validate_manifest_schema
-from codevolt_mdf.evaluator_contract import HeldOutExample
+from codevolt_mdf.core import ContractError, Experiment, validate_manifest_schema
 from codevolt_mdf.hf_local_evaluator_adapter import HFLocalCausalLMEvaluatorAdapter, _hash_model_dir
 from codevolt_mdf.process_isolation import run_callable_in_isolated_process
 from codevolt_mdf.trainer_contract import ResourceBudget
@@ -378,7 +377,7 @@ def score_c2_command_item(item: dict[str, Any], raw_output: str, work_dir: Path)
     try:
         run_dir = run_experiment(manifest_path, output_root)
         actual_decision = json.loads((run_dir / "decision.json").read_text(encoding="utf-8"))
-    except Exception as exc:  # the CLI dry run itself failed for this manifest
+    except Exception as exc:  # noqa: BLE001 - record any dry-run failure as evaluation evidence
         return {
             "example_id": item["example_id"],
             "stage_a": "pass",
