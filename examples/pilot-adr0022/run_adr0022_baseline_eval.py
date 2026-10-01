@@ -53,7 +53,7 @@ REPO_ROOT = HERE.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "packages/held-out-eval/src"))
 
-from held_out_eval import HeldOutExclusionRegistry
+from held_out_eval import HeldOutExclusionRegistry, HeldOutRegistryError
 
 from codevolt_mdf.core import ContractError, Experiment, validate_manifest_schema
 from codevolt_mdf.hf_local_evaluator_adapter import HFLocalCausalLMEvaluatorAdapter, _hash_model_dir
@@ -103,6 +103,16 @@ THIRD_MODEL_LLAMA_CPP_BINARY_ENV = "CODEVOLT_ADR0022_LLAMA_CPP_MAIN_BINARY"
 THIRD_MODEL_LLAMA_CPP_RELEASE_TAG = "b10938"
 
 MODEL_IDS = ("reference", "candidate", "third_model")
+ENTRY_MODEL_HOSTS = {
+    "meta_trainer_adr0022_smol135m_test1": {
+        "reference": "test1_cv_test1",
+        "candidate": "test1_cv_test1",
+    },
+    "meta_trainer_adr0022_baseline": {
+        "third_model": "test2_evo_x3_102",
+    },
+}
+RUNNER_ID = "adr0022-baseline-eval"
 
 # ---------------------------------------------------------------------------
 # Item set identity: the 56-item set already exists (this card builds
@@ -112,6 +122,11 @@ MODEL_IDS = ("reference", "candidate", "third_model")
 ITEMS_C1_PATH = HERE / "items_c1.json"
 ITEMS_C2_PATH = HERE / "items_c2.json"
 ITEMS_C4_PATH = HERE / "items_c4.json"
+EXPECTED_ITEM_HASHES = {
+    "c1": "5494f655b8798b92cf643bb950a2b6f9022d6e564e3eba920e25663af64ca2a1",
+    "c2": "5926e4bbed5b9732d6a5b6d2ec47b18a9810a5535a8823003e1277d42ffd0c62",
+    "c4": "f3971c50b0f6fd0cd44a393ce61beac30180ed66cbd29f3442fcbd6310003278",
+}
 HELD_OUT_REGISTRY_PATH = HERE / "held_out_exclusion_registry.json"
 HELD_OUT_PACKAGE_ID = "pilot-adr0022-heldout-v1"
 
@@ -151,6 +166,14 @@ ISOLATION_MAX_STORAGE_MB = 128.0
 
 class Adr0022Error(SystemExit):
     """Raised (as a ``SystemExit`` subclass) for every fail-closed refusal in this file."""
+
+
+class ContaminationRefusal(Adr0022Error):
+    """Fail-closed registry refusal carrying a safe structured verdict."""
+
+    def __init__(self, message: str, check: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.check = check
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +232,15 @@ def load_items() -> ItemSet:
     c1_raw = ITEMS_C1_PATH.read_bytes()
     c2_raw = ITEMS_C2_PATH.read_bytes()
     c4_raw = ITEMS_C4_PATH.read_bytes()
+    actual_hashes = {
+        "c1": hashlib.sha256(c1_raw).hexdigest(),
+        "c2": hashlib.sha256(c2_raw).hexdigest(),
+        "c4": hashlib.sha256(c4_raw).hexdigest(),
+    }
+    if actual_hashes != EXPECTED_ITEM_HASHES:
+        raise Adr0022Error(
+            "ADR-0022 item-set content hash mismatch; refusing a changed or reordered item set"
+        )
     c1 = json.loads(c1_raw)["items"]
     c2 = json.loads(c2_raw)["items"]
     c4 = json.loads(c4_raw)["items"]
@@ -222,9 +254,9 @@ def load_items() -> ItemSet:
         c1=c1,
         c2=c2,
         c4=c4,
-        c1_hash=hashlib.sha256(c1_raw).hexdigest(),
-        c2_hash=hashlib.sha256(c2_raw).hexdigest(),
-        c4_hash=hashlib.sha256(c4_raw).hexdigest(),
+        c1_hash=actual_hashes["c1"],
+        c2_hash=actual_hashes["c2"],
+        c4_hash=actual_hashes["c4"],
     )
     ids = item_set.all_ids
     if len(ids) != 56:
@@ -265,6 +297,120 @@ def verify_registry_admits_no_contamination(
             f"as train data by some package: {sorted(contaminated)[:10]}"
         )
     return registry
+
+
+def _load_execution_registry_snapshot(
+    merged_registry_path: Path, item_ids: list[str]
+) -> tuple[dict[str, Any], tuple[int, int, int, int, str]]:
+    """Read, hash, parse, and check one direct regular-file snapshot."""
+    supplied_path = Path(merged_registry_path)
+    absolute_path = supplied_path.absolute()
+    if supplied_path.is_symlink() or not supplied_path.is_file():
+        raise ContaminationRefusal(
+            f"merged held-out registry file is missing or not a direct regular file: {absolute_path}",
+            {
+                "status": "refused",
+                "registry_path": str(absolute_path),
+                "registry_sha256": None,
+                "held_out_package_id": HELD_OUT_PACKAGE_ID,
+                "checked_item_count": len(item_ids),
+                "overlap_count": None,
+                "overlapping_ids": [],
+            },
+        )
+    try:
+        stat_before = supplied_path.stat()
+        payload_bytes = supplied_path.read_bytes()
+        digest = hashlib.sha256(payload_bytes).hexdigest()
+        payload = json.loads(payload_bytes)
+        registry = HeldOutExclusionRegistry.from_dict(payload)
+    except (
+        AssertionError,
+        HeldOutRegistryError,
+        json.JSONDecodeError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise ContaminationRefusal(
+            f"merged held-out registry is malformed or unreadable: {exc}",
+            {
+                "status": "refused",
+                "registry_path": str(absolute_path),
+                "registry_sha256": None,
+                "held_out_package_id": HELD_OUT_PACKAGE_ID,
+                "checked_item_count": len(item_ids),
+                "overlap_count": None,
+                "overlapping_ids": [],
+            },
+        ) from exc
+
+    registered = registry.package_held_out_ids.get(HELD_OUT_PACKAGE_ID)
+    if registered != frozenset(item_ids):
+        raise ContaminationRefusal(
+            "merged registry's held-out package does not exactly match the reviewed item set",
+            {
+                "status": "refused",
+                "registry_path": str(absolute_path),
+                "registry_sha256": digest,
+                "held_out_package_id": HELD_OUT_PACKAGE_ID,
+                "checked_item_count": len(item_ids),
+                "overlap_count": None,
+                "overlapping_ids": [],
+            },
+        )
+    overlapping_ids = sorted(registry.check_held_out_not_trained(item_ids))
+    check = {
+        "status": "pass" if not overlapping_ids else "refused",
+        "registry_path": str(absolute_path),
+        "registry_sha256": digest,
+        "held_out_package_id": HELD_OUT_PACKAGE_ID,
+        "checked_item_count": len(item_ids),
+        "overlap_count": len(overlapping_ids),
+        "overlapping_ids": overlapping_ids,
+    }
+    if overlapping_ids:
+        raise ContaminationRefusal(
+            f"contamination: {len(overlapping_ids)} held-out item id(s) overlap train data",
+            check,
+        )
+    identity = (
+        stat_before.st_dev,
+        stat_before.st_ino,
+        stat_before.st_size,
+        stat_before.st_mtime_ns,
+        digest,
+    )
+    return check, identity
+
+
+def execution_contamination_check(
+    merged_registry_path: Path, item_ids: list[str]
+) -> dict[str, Any]:
+    """Public check helper used by tests and non-executing integrations."""
+    check, _identity = _load_execution_registry_snapshot(
+        merged_registry_path, item_ids
+    )
+    return check
+
+
+def _verify_registry_snapshot_unchanged(
+    merged_registry_path: Path, expected_identity: tuple[int, int, int, int, str]
+) -> None:
+    path = Path(merged_registry_path)
+    if path.is_symlink() or not path.is_file():
+        raise Adr0022Error("merged held-out registry changed before evidence finalisation")
+    stat_after = path.stat()
+    digest_after = _sha256_file(path)
+    actual_identity = (
+        stat_after.st_dev,
+        stat_after.st_ino,
+        stat_after.st_size,
+        stat_after.st_mtime_ns,
+        digest_after,
+    )
+    if actual_identity != expected_identity:
+        raise Adr0022Error("merged held-out registry changed before evidence finalisation")
 
 
 # ---------------------------------------------------------------------------
@@ -614,38 +760,60 @@ def _llama_cpp_generate(binary_path: Path, model_shard_path: Path, prompt: str, 
 # ---------------------------------------------------------------------------
 
 
-def validate_plan() -> dict[str, Any]:
+def validate_plan(model_id: str | None = None) -> dict[str, Any]:
+    if model_id is not None and model_id not in MODEL_IDS:
+        raise Adr0022Error(f"unknown model_id {model_id!r}; expected one of {MODEL_IDS}")
+    selected_model_ids = MODEL_IDS if model_id is None else (model_id,)
     item_set = load_items()
 
     blockers: list[str] = []
 
-    reference_hash_ok = _hash_model_dir(REFERENCE_MODEL_PATH) == EXPECTED_REFERENCE_MODEL_HASH if REFERENCE_MODEL_PATH.is_dir() else False
-    candidate_hash_ok = _hash_model_dir(CANDIDATE_MODEL_PATH) == EXPECTED_CANDIDATE_MODEL_HASH if CANDIDATE_MODEL_PATH.is_dir() else False
-    if not REFERENCE_MODEL_PATH.is_dir():
-        blockers.append("reference checkpoint is not present on disk at REFERENCE_MODEL_PATH")
-    elif not reference_hash_ok:
-        blockers.append("reference checkpoint content hash mismatch")
-    if not CANDIDATE_MODEL_PATH.is_dir():
-        blockers.append("candidate checkpoint is not present on disk at CANDIDATE_MODEL_PATH")
-    elif not candidate_hash_ok:
-        blockers.append("candidate checkpoint content hash mismatch")
-
-    third_model_shards_present = all(
-        (THIRD_MODEL_ARTIFACT_ROOT / name).is_file() for name in THIRD_MODEL_GGUF_SHARDS
-    )
-    if not third_model_shards_present:
-        blockers.append("third-model GGUF shards are not present on disk at THIRD_MODEL_ARTIFACT_ROOT")
-    else:
-        for name, expected_hash in zip(THIRD_MODEL_GGUF_SHARDS, EXPECTED_THIRD_MODEL_GGUF_SHA256):
-            actual = _sha256_file(THIRD_MODEL_ARTIFACT_ROOT / name)
-            if actual != expected_hash:
-                blockers.append(f"third-model GGUF shard {name} content hash mismatch")
-
-    llama_cpp_binary = os.environ.get(THIRD_MODEL_LLAMA_CPP_BINARY_ENV)
-    if not llama_cpp_binary or not Path(llama_cpp_binary).is_file():
-        blockers.append(
-            f"{THIRD_MODEL_LLAMA_CPP_BINARY_ENV} does not point at an installed llama.cpp binary"
+    if "reference" in selected_model_ids:
+        reference_hash_ok = (
+            _hash_model_dir(REFERENCE_MODEL_PATH) == EXPECTED_REFERENCE_MODEL_HASH
+            if REFERENCE_MODEL_PATH.is_dir()
+            else False
         )
+        if not REFERENCE_MODEL_PATH.is_dir():
+            blockers.append("reference checkpoint is not present on disk at REFERENCE_MODEL_PATH")
+        elif not reference_hash_ok:
+            blockers.append("reference checkpoint content hash mismatch")
+
+    if "candidate" in selected_model_ids:
+        candidate_hash_ok = (
+            _hash_model_dir(CANDIDATE_MODEL_PATH) == EXPECTED_CANDIDATE_MODEL_HASH
+            if CANDIDATE_MODEL_PATH.is_dir()
+            else False
+        )
+        if not CANDIDATE_MODEL_PATH.is_dir():
+            blockers.append("candidate checkpoint is not present on disk at CANDIDATE_MODEL_PATH")
+        elif not candidate_hash_ok:
+            blockers.append("candidate checkpoint content hash mismatch")
+
+    if "third_model" in selected_model_ids:
+        third_model_shards_present = all(
+            (THIRD_MODEL_ARTIFACT_ROOT / name).is_file()
+            for name in THIRD_MODEL_GGUF_SHARDS
+        )
+        if not third_model_shards_present:
+            blockers.append(
+                "third-model GGUF shards are not present on disk at THIRD_MODEL_ARTIFACT_ROOT"
+            )
+        else:
+            for name, expected_hash in zip(
+                THIRD_MODEL_GGUF_SHARDS, EXPECTED_THIRD_MODEL_GGUF_SHA256
+            ):
+                actual = _sha256_file(THIRD_MODEL_ARTIFACT_ROOT / name)
+                if actual != expected_hash:
+                    blockers.append(
+                        f"third-model GGUF shard {name} content hash mismatch"
+                    )
+
+        llama_cpp_binary = os.environ.get(THIRD_MODEL_LLAMA_CPP_BINARY_ENV)
+        if not llama_cpp_binary or not Path(llama_cpp_binary).is_file():
+            blockers.append(
+                f"{THIRD_MODEL_LLAMA_CPP_BINARY_ENV} does not point at an installed llama.cpp binary"
+            )
 
     try:
         verify_registry_admits_no_contamination(HELD_OUT_REGISTRY_PATH, item_set.all_ids)
@@ -658,6 +826,7 @@ def validate_plan() -> dict[str, Any]:
     return {
         "status": "PASS",
         "scoring_called": False,
+        "model_ids": list(selected_model_ids),
         "item_counts": {"c1": len(item_set.c1), "c2": len(item_set.c2), "c4": len(item_set.c4)},
         "item_hashes": {"c1": item_set.c1_hash, "c2": item_set.c2_hash, "c4": item_set.c4_hash},
         "held_out_package_id": HELD_OUT_PACKAGE_ID,
@@ -840,9 +1009,17 @@ def load_gate(path: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _isolation_budget(gate: dict[str, Any], scratch_root: Path) -> ResourceBudget:
+def _isolation_budget(
+    gate: dict[str, Any], scratch_root: Path, wall_clock_limit_seconds: float
+) -> ResourceBudget:
+    if wall_clock_limit_seconds <= 0:
+        raise Adr0022Error("wall-clock limit must be a positive number")
+    if wall_clock_limit_seconds > gate["measured_max_wall_seconds"]:
+        raise Adr0022Error(
+            "caller wall-clock limit exceeds the independently reviewed gate ceiling"
+        )
     return ResourceBudget(
-        max_wall_seconds=gate["measured_max_wall_seconds"],
+        max_wall_seconds=wall_clock_limit_seconds,
         max_cpu_seconds=ISOLATION_MAX_CPU_SECONDS,
         max_memory_mb=gate["measured_max_memory_mb"],
         max_gpu_count=0,
@@ -917,91 +1094,215 @@ def _run_model_pass(
     }
 
 
-def execute_evaluation(scratch_root: Path, gate_path: Path) -> dict[str, Any]:
+def _validate_complete_model_report(
+    report: dict[str, Any], model_id: str, item_set: ItemSet
+) -> None:
+    required = {
+        "model_id",
+        "c1_results",
+        "c1_aggregate",
+        "c1_aggregate_by_sub_bucket",
+        "c2_results",
+        "c2_aggregate",
+        "c4_results",
+        "c4_aggregate",
+    }
+    if not isinstance(report, dict) or set(report) != required:
+        raise Adr0022Error("isolated evaluator returned an incomplete report schema")
+    if report["model_id"] != model_id:
+        raise Adr0022Error("isolated evaluator returned the wrong model identity")
+    for capability, items in (
+        ("c1", item_set.c1),
+        ("c2", item_set.c2),
+        ("c4", item_set.c4),
+    ):
+        results = report[f"{capability}_results"]
+        expected_ids = [item["example_id"] for item in items]
+        if not isinstance(results, list) or [row.get("example_id") for row in results] != expected_ids:
+            raise Adr0022Error(
+                f"isolated evaluator returned incomplete or reordered {capability} results"
+            )
+
+
+def execute_evaluation(
+    scratch_root: Path,
+    gate_path: Path,
+    *,
+    entry_id: str,
+    model_id: str,
+    host_id: str,
+    item_set_id: str,
+    merged_registry_path: Path,
+    wall_clock_limit_seconds: float,
+    cost_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    """Execute exactly one entry/model/host/item-set evaluation invocation."""
+    if not entry_id.strip() or not host_id.strip():
+        raise Adr0022Error("entry_id and host_id must be non-empty")
+    expected_host = ENTRY_MODEL_HOSTS.get(entry_id, {}).get(model_id)
+    if expected_host is None or host_id != expected_host:
+        raise Adr0022Error(
+            "entry/model/host combination is not admitted for ADR-0022: "
+            f"{entry_id!r}/{model_id!r}/{host_id!r}"
+        )
+    if item_set_id != HELD_OUT_PACKAGE_ID:
+        raise Adr0022Error(
+            f"item_set_id must be the reviewed ADR-0022 set {HELD_OUT_PACKAGE_ID!r}"
+        )
+    if not isinstance(cost_inputs, dict):
+        raise Adr0022Error("cost_inputs must be a JSON object")
+
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
     gate = load_gate(gate_path)
-    plan = validate_plan()
+    plan = validate_plan(model_id=model_id)
     if plan["execution_blockers"]:
         raise Adr0022Error(f"cannot execute: {plan['execution_blockers']}")
 
-    item_set = load_items()
-    verify_registry_admits_no_contamination(HELD_OUT_REGISTRY_PATH, item_set.all_ids)
-
-    budget = _isolation_budget(gate, scratch_root)
-    per_model_reports: dict[str, Any] = {}
-    isolation_measurements: dict[str, Any] = {}
-    c2_work_dir = scratch_root / "c2_work"
-
-    for model_id in MODEL_IDS:
-        report, error, measured = run_callable_in_isolated_process(
-            compute_fn=_run_model_pass,
-            kwargs={
-                "model_id": model_id,
-                "candidate_model_path": str(CANDIDATE_MODEL_PATH),
-                "reference_model_path": str(REFERENCE_MODEL_PATH),
-                "item_set_paths": {"c2_work_dir": str(c2_work_dir)},
-            },
-            budget=budget,
-        )
-        if measured.killed_for_overrun:
-            raise Adr0022Error(
-                f"isolated evaluator process for model {model_id!r} exceeded the resource "
-                f"budget (measured wall={measured.wall_seconds}s, cpu={measured.cpu_seconds}s, "
-                f"memory={measured.memory_mb_peak}MB); refusing to write any outcome classification"
-            )
-        if measured.killed_for_timeout:
-            raise Adr0022Error(
-                f"isolated evaluator process for model {model_id!r} exceeded "
-                f"max_wall_seconds={budget.max_wall_seconds}; refusing to write any "
-                "outcome classification"
-            )
-        if error is not None or report is None:
-            raise Adr0022Error(
-                f"isolated evaluator process for model {model_id!r} failed without "
-                f"producing a result: {error}"
-            )
-        per_model_reports[model_id] = report
-        isolation_measurements[model_id] = {
-            "wall_seconds": measured.wall_seconds,
-            "cpu_seconds": measured.cpu_seconds,
-            "memory_mb_peak": measured.memory_mb_peak,
-            "storage_mb_used": measured.storage_mb_used,
-        }
-
-    third_model_report = per_model_reports["third_model"]
-    third_model_floor = {
-        "c1_pass": c1_third_model_floor_pass(third_model_report["c1_aggregate_by_sub_bucket"]),
-        "c2_pass": c2_third_model_floor_pass(third_model_report["c2_aggregate"]),
-        "c4_pass": c4_third_model_floor_pass(third_model_report["c4_aggregate"]),
+    invocation_scratch = scratch_root / model_id
+    invocation = {
+        "entry_id": entry_id,
+        "model_id": model_id,
+        "host_id": host_id,
+        "item_set_id": item_set_id,
+        "wall_clock_limit_seconds": wall_clock_limit_seconds,
+        "cost_inputs": cost_inputs,
     }
-    capabilities_passed = sum(1 for v in third_model_floor.values() if v)
-    third_model_floor["overall_sufficient_signal"] = capabilities_passed >= 2
+    budget = _isolation_budget(gate, invocation_scratch, wall_clock_limit_seconds)
+    item_set = load_items()
+    # This is deliberately the final admission read before the isolated
+    # evaluator starts. Never replace it with the committed split-time registry.
+    try:
+        contamination_check, registry_identity = _load_execution_registry_snapshot(
+            merged_registry_path, item_set.all_ids
+        )
+    except ContaminationRefusal as exc:
+        refusal = {
+            "run_id": RUN_ID,
+            "runner": {"id": RUNNER_ID, "script_sha256": _this_script_sha256()},
+            "outcome": {
+                "status": "refused",
+                "accepted": False,
+                "evaluated": False,
+            },
+            "invocation": invocation,
+            "contamination_check": exc.check,
+            "per_model": {},
+            "third_model_queue_admission_floor": None,
+        }
+        _write_evidence(invocation_scratch, refusal)
+        raise
+
+    c2_work_dir = invocation_scratch / "c2_work"
+    report, error, measured = run_callable_in_isolated_process(
+        compute_fn=_run_model_pass,
+        kwargs={
+            "model_id": model_id,
+            "candidate_model_path": str(CANDIDATE_MODEL_PATH),
+            "reference_model_path": str(REFERENCE_MODEL_PATH),
+            "item_set_paths": {"c2_work_dir": str(c2_work_dir)},
+        },
+        budget=budget,
+    )
+    if measured.killed_for_overrun:
+        raise Adr0022Error(
+            f"isolated evaluator process for model {model_id!r} exceeded the resource "
+            f"budget (measured wall={measured.wall_seconds}s, cpu={measured.cpu_seconds}s, "
+            f"memory={measured.memory_mb_peak}MB); refusing to write any outcome classification"
+        )
+    if measured.killed_for_timeout:
+        raise Adr0022Error(
+            f"isolated evaluator process for model {model_id!r} exceeded "
+            f"max_wall_seconds={budget.max_wall_seconds}; refusing to write any "
+            "outcome classification"
+        )
+    if error is not None or report is None:
+        raise Adr0022Error(
+            f"isolated evaluator process for model {model_id!r} failed without "
+            f"producing a result: {error}"
+        )
+    _validate_complete_model_report(report, model_id, item_set)
+
+    third_model_floor: dict[str, Any] | None = None
+    if model_id == "third_model":
+        third_model_floor = {
+            "c1_pass": c1_third_model_floor_pass(
+                report["c1_aggregate_by_sub_bucket"]
+            ),
+            "c2_pass": c2_third_model_floor_pass(report["c2_aggregate"]),
+            "c4_pass": c4_third_model_floor_pass(report["c4_aggregate"]),
+        }
+        capabilities_passed = sum(1 for value in third_model_floor.values() if value)
+        third_model_floor["capabilities_passed"] = capabilities_passed
+        third_model_floor["overall_sufficient_signal"] = capabilities_passed >= 2
+
+    try:
+        _verify_registry_snapshot_unchanged(merged_registry_path, registry_identity)
+    except Adr0022Error:
+        refusal = {
+            "run_id": RUN_ID,
+            "runner": {"id": RUNNER_ID, "script_sha256": _this_script_sha256()},
+            "outcome": {
+                "status": "refused",
+                "accepted": False,
+                "evaluated": False,
+            },
+            "invocation": invocation,
+            "contamination_check": {
+                **contamination_check,
+                "status": "refused",
+                "reason": "registry_changed_before_evidence_finalisation",
+            },
+            "per_model": {},
+            "third_model_queue_admission_floor": None,
+        }
+        _write_evidence(invocation_scratch, refusal)
+        raise
 
     result = {
         "run_id": RUN_ID,
+        "runner": {"id": RUNNER_ID, "script_sha256": _this_script_sha256()},
+        "outcome": {
+            "status": "evaluated",
+            "accepted": True,
+            "evaluated": True,
+        },
+        "invocation": invocation,
+        "contamination_check": contamination_check,
         "gate": gate,
         "plan": plan,
-        "per_model": per_model_reports,
+        # Preserve the existing ledger fields and metric report shape; each
+        # per-entry file now contains exactly one key instead of all three.
+        "per_model": {model_id: report},
         "third_model_queue_admission_floor": third_model_floor,
-        "isolation": isolation_measurements,
+        "isolation": {
+            model_id: {
+                "wall_seconds": measured.wall_seconds,
+                "cpu_seconds": measured.cpu_seconds,
+                "memory_mb_peak": measured.memory_mb_peak,
+                "storage_mb_used": measured.storage_mb_used,
+            }
+        },
         "max_wall_seconds": budget.max_wall_seconds,
         "max_memory_mb": budget.max_memory_mb,
     }
-    _write_evidence(scratch_root, result)
+    _write_evidence(invocation_scratch, result)
     return result
 
 
 def _write_evidence(scratch_root: Path, result: dict[str, Any]) -> Path:
-    path = scratch_root / "adr0022_result.json"
+    path = (scratch_root / "adr0022_result.json").resolve()
+    sha_path = (scratch_root / "adr0022_result.json.sha256").resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
+    result["evidence_paths"] = {
+        "result_json": str(path),
+        "result_sha256": str(sha_path),
+    }
     payload = json.dumps(result, indent=2, sort_keys=True)
     path.write_text(payload, encoding="utf-8")
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    (scratch_root / "adr0022_result.json.sha256").write_text(digest + "\n", encoding="utf-8")
-    print(path)
-    print(digest)
+    sha_path.write_text(digest + "\n", encoding="utf-8")
     return path
 
 
@@ -1015,10 +1316,18 @@ def main() -> int:
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--review-gate", type=Path)
     parser.add_argument("--scratch-root", type=Path, default=HERE / "scratch" / RUN_ID)
+    parser.add_argument("--entry-id")
+    parser.add_argument("--model-id", choices=MODEL_IDS)
+    parser.add_argument("--host-id")
+    parser.add_argument("--item-set-id")
+    parser.add_argument("--merged-registry", type=Path)
+    parser.add_argument("--wall-clock-limit-seconds", type=float)
+    parser.add_argument("--cost-inputs-json", type=Path)
     args = parser.parse_args()
 
     if not args.execute:
-        print(json.dumps(validate_plan(), indent=2, sort_keys=True))
+        plan = validate_plan() if args.model_id is None else validate_plan(model_id=args.model_id)
+        print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
 
     if args.review_gate is None:
@@ -1027,8 +1336,39 @@ def main() -> int:
         raise Adr0022Error(f"--execute requires exact reviewed scratch root {APPROVED_EXECUTION_SCRATCH}")
     if args.review_gate != APPROVED_REVIEW_GATE_PATH:
         raise Adr0022Error(f"--execute requires exact reviewed gate path {APPROVED_REVIEW_GATE_PATH}")
+    required = {
+        "--entry-id": args.entry_id,
+        "--model-id": args.model_id,
+        "--host-id": args.host_id,
+        "--item-set-id": args.item_set_id,
+        "--merged-registry": args.merged_registry,
+        "--wall-clock-limit-seconds": args.wall_clock_limit_seconds,
+        "--cost-inputs-json": args.cost_inputs_json,
+    }
+    missing = [name for name, value in required.items() if value is None]
+    if missing:
+        raise Adr0022Error(f"--execute requires {', '.join(missing)}")
+    if args.cost_inputs_json.is_symlink() or not args.cost_inputs_json.is_file():
+        raise Adr0022Error("--cost-inputs-json must be a direct regular file")
+    try:
+        cost_inputs = json.loads(args.cost_inputs_json.read_bytes())
+    except (json.JSONDecodeError, OSError) as exc:
+        raise Adr0022Error(f"--cost-inputs-json is malformed or unreadable: {exc}") from exc
+    if not isinstance(cost_inputs, dict):
+        raise Adr0022Error("--cost-inputs-json must decode to a JSON object")
 
-    execute_evaluation(args.scratch_root, args.review_gate)
+    result = execute_evaluation(
+        args.scratch_root,
+        args.review_gate,
+        entry_id=args.entry_id,
+        model_id=args.model_id,
+        host_id=args.host_id,
+        item_set_id=args.item_set_id,
+        merged_registry_path=args.merged_registry,
+        wall_clock_limit_seconds=args.wall_clock_limit_seconds,
+        cost_inputs=cost_inputs,
+    )
+    print(json.dumps(result["evidence_paths"], sort_keys=True))
     return 0
 
 

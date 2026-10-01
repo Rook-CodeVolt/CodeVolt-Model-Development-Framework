@@ -136,6 +136,53 @@ def test_verify_registry_admits_no_contamination_rejects_missing_package(runner,
         runner.verify_registry_admits_no_contamination(registry_path, ["x0"])
 
 
+def test_execution_contamination_check_records_merged_registry_identity(runner, tmp_path):
+    registry_path = tmp_path / "merged-registry.json"
+    registry_path.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+
+    result = runner.execution_contamination_check(
+        registry_path, runner.load_items().all_ids
+    )
+
+    assert result == {
+        "status": "pass",
+        "registry_path": str(registry_path.resolve()),
+        "registry_sha256": hashlib.sha256(registry_path.read_bytes()).hexdigest(),
+        "held_out_package_id": runner.HELD_OUT_PACKAGE_ID,
+        "checked_item_count": 56,
+        "overlap_count": 0,
+        "overlapping_ids": [],
+    }
+
+
+def test_execution_contamination_check_requires_existing_merged_registry(
+    runner, tmp_path
+):
+    with pytest.raises(SystemExit, match="merged held-out registry file is missing"):
+        runner.execution_contamination_check(
+            tmp_path / "missing.json", runner.load_items().all_ids
+        )
+
+
+def test_execution_contamination_check_structures_schema_type_refusal(runner, tmp_path):
+    registry_path = tmp_path / "malformed-registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package_train_ids": [],
+                "package_held_out_ids": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runner.ContaminationRefusal, match="malformed or unreadable"):
+        runner.execution_contamination_check(
+            registry_path, runner.load_items().all_ids
+        )
+
+
 # ---------------------------------------------------------------------------
 # 3. C1 scoring: closed-set parser rule, exact match, UNSCORABLE.
 # ---------------------------------------------------------------------------
@@ -474,6 +521,28 @@ def test_validate_plan_detects_missing_llama_cpp_binary(runner, tmp_path, monkey
     assert any("llama.cpp binary" in b for b in result["execution_blockers"])
 
 
+def test_validate_plan_for_reference_ignores_other_model_assets(
+    runner, tmp_path, monkeypatch
+):
+    reference_dir, reference_hash = _fake_model_dir(
+        tmp_path, "reference-model", b"fake-reference-weights"
+    )
+    monkeypatch.setattr(runner, "REFERENCE_MODEL_PATH", reference_dir)
+    monkeypatch.setattr(runner, "EXPECTED_REFERENCE_MODEL_HASH", reference_hash)
+    monkeypatch.setattr(runner, "CANDIDATE_MODEL_PATH", tmp_path / "missing-candidate")
+    monkeypatch.setattr(runner, "THIRD_MODEL_ARTIFACT_ROOT", tmp_path / "missing-third")
+    monkeypatch.delenv(runner.THIRD_MODEL_LLAMA_CPP_BINARY_ENV, raising=False)
+    monkeypatch.setattr(runner, "APPROVED_REVIEW_GATE_PATH", tmp_path / "gate.json")
+    (tmp_path / "gate.json").write_text("{}", encoding="utf-8")
+
+    result = runner.validate_plan(model_id="reference")
+
+    assert result["model_ids"] == ["reference"]
+    assert not any("candidate" in blocker for blocker in result["execution_blockers"])
+    assert not any("third-model" in blocker for blocker in result["execution_blockers"])
+    assert not any("llama.cpp" in blocker for blocker in result["execution_blockers"])
+
+
 def test_validate_plan_reports_missing_gate_blocker(runner, tmp_path, monkeypatch):
     _patch_valid_model_paths(runner, tmp_path, monkeypatch)
     _patch_valid_third_model(runner, tmp_path, monkeypatch)
@@ -682,7 +751,17 @@ def test_execute_evaluation_refuses_before_loading_any_model_when_blocked(
     )
 
     with pytest.raises(SystemExit):
-        runner.execute_evaluation(tmp_path / "scratch", gate_path)
+        runner.execute_evaluation(
+            tmp_path / "scratch",
+            gate_path,
+            entry_id="entry-1",
+            model_id="reference",
+            host_id="test1",
+            item_set_id=runner.HELD_OUT_PACKAGE_ID,
+            merged_registry_path=runner.HELD_OUT_REGISTRY_PATH,
+            wall_clock_limit_seconds=30.0,
+            cost_inputs={},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -697,22 +776,32 @@ def _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_plan",
-        lambda: {"status": "PASS", "scoring_called": False, "execution_blockers": []},
+        lambda model_id=None: {
+            "status": "PASS",
+            "scoring_called": False,
+            "model_ids": [model_id] if model_id else list(runner.MODEL_IDS),
+            "execution_blockers": [],
+        },
     )
     gate = _valid_gate(runner)
     monkeypatch.setattr(runner, "load_gate", lambda path: gate)
-    monkeypatch.setattr(
-        runner,
-        "verify_registry_admits_no_contamination",
-        lambda registry_path, item_ids: None,
-    )
-    return gate
+    merged_registry = tmp_path / "merged-registry.json"
+    merged_registry.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    return gate, {
+        "entry_id": "meta_trainer_adr0022_smol135m_test1",
+        "model_id": "reference",
+        "host_id": "test1_cv_test1",
+        "item_set_id": runner.HELD_OUT_PACKAGE_ID,
+        "merged_registry_path": merged_registry,
+        "wall_clock_limit_seconds": 30.0,
+        "cost_inputs": {"hours_per_round": "0.5", "kwh_estimate": "low"},
+    }
 
 
 def test_execute_evaluation_overrun_refuses_with_no_outcome_classification(
     runner, tmp_path, monkeypatch
 ):
-    _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
 
     def _fake_isolated_run(*, compute_fn, kwargs, budget):
         measured = MeasuredUsage(
@@ -729,24 +818,115 @@ def test_execute_evaluation_overrun_refuses_with_no_outcome_classification(
 
     scratch_root = tmp_path / "scratch"
     with pytest.raises(SystemExit, match="exceeded the resource"):
-        runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
-    assert not scratch_root.exists() or not list(scratch_root.glob("adr0022_result.json"))
+        runner.execute_evaluation(
+            scratch_root, tmp_path / "gate.json", **invocation
+        )
+    assert not (scratch_root / "reference" / "adr0022_result.json").exists()
+
+
+def test_execute_evaluation_rechecks_merged_registry_before_model_load(
+    runner, tmp_path, monkeypatch
+):
+    from held_out_eval import HeldOutExclusionRegistry
+
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    item_ids = runner.load_items().all_ids
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("newer-training-package", [item_ids[0]])
+    registry.package_held_out_ids[runner.HELD_OUT_PACKAGE_ID] = frozenset(item_ids)
+    registry.save(invocation["merged_registry_path"])
+
+    called = False
+
+    def _fake_isolated_run(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("overlap must refuse before model loading")
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    with pytest.raises(SystemExit, match="contamination"):
+        runner.execute_evaluation(
+            tmp_path / "scratch", tmp_path / "gate.json", **invocation
+        )
+    assert called is False
+    refusal_path = tmp_path / "scratch" / "reference" / "adr0022_result.json"
+    refusal = json.loads(refusal_path.read_text(encoding="utf-8"))
+    assert refusal["outcome"] == {
+        "status": "refused",
+        "accepted": False,
+        "evaluated": False,
+    }
+    assert refusal["contamination_check"]["overlap_count"] == 1
+    assert refusal["contamination_check"]["overlapping_ids"] == [item_ids[0]]
+    assert refusal["per_model"] == {}
+
+
+def test_execute_evaluation_rejects_wrong_entry_model_host_pair(
+    runner, tmp_path, monkeypatch
+):
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    invocation["host_id"] = "test2_evo_x3_102"
+
+    with pytest.raises(SystemExit, match="entry/model/host combination"):
+        runner.execute_evaluation(
+            tmp_path / "scratch", tmp_path / "gate.json", **invocation
+        )
+
+
+def test_execution_contamination_check_rejects_symlink(runner, tmp_path):
+    target = tmp_path / "registry.json"
+    target.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    link = tmp_path / "registry-link.json"
+    link.symlink_to(target)
+
+    with pytest.raises(SystemExit, match="direct regular file"):
+        runner.execution_contamination_check(link, runner.load_items().all_ids)
+
+
+def test_registry_snapshot_identity_detects_toctou_mutation(runner, tmp_path):
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    _, identity = runner._load_execution_registry_snapshot(
+        registry_path, runner.load_items().all_ids
+    )
+    registry_path.write_bytes(registry_path.read_bytes() + b"\n")
+
+    with pytest.raises(SystemExit, match="changed before evidence finalisation"):
+        runner._verify_registry_snapshot_unchanged(registry_path, identity)
+
+
+def test_complete_model_report_rejects_missing_items(runner):
+    item_set = runner.load_items()
+    incomplete = {
+        "model_id": "reference",
+        "c1_results": [],
+        "c1_aggregate": {},
+        "c1_aggregate_by_sub_bucket": {},
+        "c2_results": [],
+        "c2_aggregate": {},
+        "c4_results": [],
+        "c4_aggregate": {},
+    }
+    with pytest.raises(SystemExit, match="incomplete or reordered c1"):
+        runner._validate_complete_model_report(incomplete, "reference", item_set)
 
 
 def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
     runner, tmp_path, monkeypatch
 ):
-    gate = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    gate, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
 
+    item_set = runner.load_items()
     fake_report_template = {
-        "c1_results": [],
+        "c1_results": [{"example_id": item["example_id"]} for item in item_set.c1],
         "c1_aggregate": {"n": 24, "correct": 10, "unscorable": 0, "accuracy_over_all_items": 0.42, "unscorable_rate": 0.0},
         "c1_aggregate_by_sub_bucket": {
             "trainer_adapter_selection": {"n": 8, "correct": 4},
             "evaluator_adapter_selection": {"n": 8, "correct": 5},
             "task_type_selection": {"n": 8, "correct": 3},
         },
-        "c2_results": [],
+        "c2_results": [{"example_id": item["example_id"]} for item in item_set.c2],
         "c2_aggregate": {
             "config_validity": {"n": 6, "correct": 3, "fraction_correct": 0.5},
             "command_produces_expected_artifact": {
@@ -754,7 +934,7 @@ def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
                 "stage_b_pass_of_stage_a_pass": 2, "stage_b_fraction_of_stage_a_pass": 0.5,
             },
         },
-        "c4_results": [],
+        "c4_results": [{"example_id": item["example_id"]} for item in item_set.c4],
         "c4_aggregate": {
             "n": 20, "unscorable": 0, "should_not_defer_n": 12,
             "should_not_defer_participation_rate": 0.6,
@@ -782,26 +962,57 @@ def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
     monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
 
     scratch_root = tmp_path / "scratch"
-    result = runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+    result = runner.execute_evaluation(
+        scratch_root, tmp_path / "gate.json", **invocation
+    )
 
-    assert captured_model_ids == ["reference", "candidate", "third_model"]
-    assert len(captured_budgets) == 3
-    for budget in captured_budgets:
-        assert budget.max_memory_mb == gate["measured_max_memory_mb"]
-        assert budget.max_wall_seconds == gate["measured_max_wall_seconds"]
-        assert budget.network_policy == "offline"
+    assert captured_model_ids == ["reference"]
+    assert len(captured_budgets) == 1
+    budget = captured_budgets[0]
+    assert budget.max_memory_mb == gate["measured_max_memory_mb"]
+    assert budget.max_wall_seconds == invocation["wall_clock_limit_seconds"]
+    assert budget.network_policy == "offline"
 
-    assert set(result["per_model"]) == {"reference", "candidate", "third_model"}
-    assert "third_model_queue_admission_floor" in result
-    assert "overall_sufficient_signal" in result["third_model_queue_admission_floor"]
+    assert set(result["per_model"]) == {"reference"}
+    assert result["third_model_queue_admission_floor"] is None
+    assert result["outcome"] == {
+        "status": "evaluated",
+        "accepted": True,
+        "evaluated": True,
+    }
+    assert result["contamination_check"]["status"] == "pass"
+    assert result["contamination_check"]["overlap_count"] == 0
+    assert result["invocation"]["entry_id"] == "meta_trainer_adr0022_smol135m_test1"
+    assert result["invocation"]["cost_inputs"] == invocation["cost_inputs"]
 
-    evidence_path = scratch_root / "adr0022_result.json"
+    evidence_path = scratch_root / "reference" / "adr0022_result.json"
     assert evidence_path.is_file()
-    sha_path = scratch_root / "adr0022_result.json.sha256"
+    sha_path = scratch_root / "reference" / "adr0022_result.json.sha256"
     assert sha_path.is_file()
+    assert result["evidence_paths"] == {
+        "result_json": str(evidence_path.resolve()),
+        "result_sha256": str(sha_path.resolve()),
+    }
     assert sha_path.read_text(encoding="utf-8").strip() == hashlib.sha256(
         evidence_path.read_bytes()
     ).hexdigest()
+
+    third_model_invocation = {
+        **invocation,
+        "entry_id": "meta_trainer_adr0022_baseline",
+        "model_id": "third_model",
+        "host_id": "test2_evo_x3_102",
+    }
+    third_model_result = runner.execute_evaluation(
+        scratch_root, tmp_path / "gate.json", **third_model_invocation
+    )
+    assert third_model_result["third_model_queue_admission_floor"] == {
+        "c1_pass": True,
+        "c2_pass": True,
+        "c4_pass": True,
+        "capabilities_passed": 3,
+        "overall_sufficient_signal": True,
+    }
 
 
 # ---------------------------------------------------------------------------
