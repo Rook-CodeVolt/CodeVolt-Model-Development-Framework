@@ -125,6 +125,7 @@ import resource
 import signal
 import socket
 import subprocess
+import sys
 import time
 import traceback
 from dataclasses import dataclass, fields, is_dataclass
@@ -1154,6 +1155,20 @@ def _kill_group(process: Any) -> PidTreeWalkOutcome | None:
     return walk_outcome
 
 
+def _ru_maxrss_to_mb(ru_maxrss: float, *, platform_name: str | None = None) -> float:
+    """Convert ``getrusage().ru_maxrss`` to MiB using OS-defined units.
+
+    Darwin reports bytes, whereas Linux reports KiB. Other Unix platforms keep
+    the established KiB normalization. The unit is a platform ABI property,
+    not a property of the observed value, so small Darwin children must not be
+    classified with a magnitude heuristic.
+    """
+    if platform_name is None:
+        platform_name = sys.platform
+    divisor = 1024.0 * 1024.0 if platform_name == "darwin" else 1024.0
+    return ru_maxrss / divisor
+
+
 def _directory_size_mb(root: str) -> float:
     total = 0
     for dirpath, _dirnames, filenames in os.walk(root):
@@ -1296,9 +1311,9 @@ def run_in_isolated_process(
         (rusage_after.ru_utime + rusage_after.ru_stime)
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
-    # ru_maxrss is bytes on macOS, kilobytes on Linux; normalise heuristically.
+    # ru_maxrss units are fixed by the host ABI; normalise deterministically.
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     measured_memory_mb = max(peak_memory_mb, ru_maxrss_mb)
 
     storage_mb_used = None
@@ -1425,7 +1440,7 @@ def run_callable_in_isolated_process(
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
     measured = MeasuredUsage(
         wall_seconds=wall_seconds,
@@ -1541,7 +1556,7 @@ def run_evaluator_in_isolated_process(
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
     measured = MeasuredUsage(
         wall_seconds=wall_seconds,
