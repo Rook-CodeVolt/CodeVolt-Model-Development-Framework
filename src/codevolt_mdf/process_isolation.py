@@ -116,6 +116,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import math
 import multiprocessing
 import os
 import queue
@@ -124,6 +125,7 @@ import resource
 import signal
 import socket
 import subprocess
+import sys
 import time
 import traceback
 from dataclasses import dataclass, fields, is_dataclass
@@ -714,7 +716,34 @@ def _evaluator_child_worker(
         result_queue.put(("exception", _safe_exception_tuple(exc)))
 
 
-_PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$")
+_PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$")
+
+# Resource accounting is a security boundary. Never resolve ``ps`` through the
+# caller-controlled PATH inherited by this process: doing so lets an evaluator
+# replace the measurement command with a successful no-output executable. Use
+# only standard absolute locations and fail closed if neither is available.
+_TRUSTED_PS_CANDIDATES = (Path("/bin/ps"), Path("/usr/bin/ps"))
+
+
+def _trusted_ps_executable() -> str | None:
+    """Return a non-writable regular system ``ps`` path, or ``None``."""
+    for candidate in _TRUSTED_PS_CANDIDATES:
+        try:
+            stat_result = candidate.stat()
+        except OSError:
+            continue
+        if not candidate.is_file() or not os.access(candidate, os.X_OK):
+            continue
+        if stat_result.st_uid != 0 or stat_result.st_mode & 0o022:
+            continue
+        return str(candidate)
+    return None
+
+
+def _trusted_ps_command(ps_executable: str) -> tuple[list[str], dict[str, str]]:
+    """Build a sandbox-compatible command with a fixed, validated search path."""
+    path = Path(ps_executable)
+    return [path.name], {"PATH": str(path.parent), "LC_ALL": "C"}
 
 
 def _parse_ps_cputime(raw: str) -> float:
@@ -724,7 +753,7 @@ def _parse_ps_cputime(raw: str) -> float:
     if not match:
         return 0.0
     days, hours, minutes, seconds = match.groups()
-    total = int(minutes) * 60 + int(seconds)
+    total = int(minutes) * 60 + float(seconds)
     if hours:
         total += int(hours) * 3600
     if days:
@@ -734,13 +763,18 @@ def _parse_ps_cputime(raw: str) -> float:
 
 def _poll_live_usage(pid: int) -> tuple[float, float] | None:
     """Return (memory_mb, cpu_seconds) for a live pid via `ps`, or None if gone."""
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        return None
+    command, trusted_env = _trusted_ps_command(ps_executable)
     try:
         proc = subprocess.run(
-            ["ps", "-o", "rss=,time=", "-p", str(pid)],
+            [*command, "-o", "rss=,time=", "-p", str(pid)],
             capture_output=True,
             text=True,
             timeout=2,
             check=False,
+            env=trusted_env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -759,14 +793,77 @@ def _poll_live_usage(pid: int) -> tuple[float, float] | None:
     return memory_mb, cpu_seconds
 
 
+def _poll_process_tree_usage(root_pid: int) -> tuple[tuple[float, float] | None, bool]:
+    """Return aggregate live RSS/CPU for ``root_pid`` and all descendants.
+
+    The snapshot includes pid, ppid, RSS and cumulative CPU in one ``ps``
+    invocation, so lineage and usage describe the same instant.  ``ok`` is
+    false when that measurement could not be obtained; callers enforcing a
+    hard ceiling must fail closed rather than silently reverting to root-only
+    accounting.
+    """
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        return None, False
+    command, trusted_env = _trusted_ps_command(ps_executable)
+    try:
+        proc = subprocess.run(
+            [*command, "-eo", "pid=,ppid=,rss=,time="],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+            env=trusted_env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None, False
+    if proc.returncode != 0:
+        return None, False
+
+    rows: dict[int, tuple[int, float, float]] = {}
+    pairs: list[tuple[int, int]] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 4:
+            return None, False
+        try:
+            pid = int(parts[0])
+            ppid = int(parts[1])
+            rss_mb = float(parts[2]) / 1024.0
+        except ValueError:
+            return None, False
+        if (
+            pid <= 0
+            or ppid < 0
+            or pid in rows
+            or not math.isfinite(rss_mb)
+            or rss_mb < 0
+            or _PS_TIME_RE.match(parts[3]) is None
+        ):
+            return None, False
+        cpu_seconds = _parse_ps_cputime(parts[3])
+        rows[pid] = (ppid, rss_mb, cpu_seconds)
+        pairs.append((pid, ppid))
+
+    # A successful exit status with no usable root row is not a usable
+    # measurement. In particular, this rejects a PATH-substituted no-output
+    # command and any partial snapshot that omitted or malformed the live root.
+    if root_pid not in rows:
+        return None, False
+    pids = [root_pid, *_descendant_pids(root_pid, pairs)]
+    return (
+        sum(rows[pid][1] for pid in pids if pid in rows),
+        sum(rows[pid][2] for pid in pids if pid in rows),
+    ), True
+
+
 def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
     """Return (``(pid, ppid)`` pairs, ``ok``) for every process visible on the host.
 
-    ``ok`` is ``False`` when the underlying ``ps`` call itself failed or
-    timed out (as opposed to succeeding with zero/malformed lines, which
-    is a normal empty snapshot). Callers must check ``ok`` rather than
-    inferring failure from an empty list, because this failure mode was
-    previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
+    ``ok`` is ``False`` when the underlying ``ps`` call failed, timed out,
+    or returned an incomplete/malformed snapshot. Callers must check ``ok``
+    rather than inferring failure from an empty list, because this failure
+    mode was previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
     same as "no descendants exist" and quietly degrade to a root-pid-only
     kill with zero observability (the PR #14 review, required
     remediation item). See
@@ -779,13 +876,21 @@ def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
     change (it changes the caller's process group and session id, not
     its ``ppid``).
     """
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        _logger.warning(
+            "_list_pid_ppid_pairs: no trusted absolute ps executable is available"
+        )
+        return [], False
+    command, trusted_env = _trusted_ps_command(ps_executable)
     try:
         proc = subprocess.run(
-            ["ps", "-eo", "pid=,ppid="],
+            [*command, "-eo", "pid=,ppid="],
             capture_output=True,
             text=True,
             timeout=5,
             check=False,
+            env=trusted_env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         _logger.warning(
@@ -795,16 +900,29 @@ def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
             exc,
         )
         return [], False
+    if proc.returncode != 0:
+        _logger.warning(
+            "_list_pid_ppid_pairs: trusted ps exited with status %s; "
+            "pid-tree lineage snapshot unavailable for this pass",
+            proc.returncode,
+        )
+        return [], False
     pairs: list[tuple[int, int]] = []
+    seen: set[int] = set()
     for line in proc.stdout.splitlines():
         parts = line.split()
         if len(parts) != 2:
-            continue
+            return [], False
         try:
             pid, ppid = int(parts[0]), int(parts[1])
         except ValueError:
-            continue
+            return [], False
+        if pid <= 0 or ppid < 0 or pid in seen:
+            return [], False
+        seen.add(pid)
         pairs.append((pid, ppid))
+    if not pairs:
+        return [], False
     return pairs, True
 
 
@@ -1037,6 +1155,20 @@ def _kill_group(process: Any) -> PidTreeWalkOutcome | None:
     return walk_outcome
 
 
+def _ru_maxrss_to_mb(ru_maxrss: float, *, platform_name: str | None = None) -> float:
+    """Convert ``getrusage().ru_maxrss`` to MiB using OS-defined units.
+
+    Darwin reports bytes, whereas Linux reports KiB. Other Unix platforms keep
+    the established KiB normalization. The unit is a platform ABI property,
+    not a property of the observed value, so small Darwin children must not be
+    classified with a magnitude heuristic.
+    """
+    if platform_name is None:
+        platform_name = sys.platform
+    divisor = 1024.0 * 1024.0 if platform_name == "darwin" else 1024.0
+    return ru_maxrss / divisor
+
+
 def _directory_size_mb(root: str) -> float:
     total = 0
     for dirpath, _dirnames, filenames in os.walk(root):
@@ -1179,9 +1311,9 @@ def run_in_isolated_process(
         (rusage_after.ru_utime + rusage_after.ru_stime)
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
-    # ru_maxrss is bytes on macOS, kilobytes on Linux; normalise heuristically.
+    # ru_maxrss units are fixed by the host ABI; normalise deterministically.
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     measured_memory_mb = max(peak_memory_mb, ru_maxrss_mb)
 
     storage_mb_used = None
@@ -1269,14 +1401,14 @@ def run_callable_in_isolated_process(
     while True:
         elapsed = time.monotonic() - start
 
-        drained_result = _drain_result(result_queue, poll_interval)
-        if drained_result is not None:
+        # Measure the complete tree before accepting a queued result. The
+        # evaluator can spend almost all resources in a llama.cpp descendant.
+        live, measurement_ok = _poll_process_tree_usage(process.pid)  # type: ignore[arg-type]
+        if not measurement_ok and process.is_alive():
+            killed_for_overrun = True
+            pid_tree_walk_outcome = _kill_group(process)
+            process.join(timeout=5)
             break
-
-        if not process.is_alive():
-            break
-
-        live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
         if live is not None:
             memory_mb, cpu_seconds = live
             peak_memory_mb = max(peak_memory_mb, memory_mb)
@@ -1286,6 +1418,13 @@ def run_callable_in_isolated_process(
                 pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
                 break
+
+        drained_result = _drain_result(result_queue, poll_interval)
+        if drained_result is not None:
+            break
+
+        if not process.is_alive():
+            break
         if elapsed > budget.max_wall_seconds:
             killed_for_timeout = True
             pid_tree_walk_outcome = _kill_group(process)
@@ -1301,7 +1440,7 @@ def run_callable_in_isolated_process(
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
     measured = MeasuredUsage(
         wall_seconds=wall_seconds,
@@ -1314,8 +1453,27 @@ def run_callable_in_isolated_process(
     )
     if killed_for_overrun or killed_for_timeout:
         return None, None, measured
-    if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
-        return None, RuntimeError("isolated callable exceeded max_storage_mb"), measured
+    exceeded_dimensions = []
+    if measured.wall_seconds > budget.max_wall_seconds:
+        exceeded_dimensions.append("max_wall_seconds")
+    if measured.cpu_seconds > budget.max_cpu_seconds:
+        exceeded_dimensions.append("max_cpu_seconds")
+    if measured.memory_mb_peak > budget.max_memory_mb:
+        exceeded_dimensions.append("max_memory_mb")
+    if measured.storage_mb_used is None:
+        if budget.filesystem_root:
+            exceeded_dimensions.append("max_storage_mb_unmeasured")
+    elif measured.storage_mb_used > budget.max_storage_mb:
+        exceeded_dimensions.append("max_storage_mb")
+    if exceeded_dimensions:
+        return (
+            None,
+            RuntimeError(
+                "isolated callable exceeded or could not prove compliance with: "
+                + ", ".join(exceeded_dimensions)
+            ),
+            measured,
+        )
     if drained_result is None:
         drained_result = _drain_result(result_queue, poll_interval)
     if drained_result is None:
@@ -1398,7 +1556,7 @@ def run_evaluator_in_isolated_process(
         - (rusage_before.ru_utime + rusage_before.ru_stime),
     )
     maxrss_delta = max(rusage_after.ru_maxrss - rusage_before.ru_maxrss, 0)
-    ru_maxrss_mb = maxrss_delta / (1024.0 * 1024.0 if maxrss_delta > 10_000_000 else 1024.0)
+    ru_maxrss_mb = _ru_maxrss_to_mb(maxrss_delta)
     storage_mb_used = _directory_size_mb(budget.filesystem_root) if budget.filesystem_root else None
     measured = MeasuredUsage(
         wall_seconds=wall_seconds,

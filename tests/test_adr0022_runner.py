@@ -13,18 +13,51 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
+from codevolt_mdf import process_isolation
 from codevolt_mdf.hf_local_evaluator_adapter import _hash_model_dir
-from codevolt_mdf.process_isolation import MeasuredUsage
+from codevolt_mdf.process_isolation import (
+    MeasuredUsage,
+    _poll_process_tree_usage,
+    run_callable_in_isolated_process,
+)
+from codevolt_mdf.trainer_contract import ResourceBudget
 
 RUNNER_PATH = (
     Path(__file__).resolve().parents[1]
     / "examples/pilot-adr0022/run_adr0022_baseline_eval.py"
 )
+
+
+def _spawn_memory_hungry_descendant() -> dict[str, bool]:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import time; allocation = bytearray(300 * 1024 * 1024); time.sleep(5)",
+        ],
+        check=True,
+    )
+    return {"completed": True}
+
+
+def _spawn_concurrent_memory_hungry_descendants() -> dict[str, bool]:
+    command = [
+        sys.executable,
+        "-c",
+        "import time; allocation = bytearray(80 * 1024 * 1024); time.sleep(5)",
+    ]
+    children = [subprocess.Popen(command), subprocess.Popen(command)]
+    for child in children:
+        child.wait()
+    return {"completed": True}
 
 
 @pytest.fixture
@@ -70,6 +103,10 @@ def _patch_valid_third_model(runner, tmp_path, monkeypatch) -> None:
     fake_binary.write_text("#!/bin/sh\necho stub\n", encoding="utf-8")
     fake_binary.chmod(0o755)
     monkeypatch.setenv(runner.THIRD_MODEL_LLAMA_CPP_BINARY_ENV, str(fake_binary))
+    monkeypatch.setenv(
+        runner.THIRD_MODEL_GPU_CONTAINMENT_ENV,
+        runner.THIRD_MODEL_GPU_CONTAINMENT_VALUE,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +171,66 @@ def test_verify_registry_admits_no_contamination_rejects_missing_package(runner,
 
     with pytest.raises(SystemExit, match="no held-out registration"):
         runner.verify_registry_admits_no_contamination(registry_path, ["x0"])
+
+
+def test_execution_contamination_check_records_merged_registry_identity(runner, tmp_path):
+    registry_path = tmp_path / "merged-registry.json"
+    registry_path.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+
+    result = runner.execution_contamination_check(
+        registry_path, runner.load_items().all_ids
+    )
+
+    assert result == {
+        "status": "pass",
+        "registry_path": str(registry_path.resolve()),
+        "registry_sha256": hashlib.sha256(registry_path.read_bytes()).hexdigest(),
+        "held_out_package_id": runner.HELD_OUT_PACKAGE_ID,
+        "checked_item_count": 56,
+        "overlap_count": 0,
+        "overlapping_ids": [],
+    }
+
+
+def test_execution_contamination_check_requires_existing_merged_registry(
+    runner, tmp_path
+):
+    with pytest.raises(SystemExit, match="malformed or unreadable"):
+        runner.execution_contamination_check(
+            tmp_path / "missing.json", runner.load_items().all_ids
+        )
+
+
+def test_execution_contamination_check_structures_schema_type_refusal(runner, tmp_path):
+    registry_path = tmp_path / "malformed-registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package_train_ids": [],
+                "package_held_out_ids": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runner.ContaminationRefusal, match="malformed or unreadable"):
+        runner.execution_contamination_check(
+            registry_path, runner.load_items().all_ids
+        )
+
+
+@pytest.mark.parametrize("payload", [[], 7, "registry", None])
+def test_execution_contamination_check_rejects_non_object_top_level(
+    runner, tmp_path, payload
+):
+    registry_path = tmp_path / "malformed-registry.json"
+    registry_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(runner.ContaminationRefusal, match="top-level registry JSON"):
+        runner.execution_contamination_check(
+            registry_path, runner.load_items().all_ids
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -474,6 +571,28 @@ def test_validate_plan_detects_missing_llama_cpp_binary(runner, tmp_path, monkey
     assert any("llama.cpp binary" in b for b in result["execution_blockers"])
 
 
+def test_validate_plan_for_reference_ignores_other_model_assets(
+    runner, tmp_path, monkeypatch
+):
+    reference_dir, reference_hash = _fake_model_dir(
+        tmp_path, "reference-model", b"fake-reference-weights"
+    )
+    monkeypatch.setattr(runner, "REFERENCE_MODEL_PATH", reference_dir)
+    monkeypatch.setattr(runner, "EXPECTED_REFERENCE_MODEL_HASH", reference_hash)
+    monkeypatch.setattr(runner, "CANDIDATE_MODEL_PATH", tmp_path / "missing-candidate")
+    monkeypatch.setattr(runner, "THIRD_MODEL_ARTIFACT_ROOT", tmp_path / "missing-third")
+    monkeypatch.delenv(runner.THIRD_MODEL_LLAMA_CPP_BINARY_ENV, raising=False)
+    monkeypatch.setattr(runner, "APPROVED_REVIEW_GATE_PATH", tmp_path / "gate.json")
+    (tmp_path / "gate.json").write_text("{}", encoding="utf-8")
+
+    result = runner.validate_plan(model_id="reference")
+
+    assert result["model_ids"] == ["reference"]
+    assert not any("candidate" in blocker for blocker in result["execution_blockers"])
+    assert not any("third-model" in blocker for blocker in result["execution_blockers"])
+    assert not any("llama.cpp" in blocker for blocker in result["execution_blockers"])
+
+
 def test_validate_plan_reports_missing_gate_blocker(runner, tmp_path, monkeypatch):
     _patch_valid_model_paths(runner, tmp_path, monkeypatch)
     _patch_valid_third_model(runner, tmp_path, monkeypatch)
@@ -682,7 +801,17 @@ def test_execute_evaluation_refuses_before_loading_any_model_when_blocked(
     )
 
     with pytest.raises(SystemExit):
-        runner.execute_evaluation(tmp_path / "scratch", gate_path)
+        runner.execute_evaluation(
+            tmp_path / "scratch",
+            gate_path,
+            entry_id="entry-1",
+            model_id="reference",
+            host_id="test1",
+            item_set_id=runner.HELD_OUT_PACKAGE_ID,
+            merged_registry_path=runner.HELD_OUT_REGISTRY_PATH,
+            wall_clock_limit_seconds=30.0,
+            cost_inputs={},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -697,22 +826,35 @@ def _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_plan",
-        lambda: {"status": "PASS", "scoring_called": False, "execution_blockers": []},
+        lambda model_id=None: {
+            "status": "PASS",
+            "scoring_called": False,
+            "model_ids": [model_id] if model_id else list(runner.MODEL_IDS),
+            "execution_blockers": [],
+        },
     )
     gate = _valid_gate(runner)
+    gate["verified_approval"] = {
+        "scope": [runner.HOST_CONTAINMENT_SCOPE, runner.THIRD_MODEL_GPU_CONTAINMENT_SCOPE]
+    }
     monkeypatch.setattr(runner, "load_gate", lambda path: gate)
-    monkeypatch.setattr(
-        runner,
-        "verify_registry_admits_no_contamination",
-        lambda registry_path, item_ids: None,
-    )
-    return gate
+    merged_registry = tmp_path / "merged-registry.json"
+    merged_registry.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    return gate, {
+        "entry_id": "meta_trainer_adr0022_smol135m_test1",
+        "model_id": "reference",
+        "host_id": "test1_cv_test1",
+        "item_set_id": runner.HELD_OUT_PACKAGE_ID,
+        "merged_registry_path": merged_registry,
+        "wall_clock_limit_seconds": 30.0,
+        "cost_inputs": {"hours_per_round": "0.5", "kwh_estimate": "low"},
+    }
 
 
 def test_execute_evaluation_overrun_refuses_with_no_outcome_classification(
     runner, tmp_path, monkeypatch
 ):
-    _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
 
     def _fake_isolated_run(*, compute_fn, kwargs, budget):
         measured = MeasuredUsage(
@@ -729,24 +871,301 @@ def test_execute_evaluation_overrun_refuses_with_no_outcome_classification(
 
     scratch_root = tmp_path / "scratch"
     with pytest.raises(SystemExit, match="exceeded the resource"):
-        runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
-    assert not scratch_root.exists() or not list(scratch_root.glob("adr0022_result.json"))
+        runner.execute_evaluation(
+            scratch_root, tmp_path / "gate.json", **invocation
+        )
+    assert not list((scratch_root / "reference").glob("*/adr0022_result.json"))
+
+
+def test_execute_evaluation_fails_closed_on_post_collection_over_budget(
+    runner, tmp_path, monkeypatch
+):
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+
+    def _fake_isolated_run(*, compute_fn, kwargs, budget):
+        measured = MeasuredUsage(
+            wall_seconds=1.0,
+            cpu_seconds=1.0,
+            memory_mb_peak=budget.max_memory_mb + 1,
+            storage_mb_used=0.0,
+            killed_for_overrun=False,
+            killed_for_timeout=False,
+        )
+        return {"would": "otherwise be accepted"}, None, measured
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+    with pytest.raises(SystemExit, match="exceeded the resource"):
+        runner.execute_evaluation(
+            tmp_path / "scratch", tmp_path / "gate.json", **invocation
+        )
+
+
+def test_callable_isolation_kills_memory_hungry_descendant(tmp_path):
+    _usage, ps_ok = _poll_process_tree_usage(os.getpid())
+    if not ps_ok:
+        pytest.skip("host policy does not permit process-tree ps snapshots")
+    budget = ResourceBudget(
+        max_wall_seconds=10.0,
+        max_cpu_seconds=10.0,
+        max_memory_mb=120.0,
+        max_gpu_count=0,
+        max_storage_mb=10.0,
+        network_policy="offline",
+        filesystem_root=str(tmp_path / "isolated"),
+    )
+
+    result, error, measured = run_callable_in_isolated_process(
+        _spawn_memory_hungry_descendant, {}, budget
+    )
+
+    assert result is None
+    assert error is None
+    assert measured.killed_for_overrun is True
+    assert measured.memory_mb_peak > budget.max_memory_mb
+
+
+def test_process_tree_snapshot_rejects_successful_empty_or_partial_output(monkeypatch):
+    root_pid = os.getpid()
+
+    def _completed(stdout):
+        def _run(command, **kwargs):
+            assert command[0] == "ps"
+            assert kwargs["env"]["PATH"] == "/bin"
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+        return _run
+
+    monkeypatch.setattr(process_isolation, "_trusted_ps_executable", lambda: "/bin/ps")
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(""))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+    missing_root = f"{root_pid + 100_000} 1 1024 00:00.01\n"
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(missing_root))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+    partial = f"{root_pid} 1 1024 00:00.01\nnot-a-complete-row\n"
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(partial))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+
+def test_callable_isolation_ignores_path_substituted_ps_and_kills_aggregate_overrun(
+    tmp_path, monkeypatch
+):
+    _usage, ps_ok = _poll_process_tree_usage(os.getpid())
+    if not ps_ok:
+        pytest.skip("host policy does not permit process-tree ps snapshots")
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_ps = fake_bin / "ps"
+    fake_ps.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_ps.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}")
+    budget = ResourceBudget(
+        max_wall_seconds=10.0,
+        max_cpu_seconds=10.0,
+        max_memory_mb=120.0,
+        max_gpu_count=0,
+        max_storage_mb=10.0,
+        network_policy="offline",
+        filesystem_root=str(tmp_path / "isolated-path-substitution"),
+    )
+
+    result, error, measured = run_callable_in_isolated_process(
+        _spawn_concurrent_memory_hungry_descendants, {}, budget
+    )
+
+    assert result is None
+    assert error is None
+    assert measured.killed_for_overrun is True
+    assert measured.memory_mb_peak > budget.max_memory_mb
+
+
+@pytest.mark.parametrize("payload", [[], "scalar"])
+def test_execute_evaluation_malformed_registry_writes_structured_refusal(
+    runner, tmp_path, monkeypatch, payload
+):
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    invocation["merged_registry_path"].write_text(json.dumps(payload), encoding="utf-8")
+    called = False
+
+    def _fake_isolated_run(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("malformed registry must refuse before evaluation")
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+    scratch_root = tmp_path / "scratch"
+    with pytest.raises(runner.ContaminationRefusal, match="top-level registry JSON"):
+        runner.execute_evaluation(
+            scratch_root, tmp_path / "gate.json", **invocation
+        )
+
+    assert called is False
+    refusal_paths = list(
+        (scratch_root / "reference").glob("*/adr0022_result.json")
+    )
+    assert len(refusal_paths) == 1
+    refusal = json.loads(refusal_paths[0].read_text(encoding="utf-8"))
+    assert refusal["outcome"] == {
+        "status": "refused",
+        "accepted": False,
+        "evaluated": False,
+    }
+    assert refusal["per_model"] == {}
+
+
+def test_execute_evaluation_rechecks_merged_registry_before_model_load(
+    runner, tmp_path, monkeypatch
+):
+    from held_out_eval import HeldOutExclusionRegistry
+
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    item_ids = runner.load_items().all_ids
+    registry = HeldOutExclusionRegistry()
+    registry.register_package_train("newer-training-package", [item_ids[0]])
+    registry.package_held_out_ids[runner.HELD_OUT_PACKAGE_ID] = frozenset(item_ids)
+    registry.save(invocation["merged_registry_path"])
+
+    called = False
+
+    def _fake_isolated_run(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("overlap must refuse before model loading")
+
+    monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
+
+    with pytest.raises(SystemExit, match="contamination"):
+        runner.execute_evaluation(
+            tmp_path / "scratch", tmp_path / "gate.json", **invocation
+        )
+    assert called is False
+    refusal_paths = list(
+        (tmp_path / "scratch" / "reference").glob("*/adr0022_result.json")
+    )
+    assert len(refusal_paths) == 1
+    refusal = json.loads(refusal_paths[0].read_text(encoding="utf-8"))
+    assert refusal["outcome"] == {
+        "status": "refused",
+        "accepted": False,
+        "evaluated": False,
+    }
+    assert refusal["contamination_check"]["overlap_count"] == 1
+    assert refusal["contamination_check"]["overlapping_ids"] == [item_ids[0]]
+    assert refusal["per_model"] == {}
+
+
+def test_execute_evaluation_rejects_wrong_entry_model_host_pair(
+    runner, tmp_path, monkeypatch
+):
+    _, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    invocation["host_id"] = "test2_evo_x3_102"
+
+    with pytest.raises(SystemExit, match="entry/model/host combination"):
+        runner.execute_evaluation(
+            tmp_path / "scratch", tmp_path / "gate.json", **invocation
+        )
+
+
+def test_execution_contamination_check_rejects_symlink(runner, tmp_path):
+    target = tmp_path / "registry.json"
+    target.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    link = tmp_path / "registry-link.json"
+    link.symlink_to(target)
+
+    with pytest.raises(SystemExit, match="malformed or unreadable"):
+        runner.execution_contamination_check(link, runner.load_items().all_ids)
+
+
+def test_execution_contamination_check_rejects_symlinked_parent(runner, tmp_path):
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    registry_path = real_dir / "registry.json"
+    registry_path.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    linked_dir = tmp_path / "linked"
+    linked_dir.symlink_to(real_dir, target_is_directory=True)
+
+    with pytest.raises(SystemExit, match="malformed or unreadable"):
+        runner.execution_contamination_check(
+            linked_dir / "registry.json", runner.load_items().all_ids
+        )
+
+
+def test_registry_snapshot_identity_detects_toctou_mutation(runner, tmp_path):
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_bytes(runner.HELD_OUT_REGISTRY_PATH.read_bytes())
+    _, identity = runner._load_execution_registry_snapshot(
+        registry_path, runner.load_items().all_ids
+    )
+    registry_path.write_bytes(registry_path.read_bytes() + b"\n")
+
+    with pytest.raises(SystemExit, match="changed before evidence finalisation"):
+        runner._verify_registry_snapshot_unchanged(registry_path, identity)
+
+
+def test_registry_snapshot_identity_detects_same_bytes_inode_swap(runner, tmp_path):
+    registry_path = tmp_path / "registry.json"
+    payload = runner.HELD_OUT_REGISTRY_PATH.read_bytes()
+    registry_path.write_bytes(payload)
+    _, identity = runner._load_execution_registry_snapshot(
+        registry_path, runner.load_items().all_ids
+    )
+    replacement = tmp_path / "replacement.json"
+    replacement.write_bytes(payload)
+    replacement.replace(registry_path)
+
+    with pytest.raises(SystemExit, match="changed before evidence finalisation"):
+        runner._verify_registry_snapshot_unchanged(registry_path, identity)
+
+
+def test_registry_final_recheck_rejects_symlink_swap(runner, tmp_path):
+    registry_path = tmp_path / "registry.json"
+    payload = runner.HELD_OUT_REGISTRY_PATH.read_bytes()
+    registry_path.write_bytes(payload)
+    _, identity = runner._load_execution_registry_snapshot(
+        registry_path, runner.load_items().all_ids
+    )
+    target = tmp_path / "target.json"
+    target.write_bytes(payload)
+    registry_path.unlink()
+    registry_path.symlink_to(target)
+
+    with pytest.raises(SystemExit, match="changed before evidence finalisation"):
+        runner._verify_registry_snapshot_unchanged(registry_path, identity)
+
+
+def test_complete_model_report_rejects_missing_items(runner):
+    item_set = runner.load_items()
+    incomplete = {
+        "model_id": "reference",
+        "c1_results": [],
+        "c1_aggregate": {},
+        "c1_aggregate_by_sub_bucket": {},
+        "c2_results": [],
+        "c2_aggregate": {},
+        "c4_results": [],
+        "c4_aggregate": {},
+    }
+    with pytest.raises(SystemExit, match="incomplete or reordered c1"):
+        runner._validate_complete_model_report(incomplete, "reference", item_set)
 
 
 def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
     runner, tmp_path, monkeypatch
 ):
-    gate = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
+    gate, invocation = _prepare_execute_evaluation_call(runner, tmp_path, monkeypatch)
 
+    item_set = runner.load_items()
     fake_report_template = {
-        "c1_results": [],
+        "c1_results": [{"example_id": item["example_id"]} for item in item_set.c1],
         "c1_aggregate": {"n": 24, "correct": 10, "unscorable": 0, "accuracy_over_all_items": 0.42, "unscorable_rate": 0.0},
         "c1_aggregate_by_sub_bucket": {
             "trainer_adapter_selection": {"n": 8, "correct": 4},
             "evaluator_adapter_selection": {"n": 8, "correct": 5},
             "task_type_selection": {"n": 8, "correct": 3},
         },
-        "c2_results": [],
+        "c2_results": [{"example_id": item["example_id"]} for item in item_set.c2],
         "c2_aggregate": {
             "config_validity": {"n": 6, "correct": 3, "fraction_correct": 0.5},
             "command_produces_expected_artifact": {
@@ -754,7 +1173,7 @@ def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
                 "stage_b_pass_of_stage_a_pass": 2, "stage_b_fraction_of_stage_a_pass": 0.5,
             },
         },
-        "c4_results": [],
+        "c4_results": [{"example_id": item["example_id"]} for item in item_set.c4],
         "c4_aggregate": {
             "n": 20, "unscorable": 0, "should_not_defer_n": 12,
             "should_not_defer_participation_rate": 0.6,
@@ -782,26 +1201,122 @@ def test_execute_evaluation_happy_path_writes_evidence_with_matching_sha256(
     monkeypatch.setattr(runner, "run_callable_in_isolated_process", _fake_isolated_run)
 
     scratch_root = tmp_path / "scratch"
-    result = runner.execute_evaluation(scratch_root, tmp_path / "gate.json")
+    result = runner.execute_evaluation(
+        scratch_root, tmp_path / "gate.json", **invocation
+    )
 
-    assert captured_model_ids == ["reference", "candidate", "third_model"]
-    assert len(captured_budgets) == 3
-    for budget in captured_budgets:
-        assert budget.max_memory_mb == gate["measured_max_memory_mb"]
-        assert budget.max_wall_seconds == gate["measured_max_wall_seconds"]
-        assert budget.network_policy == "offline"
+    assert captured_model_ids == ["reference"]
+    assert len(captured_budgets) == 1
+    budget = captured_budgets[0]
+    assert budget.max_memory_mb == gate["measured_max_memory_mb"]
+    assert budget.max_wall_seconds == invocation["wall_clock_limit_seconds"]
+    assert budget.network_policy == "offline"
 
-    assert set(result["per_model"]) == {"reference", "candidate", "third_model"}
-    assert "third_model_queue_admission_floor" in result
-    assert "overall_sufficient_signal" in result["third_model_queue_admission_floor"]
+    assert set(result["per_model"]) == {"reference"}
+    assert result["third_model_queue_admission_floor"] is None
+    assert result["outcome"] == {
+        "status": "evaluated",
+        "accepted": True,
+        "evaluated": True,
+    }
+    assert result["contamination_check"]["status"] == "pass"
+    assert result["contamination_check"]["overlap_count"] == 0
+    assert result["invocation"]["entry_id"] == "meta_trainer_adr0022_smol135m_test1"
+    assert result["invocation"]["cost_inputs"] == invocation["cost_inputs"]
 
-    evidence_path = scratch_root / "adr0022_result.json"
+    evidence_path = Path(result["evidence_paths"]["result_json"])
     assert evidence_path.is_file()
-    sha_path = scratch_root / "adr0022_result.json.sha256"
+    sha_path = Path(result["evidence_paths"]["result_sha256"])
     assert sha_path.is_file()
+    assert evidence_path.parent.parent == (scratch_root / "reference").absolute()
+    assert result["evidence_paths"] == {
+        "result_json": str(evidence_path),
+        "result_sha256": str(sha_path),
+    }
     assert sha_path.read_text(encoding="utf-8").strip() == hashlib.sha256(
         evidence_path.read_bytes()
     ).hexdigest()
+
+    third_model_invocation = {
+        **invocation,
+        "entry_id": "meta_trainer_adr0022_baseline",
+        "model_id": "third_model",
+        "host_id": "test2_evo_x3_102",
+    }
+    third_model_result = runner.execute_evaluation(
+        scratch_root, tmp_path / "gate.json", **third_model_invocation
+    )
+    assert third_model_result["third_model_queue_admission_floor"] == {
+        "c1_pass": True,
+        "c2_pass": True,
+        "c4_pass": True,
+        "capabilities_passed": 3,
+        "overall_sufficient_signal": True,
+    }
+    third_budget = captured_budgets[-1]
+    assert third_budget.max_gpu_count == 1
+
+
+def test_third_model_budget_requires_signed_external_gpu_containment(
+    runner, tmp_path, monkeypatch
+):
+    gate = _valid_gate(runner)
+    monkeypatch.setenv(
+        runner.THIRD_MODEL_GPU_CONTAINMENT_ENV,
+        runner.THIRD_MODEL_GPU_CONTAINMENT_VALUE,
+    )
+    with pytest.raises(SystemExit, match="signed external single-GPU containment"):
+        runner._isolation_budget(gate, tmp_path, 30.0, "third_model")
+
+
+def test_scratch_and_evidence_reject_symlinked_components(runner, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked_root = tmp_path / "linked"
+    linked_root.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(SystemExit, match="contains symbolic link"):
+        runner._create_unique_invocation_scratch(linked_root, "reference")
+    with pytest.raises(SystemExit, match="contains symbolic link"):
+        runner._write_evidence(linked_root / "evidence", {"outcome": {}})
+    assert not list(outside.rglob("adr0022_result.json"))
+
+
+def test_concurrent_same_model_evidence_uses_unique_invocations(runner, tmp_path):
+    scratch_root = tmp_path / "scratch"
+
+    def _publish(index):
+        invocation_root = runner._create_unique_invocation_scratch(
+            scratch_root, "reference"
+        )
+        result = {"invocation_index": index}
+        runner._write_evidence(invocation_root, result)
+        return result["evidence_paths"]
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        evidence = list(pool.map(_publish, range(16)))
+
+    result_paths = [Path(item["result_json"]) for item in evidence]
+    assert len(set(result_paths)) == 16
+    for item, result_path in zip(evidence, result_paths):
+        sha_path = Path(item["result_sha256"])
+        assert result_path.is_file()
+        assert sha_path.read_text(encoding="utf-8").strip() == hashlib.sha256(
+            result_path.read_bytes()
+        ).hexdigest()
+
+
+def test_parent_controlled_inputs_are_size_bounded(runner, tmp_path):
+    registry_path = tmp_path / "oversized-registry.json"
+    registry_path.write_bytes(b" " * (runner.MAX_MERGED_REGISTRY_BYTES + 1))
+    with pytest.raises(runner.ContaminationRefusal, match="input limit"):
+        runner.execution_contamination_check(
+            registry_path, runner.load_items().all_ids
+        )
+
+    oversized_cost = {"blob": "x" * runner.MAX_COST_INPUTS_BYTES}
+    with pytest.raises(SystemExit, match="evidence/input limit"):
+        runner._validate_cost_inputs_size(oversized_cost)
 
 
 # ---------------------------------------------------------------------------
