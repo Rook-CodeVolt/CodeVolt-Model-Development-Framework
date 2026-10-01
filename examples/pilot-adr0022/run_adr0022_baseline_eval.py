@@ -42,8 +42,10 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -133,6 +135,11 @@ HELD_OUT_PACKAGE_ID = "pilot-adr0022-heldout-v1"
 RUN_ID = "adr0022-baseline-eval-20260929"
 HOST_CONTAINMENT_SCOPE = "evaluator-process-containment-v1"
 HOST_CONTAINMENT_ENV = "CODEVOLT_ADR0022_HOST_CONTAINMENT"
+THIRD_MODEL_GPU_CONTAINMENT_SCOPE = "externally-enforced-vulkan-gpu-count-1"
+THIRD_MODEL_GPU_CONTAINMENT_ENV = "CODEVOLT_ADR0022_VULKAN_GPU_CONTAINMENT"
+THIRD_MODEL_GPU_CONTAINMENT_VALUE = "test2_evo_x3_102:max_gpu_count=1:external"
+MAX_MERGED_REGISTRY_BYTES = 8 * 1024 * 1024
+MAX_COST_INPUTS_BYTES = 1024 * 1024
 APPROVAL_ALLOWED_SIGNERS_PATH = (
     REPO_ROOT / "examples/pilot-metatrainer-v2/approval_allowed_signers_adr0018"
 )
@@ -299,30 +306,95 @@ def verify_registry_admits_no_contamination(
     return registry
 
 
+def _open_nofollow(path: Path, flags: int) -> int:
+    """Open ``path`` without following symlinks in any path component."""
+    absolute = Path(path).absolute()
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    if not nofollow:  # pragma: no cover - supported CI is POSIX with O_NOFOLLOW
+        if any(
+            candidate.is_symlink()
+            for candidate in [absolute, *absolute.parents]
+            if candidate.exists() or candidate.is_symlink()
+        ):
+            raise OSError("symbolic links are not permitted")
+        return os.open(absolute, flags)
+
+    directory_fd = os.open(absolute.anchor, os.O_RDONLY | directory | nofollow)
+    try:
+        for component in absolute.parts[1:-1]:
+            next_fd = os.open(
+                component,
+                os.O_RDONLY | directory | nofollow,
+                dir_fd=directory_fd,
+            )
+            os.close(directory_fd)
+            directory_fd = next_fd
+        return os.open(absolute.name, flags | nofollow, dir_fd=directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _read_bounded_regular_file(
+    path: Path, max_bytes: int
+) -> tuple[bytes, tuple[int, int, int, int, int]]:
+    """Read a bounded regular file from one no-follow descriptor snapshot."""
+    supplied_path = Path(path)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    fd = _open_nofollow(supplied_path, flags)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError("path is not a regular file")
+        if before.st_size > max_bytes:
+            raise ValueError(f"file exceeds {max_bytes}-byte input limit")
+        chunks = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(1024 * 1024, max_bytes + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError(f"file exceeds {max_bytes}-byte input limit")
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+
+    before_identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    after_identity = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    if after_identity != before_identity:
+        raise OSError("file changed while it was being read")
+    return b"".join(chunks), before_identity
+
+
 def _load_execution_registry_snapshot(
     merged_registry_path: Path, item_ids: list[str]
-) -> tuple[dict[str, Any], tuple[int, int, int, int, str]]:
-    """Read, hash, parse, and check one direct regular-file snapshot."""
+) -> tuple[dict[str, Any], tuple[int, int, int, int, int, str]]:
+    """Read, hash, parse, and check one bounded descriptor-bound snapshot."""
     supplied_path = Path(merged_registry_path)
     absolute_path = supplied_path.absolute()
-    if supplied_path.is_symlink() or not supplied_path.is_file():
-        raise ContaminationRefusal(
-            f"merged held-out registry file is missing or not a direct regular file: {absolute_path}",
-            {
-                "status": "refused",
-                "registry_path": str(absolute_path),
-                "registry_sha256": None,
-                "held_out_package_id": HELD_OUT_PACKAGE_ID,
-                "checked_item_count": len(item_ids),
-                "overlap_count": None,
-                "overlapping_ids": [],
-            },
-        )
     try:
-        stat_before = supplied_path.stat()
-        payload_bytes = supplied_path.read_bytes()
+        payload_bytes, file_identity = _read_bounded_regular_file(
+            supplied_path, MAX_MERGED_REGISTRY_BYTES
+        )
         digest = hashlib.sha256(payload_bytes).hexdigest()
         payload = json.loads(payload_bytes)
+        if not isinstance(payload, dict):
+            raise TypeError("top-level registry JSON must be an object")
         registry = HeldOutExclusionRegistry.from_dict(payload)
     except (
         AssertionError,
@@ -374,14 +446,7 @@ def _load_execution_registry_snapshot(
             f"contamination: {len(overlapping_ids)} held-out item id(s) overlap train data",
             check,
         )
-    identity = (
-        stat_before.st_dev,
-        stat_before.st_ino,
-        stat_before.st_size,
-        stat_before.st_mtime_ns,
-        digest,
-    )
-    return check, identity
+    return check, (*file_identity, digest)
 
 
 def execution_contamination_check(
@@ -395,20 +460,17 @@ def execution_contamination_check(
 
 
 def _verify_registry_snapshot_unchanged(
-    merged_registry_path: Path, expected_identity: tuple[int, int, int, int, str]
+    merged_registry_path: Path, expected_identity: tuple[int, int, int, int, int, str]
 ) -> None:
-    path = Path(merged_registry_path)
-    if path.is_symlink() or not path.is_file():
-        raise Adr0022Error("merged held-out registry changed before evidence finalisation")
-    stat_after = path.stat()
-    digest_after = _sha256_file(path)
-    actual_identity = (
-        stat_after.st_dev,
-        stat_after.st_ino,
-        stat_after.st_size,
-        stat_after.st_mtime_ns,
-        digest_after,
-    )
+    try:
+        payload, file_identity = _read_bounded_regular_file(
+            Path(merged_registry_path), MAX_MERGED_REGISTRY_BYTES
+        )
+    except (OSError, ValueError) as exc:
+        raise Adr0022Error(
+            "merged held-out registry changed before evidence finalisation"
+        ) from exc
+    actual_identity = (*file_identity, hashlib.sha256(payload).hexdigest())
     if actual_identity != expected_identity:
         raise Adr0022Error("merged held-out registry changed before evidence finalisation")
 
@@ -814,6 +876,14 @@ def validate_plan(model_id: str | None = None) -> dict[str, Any]:
             blockers.append(
                 f"{THIRD_MODEL_LLAMA_CPP_BINARY_ENV} does not point at an installed llama.cpp binary"
             )
+        if (
+            os.environ.get(THIRD_MODEL_GPU_CONTAINMENT_ENV)
+            != THIRD_MODEL_GPU_CONTAINMENT_VALUE
+        ):
+            blockers.append(
+                "third-model Vulkan execution lacks the exact externally enforced "
+                "single-GPU containment attestation"
+            )
 
     try:
         verify_registry_admits_no_contamination(HELD_OUT_REGISTRY_PATH, item_set.all_ids)
@@ -1010,7 +1080,10 @@ def load_gate(path: Path) -> dict[str, Any]:
 
 
 def _isolation_budget(
-    gate: dict[str, Any], scratch_root: Path, wall_clock_limit_seconds: float
+    gate: dict[str, Any],
+    scratch_root: Path,
+    wall_clock_limit_seconds: float,
+    model_id: str,
 ) -> ResourceBudget:
     if wall_clock_limit_seconds <= 0:
         raise Adr0022Error("wall-clock limit must be a positive number")
@@ -1018,11 +1091,26 @@ def _isolation_budget(
         raise Adr0022Error(
             "caller wall-clock limit exceeds the independently reviewed gate ceiling"
         )
+    max_gpu_count = 0
+    if model_id == "third_model":
+        scope = gate.get("verified_approval", {}).get("scope", [])
+        if THIRD_MODEL_GPU_CONTAINMENT_SCOPE not in scope:
+            raise Adr0022Error(
+                "third-model Vulkan execution requires signed external single-GPU containment scope"
+            )
+        if (
+            os.environ.get(THIRD_MODEL_GPU_CONTAINMENT_ENV)
+            != THIRD_MODEL_GPU_CONTAINMENT_VALUE
+        ):
+            raise Adr0022Error(
+                "third-model Vulkan execution requires exact external GPU containment attestation"
+            )
+        max_gpu_count = 1
     return ResourceBudget(
         max_wall_seconds=wall_clock_limit_seconds,
         max_cpu_seconds=ISOLATION_MAX_CPU_SECONDS,
         max_memory_mb=gate["measured_max_memory_mb"],
-        max_gpu_count=0,
+        max_gpu_count=max_gpu_count,
         max_storage_mb=ISOLATION_MAX_STORAGE_MB,
         network_policy="offline",
         filesystem_root=str(scratch_root),
@@ -1060,7 +1148,7 @@ def _run_model_pass(
             raw = _hf_generate(evaluator, model, tokenizer, item["input"])
             c4_results.append(score_c4_item(item, raw))
     elif model_id == "third_model":
-        binary_path = Path(os.environ[THIRD_MODEL_LLAMA_CPP_BINARY_ENV])
+        binary_path = Path(item_set_paths["llama_cpp_binary"])
         shard_path = THIRD_MODEL_ARTIFACT_ROOT / THIRD_MODEL_GGUF_SHARDS[0]
         work_dir = Path(item_set_paths["c2_work_dir"]) / model_id
         for item in item_set.c1:
@@ -1124,6 +1212,42 @@ def _validate_complete_model_report(
             )
 
 
+def _ensure_no_symlink_components(path: Path) -> None:
+    """Reject any existing symlink component without resolving it away."""
+    absolute = Path(path).absolute()
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current /= part
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(mode):
+            raise Adr0022Error(f"scratch/evidence path contains symbolic link: {current}")
+
+
+def _create_unique_invocation_scratch(scratch_root: Path, model_id: str) -> Path:
+    _ensure_no_symlink_components(scratch_root)
+    model_root = Path(scratch_root).absolute() / model_id
+    model_root.mkdir(parents=True, exist_ok=True)
+    _ensure_no_symlink_components(model_root)
+    invocation_scratch = model_root / uuid.uuid4().hex
+    invocation_scratch.mkdir(mode=0o700, exist_ok=False)
+    _ensure_no_symlink_components(invocation_scratch)
+    return invocation_scratch
+
+
+def _validate_cost_inputs_size(cost_inputs: dict[str, Any]) -> None:
+    try:
+        encoded = json.dumps(cost_inputs, sort_keys=True).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise Adr0022Error(f"cost_inputs must be JSON-serializable: {exc}") from exc
+    if len(encoded) > MAX_COST_INPUTS_BYTES:
+        raise Adr0022Error(
+            f"cost_inputs exceeds {MAX_COST_INPUTS_BYTES}-byte evidence/input limit"
+        )
+
+
 def execute_evaluation(
     scratch_root: Path,
     gate_path: Path,
@@ -1151,6 +1275,7 @@ def execute_evaluation(
         )
     if not isinstance(cost_inputs, dict):
         raise Adr0022Error("cost_inputs must be a JSON object")
+    _validate_cost_inputs_size(cost_inputs)
 
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -1160,7 +1285,7 @@ def execute_evaluation(
     if plan["execution_blockers"]:
         raise Adr0022Error(f"cannot execute: {plan['execution_blockers']}")
 
-    invocation_scratch = scratch_root / model_id
+    invocation_scratch = _create_unique_invocation_scratch(scratch_root, model_id)
     invocation = {
         "entry_id": entry_id,
         "model_id": model_id,
@@ -1169,7 +1294,9 @@ def execute_evaluation(
         "wall_clock_limit_seconds": wall_clock_limit_seconds,
         "cost_inputs": cost_inputs,
     }
-    budget = _isolation_budget(gate, invocation_scratch, wall_clock_limit_seconds)
+    budget = _isolation_budget(
+        gate, invocation_scratch, wall_clock_limit_seconds, model_id
+    )
     item_set = load_items()
     # This is deliberately the final admission read before the isolated
     # evaluator starts. Never replace it with the committed split-time registry.
@@ -1201,11 +1328,23 @@ def execute_evaluation(
             "model_id": model_id,
             "candidate_model_path": str(CANDIDATE_MODEL_PATH),
             "reference_model_path": str(REFERENCE_MODEL_PATH),
-            "item_set_paths": {"c2_work_dir": str(c2_work_dir)},
+            "item_set_paths": {
+                "c2_work_dir": str(c2_work_dir),
+                "llama_cpp_binary": os.environ.get(
+                    THIRD_MODEL_LLAMA_CPP_BINARY_ENV, ""
+                ),
+            },
         },
         budget=budget,
     )
-    if measured.killed_for_overrun:
+    measured_over_budget = (
+        measured.wall_seconds > budget.max_wall_seconds
+        or measured.cpu_seconds > budget.max_cpu_seconds
+        or measured.memory_mb_peak > budget.max_memory_mb
+        or measured.storage_mb_used is None
+        or measured.storage_mb_used > budget.max_storage_mb
+    )
+    if measured.killed_for_overrun or measured_over_budget:
         raise Adr0022Error(
             f"isolated evaluator process for model {model_id!r} exceeded the resource "
             f"budget (measured wall={measured.wall_seconds}s, cpu={measured.cpu_seconds}s, "
@@ -1291,18 +1430,49 @@ def execute_evaluation(
     return result
 
 
+def _write_exclusive_atomic(path: Path, payload: bytes) -> None:
+    """Publish one file without following or replacing an existing target."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    fd = os.open(temporary, flags, 0o600)
+    try:
+        try:
+            with os.fdopen(fd, "wb", closefd=False) as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+        finally:
+            os.close(fd)
+        os.link(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _write_evidence(scratch_root: Path, result: dict[str, Any]) -> Path:
-    path = (scratch_root / "adr0022_result.json").resolve()
-    sha_path = (scratch_root / "adr0022_result.json.sha256").resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    root = Path(scratch_root).absolute()
+    _ensure_no_symlink_components(root)
+    root.mkdir(parents=True, exist_ok=True)
+    _ensure_no_symlink_components(root)
+    path = root / "adr0022_result.json"
+    sha_path = root / "adr0022_result.json.sha256"
     result["evidence_paths"] = {
         "result_json": str(path),
         "result_sha256": str(sha_path),
     }
-    payload = json.dumps(result, indent=2, sort_keys=True)
-    path.write_text(payload, encoding="utf-8")
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    sha_path.write_text(digest + "\n", encoding="utf-8")
+    payload = json.dumps(result, indent=2, sort_keys=True).encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest().encode("ascii") + b"\n"
+    _write_exclusive_atomic(path, payload)
+    try:
+        _write_exclusive_atomic(sha_path, digest)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    directory_fd = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     return path
 
 
@@ -1348,11 +1518,12 @@ def main() -> int:
     missing = [name for name, value in required.items() if value is None]
     if missing:
         raise Adr0022Error(f"--execute requires {', '.join(missing)}")
-    if args.cost_inputs_json.is_symlink() or not args.cost_inputs_json.is_file():
-        raise Adr0022Error("--cost-inputs-json must be a direct regular file")
     try:
-        cost_inputs = json.loads(args.cost_inputs_json.read_bytes())
-    except (json.JSONDecodeError, OSError) as exc:
+        cost_inputs_bytes, _cost_identity = _read_bounded_regular_file(
+            args.cost_inputs_json, MAX_COST_INPUTS_BYTES
+        )
+        cost_inputs = json.loads(cost_inputs_bytes)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
         raise Adr0022Error(f"--cost-inputs-json is malformed or unreadable: {exc}") from exc
     if not isinstance(cost_inputs, dict):
         raise Adr0022Error("--cost-inputs-json must decode to a JSON object")

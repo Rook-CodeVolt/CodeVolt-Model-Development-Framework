@@ -714,7 +714,7 @@ def _evaluator_child_worker(
         result_queue.put(("exception", _safe_exception_tuple(exc)))
 
 
-_PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$")
+_PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$")
 
 
 def _parse_ps_cputime(raw: str) -> float:
@@ -724,7 +724,7 @@ def _parse_ps_cputime(raw: str) -> float:
     if not match:
         return 0.0
     days, hours, minutes, seconds = match.groups()
-    total = int(minutes) * 60 + int(seconds)
+    total = int(minutes) * 60 + float(seconds)
     if hours:
         total += int(hours) * 3600
     if days:
@@ -757,6 +757,53 @@ def _poll_live_usage(pid: int) -> tuple[float, float] | None:
         return None
     cpu_seconds = _parse_ps_cputime(cputime_str)
     return memory_mb, cpu_seconds
+
+
+def _poll_process_tree_usage(root_pid: int) -> tuple[tuple[float, float] | None, bool]:
+    """Return aggregate live RSS/CPU for ``root_pid`` and all descendants.
+
+    The snapshot includes pid, ppid, RSS and cumulative CPU in one ``ps``
+    invocation, so lineage and usage describe the same instant.  ``ok`` is
+    false when that measurement could not be obtained; callers enforcing a
+    hard ceiling must fail closed rather than silently reverting to root-only
+    accounting.
+    """
+    try:
+        proc = subprocess.run(
+            ["ps", "-eo", "pid=,ppid=,rss=,time="],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None, False
+    if proc.returncode != 0:
+        return None, False
+
+    rows: dict[int, tuple[int, float, float]] = {}
+    pairs: list[tuple[int, int]] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 4:
+            continue
+        try:
+            pid = int(parts[0])
+            ppid = int(parts[1])
+            rss_mb = float(parts[2]) / 1024.0
+        except ValueError:
+            continue
+        cpu_seconds = _parse_ps_cputime(parts[3])
+        rows[pid] = (ppid, rss_mb, cpu_seconds)
+        pairs.append((pid, ppid))
+
+    if root_pid not in rows:
+        return None, True
+    pids = [root_pid, *_descendant_pids(root_pid, pairs)]
+    return (
+        sum(rows[pid][1] for pid in pids if pid in rows),
+        sum(rows[pid][2] for pid in pids if pid in rows),
+    ), True
 
 
 def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
@@ -1269,14 +1316,14 @@ def run_callable_in_isolated_process(
     while True:
         elapsed = time.monotonic() - start
 
-        drained_result = _drain_result(result_queue, poll_interval)
-        if drained_result is not None:
+        # Measure the complete tree before accepting a queued result. The
+        # evaluator can spend almost all resources in a llama.cpp descendant.
+        live, measurement_ok = _poll_process_tree_usage(process.pid)  # type: ignore[arg-type]
+        if not measurement_ok and process.is_alive():
+            killed_for_overrun = True
+            pid_tree_walk_outcome = _kill_group(process)
+            process.join(timeout=5)
             break
-
-        if not process.is_alive():
-            break
-
-        live = _poll_live_usage(process.pid)  # type: ignore[arg-type]
         if live is not None:
             memory_mb, cpu_seconds = live
             peak_memory_mb = max(peak_memory_mb, memory_mb)
@@ -1286,6 +1333,13 @@ def run_callable_in_isolated_process(
                 pid_tree_walk_outcome = _kill_group(process)
                 process.join(timeout=5)
                 break
+
+        drained_result = _drain_result(result_queue, poll_interval)
+        if drained_result is not None:
+            break
+
+        if not process.is_alive():
+            break
         if elapsed > budget.max_wall_seconds:
             killed_for_timeout = True
             pid_tree_walk_outcome = _kill_group(process)
@@ -1314,8 +1368,27 @@ def run_callable_in_isolated_process(
     )
     if killed_for_overrun or killed_for_timeout:
         return None, None, measured
-    if storage_mb_used is not None and storage_mb_used > budget.max_storage_mb:
-        return None, RuntimeError("isolated callable exceeded max_storage_mb"), measured
+    exceeded_dimensions = []
+    if measured.wall_seconds > budget.max_wall_seconds:
+        exceeded_dimensions.append("max_wall_seconds")
+    if measured.cpu_seconds > budget.max_cpu_seconds:
+        exceeded_dimensions.append("max_cpu_seconds")
+    if measured.memory_mb_peak > budget.max_memory_mb:
+        exceeded_dimensions.append("max_memory_mb")
+    if measured.storage_mb_used is None:
+        if budget.filesystem_root:
+            exceeded_dimensions.append("max_storage_mb_unmeasured")
+    elif measured.storage_mb_used > budget.max_storage_mb:
+        exceeded_dimensions.append("max_storage_mb")
+    if exceeded_dimensions:
+        return (
+            None,
+            RuntimeError(
+                "isolated callable exceeded or could not prove compliance with: "
+                + ", ".join(exceeded_dimensions)
+            ),
+            measured,
+        )
     if drained_result is None:
         drained_result = _drain_result(result_queue, poll_interval)
     if drained_result is None:
