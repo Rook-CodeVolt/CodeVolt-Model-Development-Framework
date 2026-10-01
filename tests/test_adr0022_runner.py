@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from codevolt_mdf import process_isolation
 from codevolt_mdf.hf_local_evaluator_adapter import _hash_model_dir
 from codevolt_mdf.process_isolation import (
     MeasuredUsage,
@@ -44,6 +45,18 @@ def _spawn_memory_hungry_descendant() -> dict[str, bool]:
         ],
         check=True,
     )
+    return {"completed": True}
+
+
+def _spawn_concurrent_memory_hungry_descendants() -> dict[str, bool]:
+    command = [
+        sys.executable,
+        "-c",
+        "import time; allocation = bytearray(80 * 1024 * 1024); time.sleep(5)",
+    ]
+    children = [subprocess.Popen(command), subprocess.Popen(command)]
+    for child in children:
+        child.wait()
     return {"completed": True}
 
 
@@ -903,6 +916,63 @@ def test_callable_isolation_kills_memory_hungry_descendant(tmp_path):
 
     result, error, measured = run_callable_in_isolated_process(
         _spawn_memory_hungry_descendant, {}, budget
+    )
+
+    assert result is None
+    assert error is None
+    assert measured.killed_for_overrun is True
+    assert measured.memory_mb_peak > budget.max_memory_mb
+
+
+def test_process_tree_snapshot_rejects_successful_empty_or_partial_output(monkeypatch):
+    root_pid = os.getpid()
+
+    def _completed(stdout):
+        def _run(command, **kwargs):
+            assert command[0] == "ps"
+            assert kwargs["env"]["PATH"] == "/bin"
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+        return _run
+
+    monkeypatch.setattr(process_isolation, "_trusted_ps_executable", lambda: "/bin/ps")
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(""))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+    missing_root = f"{root_pid + 100_000} 1 1024 00:00.01\n"
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(missing_root))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+    partial = f"{root_pid} 1 1024 00:00.01\nnot-a-complete-row\n"
+    monkeypatch.setattr(process_isolation.subprocess, "run", _completed(partial))
+    assert _poll_process_tree_usage(root_pid) == (None, False)
+
+
+def test_callable_isolation_ignores_path_substituted_ps_and_kills_aggregate_overrun(
+    tmp_path, monkeypatch
+):
+    _usage, ps_ok = _poll_process_tree_usage(os.getpid())
+    if not ps_ok:
+        pytest.skip("host policy does not permit process-tree ps snapshots")
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_ps = fake_bin / "ps"
+    fake_ps.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_ps.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}")
+    budget = ResourceBudget(
+        max_wall_seconds=10.0,
+        max_cpu_seconds=10.0,
+        max_memory_mb=120.0,
+        max_gpu_count=0,
+        max_storage_mb=10.0,
+        network_policy="offline",
+        filesystem_root=str(tmp_path / "isolated-path-substitution"),
+    )
+
+    result, error, measured = run_callable_in_isolated_process(
+        _spawn_concurrent_memory_hungry_descendants, {}, budget
     )
 
     assert result is None

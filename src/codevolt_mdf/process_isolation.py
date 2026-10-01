@@ -116,6 +116,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import math
 import multiprocessing
 import os
 import queue
@@ -716,6 +717,33 @@ def _evaluator_child_worker(
 
 _PS_TIME_RE = re.compile(r"^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$")
 
+# Resource accounting is a security boundary. Never resolve ``ps`` through the
+# caller-controlled PATH inherited by this process: doing so lets an evaluator
+# replace the measurement command with a successful no-output executable. Use
+# only standard absolute locations and fail closed if neither is available.
+_TRUSTED_PS_CANDIDATES = (Path("/bin/ps"), Path("/usr/bin/ps"))
+
+
+def _trusted_ps_executable() -> str | None:
+    """Return a non-writable regular system ``ps`` path, or ``None``."""
+    for candidate in _TRUSTED_PS_CANDIDATES:
+        try:
+            stat_result = candidate.stat()
+        except OSError:
+            continue
+        if not candidate.is_file() or not os.access(candidate, os.X_OK):
+            continue
+        if stat_result.st_uid != 0 or stat_result.st_mode & 0o022:
+            continue
+        return str(candidate)
+    return None
+
+
+def _trusted_ps_command(ps_executable: str) -> tuple[list[str], dict[str, str]]:
+    """Build a sandbox-compatible command with a fixed, validated search path."""
+    path = Path(ps_executable)
+    return [path.name], {"PATH": str(path.parent), "LC_ALL": "C"}
+
 
 def _parse_ps_cputime(raw: str) -> float:
     """Parse `ps -o time=` output (``[[dd-]hh:]mm:ss``) into seconds."""
@@ -734,13 +762,18 @@ def _parse_ps_cputime(raw: str) -> float:
 
 def _poll_live_usage(pid: int) -> tuple[float, float] | None:
     """Return (memory_mb, cpu_seconds) for a live pid via `ps`, or None if gone."""
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        return None
+    command, trusted_env = _trusted_ps_command(ps_executable)
     try:
         proc = subprocess.run(
-            ["ps", "-o", "rss=,time=", "-p", str(pid)],
+            [*command, "-o", "rss=,time=", "-p", str(pid)],
             capture_output=True,
             text=True,
             timeout=2,
             check=False,
+            env=trusted_env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -768,13 +801,18 @@ def _poll_process_tree_usage(root_pid: int) -> tuple[tuple[float, float] | None,
     hard ceiling must fail closed rather than silently reverting to root-only
     accounting.
     """
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        return None, False
+    command, trusted_env = _trusted_ps_command(ps_executable)
     try:
         proc = subprocess.run(
-            ["ps", "-eo", "pid=,ppid=,rss=,time="],
+            [*command, "-eo", "pid=,ppid=,rss=,time="],
             capture_output=True,
             text=True,
             timeout=2,
             check=False,
+            env=trusted_env,
         )
     except (OSError, subprocess.SubprocessError):
         return None, False
@@ -786,19 +824,31 @@ def _poll_process_tree_usage(root_pid: int) -> tuple[tuple[float, float] | None,
     for line in proc.stdout.splitlines():
         parts = line.split()
         if len(parts) != 4:
-            continue
+            return None, False
         try:
             pid = int(parts[0])
             ppid = int(parts[1])
             rss_mb = float(parts[2]) / 1024.0
         except ValueError:
-            continue
+            return None, False
+        if (
+            pid <= 0
+            or ppid < 0
+            or pid in rows
+            or not math.isfinite(rss_mb)
+            or rss_mb < 0
+            or _PS_TIME_RE.match(parts[3]) is None
+        ):
+            return None, False
         cpu_seconds = _parse_ps_cputime(parts[3])
         rows[pid] = (ppid, rss_mb, cpu_seconds)
         pairs.append((pid, ppid))
 
+    # A successful exit status with no usable root row is not a usable
+    # measurement. In particular, this rejects a PATH-substituted no-output
+    # command and any partial snapshot that omitted or malformed the live root.
     if root_pid not in rows:
-        return None, True
+        return None, False
     pids = [root_pid, *_descendant_pids(root_pid, pairs)]
     return (
         sum(rows[pid][1] for pid in pids if pid in rows),
@@ -809,11 +859,10 @@ def _poll_process_tree_usage(root_pid: int) -> tuple[tuple[float, float] | None,
 def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
     """Return (``(pid, ppid)`` pairs, ``ok``) for every process visible on the host.
 
-    ``ok`` is ``False`` when the underlying ``ps`` call itself failed or
-    timed out (as opposed to succeeding with zero/malformed lines, which
-    is a normal empty snapshot). Callers must check ``ok`` rather than
-    inferring failure from an empty list, because this failure mode was
-    previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
+    ``ok`` is ``False`` when the underlying ``ps`` call failed, timed out,
+    or returned an incomplete/malformed snapshot. Callers must check ``ok``
+    rather than inferring failure from an empty list, because this failure
+    mode was previously silent: ``_kill_pid_tree`` would treat a failed ``ps`` the
     same as "no descendants exist" and quietly degrade to a root-pid-only
     kill with zero observability (the PR #14 review, required
     remediation item). See
@@ -826,13 +875,21 @@ def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
     change (it changes the caller's process group and session id, not
     its ``ppid``).
     """
+    ps_executable = _trusted_ps_executable()
+    if ps_executable is None:
+        _logger.warning(
+            "_list_pid_ppid_pairs: no trusted absolute ps executable is available"
+        )
+        return [], False
+    command, trusted_env = _trusted_ps_command(ps_executable)
     try:
         proc = subprocess.run(
-            ["ps", "-eo", "pid=,ppid="],
+            [*command, "-eo", "pid=,ppid="],
             capture_output=True,
             text=True,
             timeout=5,
             check=False,
+            env=trusted_env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         _logger.warning(
@@ -842,16 +899,29 @@ def _list_pid_ppid_pairs() -> tuple[list[tuple[int, int]], bool]:
             exc,
         )
         return [], False
+    if proc.returncode != 0:
+        _logger.warning(
+            "_list_pid_ppid_pairs: trusted ps exited with status %s; "
+            "pid-tree lineage snapshot unavailable for this pass",
+            proc.returncode,
+        )
+        return [], False
     pairs: list[tuple[int, int]] = []
+    seen: set[int] = set()
     for line in proc.stdout.splitlines():
         parts = line.split()
         if len(parts) != 2:
-            continue
+            return [], False
         try:
             pid, ppid = int(parts[0]), int(parts[1])
         except ValueError:
-            continue
+            return [], False
+        if pid <= 0 or ppid < 0 or pid in seen:
+            return [], False
+        seen.add(pid)
         pairs.append((pid, ppid))
+    if not pairs:
+        return [], False
     return pairs, True
 
 
